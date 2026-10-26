@@ -1,0 +1,100 @@
+/* Topology v2: cards, regions, header, selection. Tokens only, so both themes work. */
+.topology { container-type: inline-size; outline: none; --tp-cfg: #a78bfa; }
+html[data-theme='light'] .topology { --tp-cfg: #7c4dff; }
+.topology .flow .react-flow { --xy-edge-stroke: var(--faint); --xy-node-border-radius: 12px; }
+.react-flow__handle { opacity: 0; pointer-events: none; }
+.react-flow__edge .react-flow__edge-path { transition: opacity 0.15s; }
+.react-flow__edge.topo-edge-dim { opacity: 0.1; }
+.react-flow__edge.topo-edge-hot .react-flow__edge-path { filter: drop-shadow(0 0 3px color-mix(in srgb, currentColor 60%, transparent)); }
+
+/* toolbar */
+.tp-bar { gap: 6px; padding: 6px 10px; min-height: 42px; }
+.tp-bar .search { flex: 0 1 190px; height: 28px; }
+.tp-tog, .tp-btn, .tp-seg button { height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.tp-tog:hover, .tp-btn:hover, .tp-seg button:hover { background: var(--hover); color: var(--text); }
+.tp-tog.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+.tp-seg { display: inline-flex; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+.tp-seg button { border: none; border-radius: 0; padding: 0 9px; }
+.tp-seg button + button { border-left: 1px solid var(--line); }
+.tp-seg button.on { background: var(--accent-soft); color: var(--accent); }
+
+/* header card */
+.tp-head.react-flow__panel { margin: 10px; max-width: min(470px, calc(100% - 20px)); background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 7px; }
+.tp-title { display: flex; align-items: baseline; gap: 10px; }
+.tp-title b { font-size: 14px; color: var(--text-strong); }
+.tp-title span { font-size: 11.5px; color: var(--muted); }
+.tp-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tp-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 11.5px; cursor: pointer; }
+.tp-chip b { font-weight: 600; color: var(--muted); }
+.tp-chip:hover { background: var(--hover); }
+.tp-chip.off { opacity: 0.45; text-decoration: line-through; }
+.tp-chip.focus { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+/* zoom */
+.tp-zoom.react-flow__panel { margin: 10px; display: flex; align-items: center; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+.tp-zoom button { width: 26px; height: 26px; border: none; background: none; color: var(--text); border-radius: 7px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.tp-zoom button:hover { background: var(--hover); }
+.tp-zoom span { min-width: 42px; text-align: center; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tp-mini.react-flow__minimap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 10px; box-shadow: var(--shadow); }
+
+/* info card */
+.tp-info.react-flow__panel { margin: 10px; width: 250px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+.tp-info-head { display: flex; align-items: center; gap: 9px; }
+.tp-info-head .tc-txt { flex: 1; }
+.tp-x { border: none; background: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 6px; display: grid; }
+.tp-x:hover { background: var(--hover); color: var(--text); }
+.tp-rel { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); }
+.tp-rel b { color: var(--text-strong); font-size: 13px; margin-right: 3px; }
+.tp-actions { display: flex; gap: 6px; }
+.tp-actions button { flex: 1; height: 28px; border-radius: 8px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+
+/* card */
+.tc { position: relative; width: 100%; height: 100%; box-sizing: border-box; padding: 9px 11px 11px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); transition: box-shadow 0.15s, border-color 0.15s; }
+.tc:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.tc.ref { border-style: dashed; }
+.tc.missing { border: 1.5px dashed var(--error); background: color-mix(in srgb, var(--error) 10%, var(--panel)); }
+.tc.root { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 0 18px 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.tc-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.tc-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, var(--neutral) 16%, transparent); color: var(--muted); }
+.tc.h-ok .tc-ico { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.tc.h-warn .tc-ico { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.tc.h-error .tc-ico, .tc.missing .tc-ico { background: color-mix(in srgb, var(--error) 16%, transparent); color: var(--error); }
+.tc-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.tc-name { font-size: 12.5px; font-weight: 700; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-sub { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-status { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topology .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--neutral); }
+.topology .dot.h-ok, .topology .tc-bar .h-ok, .topology .sq.h-ok { background: var(--ok); }
+.topology .dot.h-warn, .topology .tc-bar .h-warn, .topology .sq.h-warn { background: var(--warn); }
+.topology .dot.h-error, .topology .tc-bar .h-error, .topology .sq.h-error { background: var(--error); }
+.topology .tc-bar .h-neutral, .topology .sq.h-neutral { background: var(--neutral); }
+.tc-pods { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; align-items: center; }
+.topology .sq { width: 9px; height: 9px; border-radius: 2.5px; }
+.tc-more { font-size: 10px; color: var(--muted); margin-left: 2px; }
+.tc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; display: flex; gap: 1px; opacity: 0.9; }
+.tc-bar i { display: block; height: 100%; }
+
+/* states: selection dims everything outside the neighborhood */
+.react-flow__node.topo-dim { opacity: 0.32; transition: opacity 0.15s; }
+.react-flow__node.topo-sel .tc { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.react-flow__node.topo-nb .tc { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.react-flow__node-region { pointer-events: none !important; }
+
+/* regions */
+.topo-region { width: 100%; height: 100%; box-sizing: border-box; border-radius: 22px; position: relative; background: hsl(var(--h) 70% 55% / 0.07); border: 1.5px dashed hsl(var(--h) 70% 55% / 0.4); }
+.topo-region.other { background: color-mix(in srgb, var(--neutral) 6%, transparent); border-color: color-mix(in srgb, var(--neutral) 35%, transparent); }
+.topo-region-label { position: absolute; top: 13px; left: 20px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: hsl(var(--h) 70% 68%); display: flex; gap: 8px; align-items: center; }
+.topo-region-label b { font-weight: 600; letter-spacing: 0; opacity: 0.7; }
+.topo-region.other .topo-region-label { color: var(--muted); }
+html[data-theme='light'] .topo-region-label { color: hsl(var(--h) 65% 38%); }
+html[data-theme='light'] .topo-region { background: hsl(var(--h) 70% 50% / 0.08); border-color: hsl(var(--h) 60% 45% / 0.45); }
+html[data-theme='light'] .topo-region.other { background: color-mix(in srgb, var(--neutral) 8%, transparent); }
+
+/* narrow panels (object tab) */
+@container (max-width: 560px) {
+  .tp-title span { display: none; }
+  .tp-head.react-flow__panel { max-width: calc(100% - 20px); padding: 6px 8px; }
+  .tp-mini.react-flow__minimap { display: none; }
+  .tp-bar .search { flex-basis: 120px; }
+  .tp-info.react-flow__panel { width: 210px; }
+}

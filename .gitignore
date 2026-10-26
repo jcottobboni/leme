@@ -1,0 +1,15 @@
+node_modules/
+# build output
+/engine/bin/
+/app/out/
+/app/dist/
+/app/release/
+/app/renderer-dist/
+# test output
+/app/test-results/
+/app/playwright-report/
+/app/e2e/test-results/
+/app/e2e/screenshots/
+*.log
+.env
+.DS_Store

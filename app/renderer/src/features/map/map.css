@@ -1,0 +1,73 @@
+/* Mapa do cluster. Everything scoped under .map-panel; tokens come from styles.css. */
+.map-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+.map-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.map-bar .spacer { flex: 1; }
+.map-search { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; height: 28px; min-width: 200px; }
+.map-search:focus-within { border-color: var(--accent); }
+.map-search input { background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; width: 230px; }
+.map-search svg { color: var(--muted); flex: none; }
+.map-toggle { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; font: inherit; }
+.map-toggle:hover { background: var(--hover); }
+.map-toggle.on { background: var(--accent-soft); border-color: var(--select-line); color: var(--text-strong); }
+.map-count { color: var(--muted); font-size: 12px; }
+.map-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.map-stage.panning { cursor: grabbing; }
+.map-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.map-ctl { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; align-items: stretch; z-index: 3; }
+.map-ctl .group { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); }
+.map-ctl button { background: transparent; border: 0; border-bottom: 1px solid var(--line-soft); color: var(--muted); padding: 7px 10px; cursor: pointer; font: inherit; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; text-align: left; display: flex; align-items: center; gap: 6px; }
+.map-ctl button:last-child { border-bottom: 0; }
+.map-ctl button:hover { background: var(--hover); color: var(--text); }
+.map-ctl button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.map-ctl .zoom { text-align: center; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding: 4px 0; }
+.map-ctl .icons { display: flex; flex-direction: row; }
+.map-ctl .icons button { flex: 1; justify-content: center; border-bottom: 0; border-right: 1px solid var(--line-soft); padding: 6px 8px; }
+.map-ctl .icons button:last-child { border-right: 0; }
+.map-foot { display: flex; align-items: center; gap: 16px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.map-foot b { color: var(--text-strong); font-weight: 600; }
+.map-foot .legend { margin-left: auto; display: flex; gap: 12px; }
+.map-foot .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.map-tip { position: absolute; z-index: 4; pointer-events: none; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; box-shadow: var(--shadow); font-size: 12px; max-width: 280px; display: none; }
+.map-tip.show { display: block; }
+.map-tip h5 { margin: 0 0 4px; font-size: 13px; color: var(--text-strong); word-break: break-all; }
+.map-tip .row { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
+.map-tip .row b { color: var(--text); font-weight: 500; text-align: right; }
+.map-nspop { position: absolute; top: 40px; left: 230px; z-index: 6; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); width: 260px; max-height: 340px; display: flex; flex-direction: column; }
+.map-nspop .head { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 12px; align-items: center; }
+.map-nspop .head button { margin-left: auto; }
+.map-nspop .list { overflow: auto; padding: 4px 0; }
+.map-nspop label { display: flex; align-items: center; gap: 8px; padding: 4px 12px; cursor: pointer; font-size: 12px; }
+.map-nspop label:hover { background: var(--hover); }
+.map-nspop label span.n { margin-left: auto; color: var(--faint); }
+.map-away { position: fixed; inset: 0; z-index: 5; }
+.map-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); pointer-events: none; }
+
+/* SVG content */
+.map-island { --tint: hsl(var(--h) 62% 55%); --label: hsl(var(--h) 85% 85%); }
+html[data-theme='light'] .map-island { --tint: hsl(var(--h) 66% 46%); --label: hsl(var(--h) 70% 24%); }
+.map-island .blob { fill: color-mix(in srgb, var(--tint) 17%, transparent); stroke: color-mix(in srgb, var(--tint) 70%, transparent); stroke-width: 1.6; vector-effect: non-scaling-stroke; transition: fill .15s; }
+.map-island .hexfill { fill: url(#map-hex); pointer-events: none; }
+.map-island.hot .blob { fill: color-mix(in srgb, var(--tint) 26%, transparent); stroke-width: 2.4; }
+.map-island .nslabel { fill: var(--label); font-weight: 700; letter-spacing: .04em; text-anchor: middle; pointer-events: none; text-transform: uppercase; }
+.map-island .nsmeta { fill: var(--label); opacity: .75; text-anchor: middle; pointer-events: none; }
+.map-island .app { fill: color-mix(in srgb, var(--tint) 12%, transparent); stroke: color-mix(in srgb, var(--tint) 55%, transparent); stroke-width: 1; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.map-island .app.hot { fill: color-mix(in srgb, var(--tint) 22%, transparent); }
+.map-island .applabel { fill: var(--label); opacity: .85; text-anchor: middle; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; pointer-events: none; }
+.map-hexpat { stroke: var(--text); stroke-opacity: .07; fill: none; stroke-width: 1; }
+.map-bar-seg.ok { fill: var(--ok); } .map-bar-seg.warn { fill: var(--warn); } .map-bar-seg.error { fill: var(--error); } .map-bar-seg.other { fill: var(--neutral); }
+.map-bar-bg { fill: var(--track); opacity: .6; }
+.map-bar-txt { fill: #fff; text-anchor: middle; font-weight: 700; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.45); stroke-width: .6; }
+.map-tile { cursor: pointer; }
+.map-tile .hex { fill: var(--panel); stroke-width: 2.4; vector-effect: non-scaling-stroke; transition: fill .12s; }
+.map-tile:hover .hex { fill: var(--raised); }
+.map-tile .hex.ok { stroke: color-mix(in srgb, var(--ok) 75%, transparent); }
+.map-tile .hex.warn { stroke: var(--warn); }
+.map-tile .hex.error { stroke: var(--error); }
+.map-tile .hex.neutral { stroke: var(--neutral); }
+.map-tile .ico { color: var(--text-strong); pointer-events: none; }
+.map-tile .name { fill: var(--text-strong); text-anchor: middle; font-weight: 600; pointer-events: none; }
+.map-tile .sub { fill: var(--muted); text-anchor: middle; pointer-events: none; }
+.map-tile.match .hex { stroke: var(--accent); stroke-width: 4; filter: drop-shadow(0 0 6px var(--accent)); }
+.map-dim { opacity: .18; }
+.map-dot.ok { fill: var(--ok); } .map-dot.warn { fill: var(--warn); } .map-dot.error { fill: var(--error); } .map-dot.neutral { fill: var(--neutral); }
+.map-pod.ok { fill: var(--ok); } .map-pod.warn { fill: var(--warn); } .map-pod.error { fill: var(--error); } .map-pod.other { fill: var(--neutral); }

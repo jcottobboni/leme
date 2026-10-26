@@ -1,0 +1,7 @@
+# Number of nginx replicas
+replicaCount: 1
+image: nginx:1.27-alpine
+# Shown in the ConfigMap
+message: hello from helm
+# Stored in a Secret (masked in Leme until revealed)
+password: s3cr3t-value

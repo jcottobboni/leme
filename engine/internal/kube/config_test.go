@@ -1,0 +1,53 @@
+package kube
+
+import "testing"
+
+func TestIsProduction(t *testing.T) {
+	cases := []struct {
+		server string
+		names  []string
+		want   bool
+	}{
+		{"https://api.ocp-c01.example:6443", []string{"inventory-prd/api-ocp-c01-acme-dc1:6443/alice"}, true},
+		{"https://api-ocp-prd-acme-dc1:6443", []string{"portal-stag/api-x:6443/alice"}, true},
+		{"https://10.0.0.1", []string{"my-prod-cluster"}, true},
+		{"", []string{"production"}, true},
+		{"https://10.0.0.1:6443", []string{"prod01"}, true},
+		{"https://10.0.0.1:6443", []string{"acme-prd2"}, true},
+		{"https://10.0.0.1:6443", []string{"admin", "payroll-prod", "admin-user", "default"}, true},
+		{"https://10.0.0.1:6443", []string{"ctx", "c", "u", "app-producao"}, true},
+		{"https://api-ocp-dev-acme-example:6443", []string{"hr-dsv/api-ocp-dev:6443/alice"}, false},
+		{"https://127.0.0.1:41234", []string{"kind-leme-dev"}, false},
+		{"https://10.0.0.2", []string{"product-catalog-dev"}, false},
+		{"https://10.0.0.3", []string{"sprdx", "delivery"}, false},
+	}
+	for _, c := range cases {
+		if got := IsProduction(c.server, c.names...); got != c.want {
+			t.Errorf("IsProduction(%q,%v)=%v want %v", c.server, c.names, got, c.want)
+		}
+	}
+}
+
+func TestIsLocal(t *testing.T) {
+	cases := []struct {
+		name, server string
+		want         bool
+	}{
+		{"kind-dev", "https://127.0.0.1:40000", true},
+		{"anything", "https://localhost:6443", true},
+		{"minikube", "https://192.168.49.2:8443", true},
+		{"hr-dsv/api:6443/alice", "https://api-ocp-dev-acme-example:6443", false},
+		{"kind-fake", "https://10.1.2.3:6443", false},
+	}
+	for _, c := range cases {
+		if got := IsLocal(c.name, c.server); got != c.want {
+			t.Errorf("IsLocal(%q,%q)=%v want %v", c.name, c.server, got, c.want)
+		}
+	}
+}
+
+func TestContextIDStable(t *testing.T) {
+	if ContextID("a/b:6443/c") != ContextID("a/b:6443/c") || len(ContextID("x")) != 12 {
+		t.Fatal("unstable id")
+	}
+}

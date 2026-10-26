@@ -1,0 +1,93 @@
+# Leme
+
+*Steer your clusters, safely.*
+
+**Leme** is Portuguese for the helm of a ship, the wheel the *kybernḗtēs* (helmsman) holds, the Greek
+word that gave Kubernetes its name. It is an agentless desktop client for Kubernetes and OpenShift, built for people who operate many clusters
+and need to be sure they are not about to break production.
+
+> **Status:** early (v0.3.x). Linux builds (`.deb`, AppImage). The UI is currently in Brazilian
+> Portuguese; English is on the roadmap. [Leia em português](README.pt-BR.md).
+
+![Overview](docs/images/overview.png)
+
+## Why
+
+- **Production-safe by default.** Every remote cluster opens **read-only**, enforced in the engine,
+  not just hidden in the UI. Production contexts need you to type the context name to unlock writes.
+  Every YAML change goes through a server-side dry-run, a diff and a confirmation.
+- **OpenShift as a first-class citizen.** Routes, DeploymentConfigs, BuildConfigs, Builds,
+  ImageStreams, Projects and an in-app OpenShift login (password or browser/SSO) that never touches
+  your kubeconfig.
+- **Security posture built in.** A 0–100 score per namespace or cluster, findings by severity, RBAC
+  risks, a NetworkPolicy flow graph and simulator, plus optional Polaris, Kubescape and Trivy.
+- **Many clusters, at a glance.** Pinned clusters with your own alias, short tag, color, icon and
+  environment, so you always know where you are before you click.
+- **Nothing leaves your machine.** No telemetry, no agent in the cluster, works air-gapped.
+
+## Features
+
+| Area | What you get |
+|---|---|
+| Clusters | Every kubeconfig context; nothing connects on its own; hotbar with per-cluster identity; read-only / read-write switch |
+| Resources | Live grids for every built-in kind and CRD, details drawer, YAML editor with diff and dry-run, bulk actions |
+| Workloads | Logs, shell (exec), port-forward, scale, restart, rollback with revision diff |
+| Overview | Capacity (usage × requests × limits × allocatable), workloads by health, namespaces table, top consumers, warnings |
+| Topology | Object graph grouped by app, type filters, neighborhood highlight, focus mode |
+| Cluster map | Namespaces as islands, apps as regions, workloads as tiles, with health and search |
+| Timeline | Events grouped by namespace → workload → object, with density, filters and zoom |
+| Metrics | Prometheus charts (CPU, memory, network, disk) with capacity/requests/limits reference lines |
+| Helm | Releases, values, manifest, history, upgrade, rollback, uninstall; repositories and chart install |
+| RBAC | My permissions matrix, "can I…?", "who can…?", subjects and bindings, Role/Binding templates |
+| Security | Built-in rules, RBAC risks, NetworkPolicy analysis and simulator, optional external scanners |
+| OpenShift | Routes, DeploymentConfigs, Builds, ImageStreams, Projects, OAuth login |
+
+| Topology | Cluster map |
+|---|---|
+| ![Topology](docs/images/topology.png) | ![Cluster map](docs/images/map.png) |
+
+## Install
+
+Download the `.deb` or AppImage from the [releases page](https://github.com/jcottobboni/leme/releases).
+
+```bash
+sudo apt install ./leme_<version>_amd64.deb
+leme
+```
+
+The `.deb` sets up the Chromium sandbox. On Ubuntu 24.04+ the AppImage needs `--no-sandbox`.
+
+The app reads your `KUBECONFIG` (or `~/.kube/config`). Optional tools are used if found on `PATH`:
+`polaris`, `kubescape`, `trivy`.
+
+## Build from source
+
+Requirements: Go 1.27+, Node.js 24, and for tests Docker + kind.
+
+```bash
+make deps      # npm ci in app/
+make run       # desktop app with your kubeconfig (remote clusters open read-only)
+make dist      # .deb and AppImage in app/release/
+```
+
+See [docs/development.md](docs/development.md) for the test cluster, e2e tests and the UI sweep.
+
+## How it works
+
+A thin Electron shell starts a Go engine bound to `127.0.0.1` with a per-session token. The engine
+keeps one informer cache per cluster (client-go) and streams row projections to the React UI over
+WebSocket. Read-only mode, production protection and every mutation check live in the engine.
+Details in [docs/architecture.md](docs/architecture.md); the security model is in [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the most
+important rule is that tests only ever run against the local kind cluster.
+
+## License
+
+[Apache License 2.0](LICENSE). Third-party components are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Kubernetes is a registered trademark of The Linux Foundation. OpenShift is a trademark of Red Hat, Inc.
+This project is not affiliated with or endorsed by either.

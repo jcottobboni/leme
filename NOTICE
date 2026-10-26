@@ -1,0 +1,11 @@
+Leme
+Copyright 2026 João Carlos Ottobboni
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It bundles third-party open source components, unmodified, under their own
+licenses. See THIRD_PARTY_NOTICES.md for the list and their licenses.
+
+Kubernetes is a registered trademark of The Linux Foundation. OpenShift is a
+trademark of Red Hat, Inc. Helm is a trademark of The Linux Foundation. This
+project is not affiliated with or endorsed by any of them.

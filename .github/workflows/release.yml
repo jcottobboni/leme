@@ -1,0 +1,37 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Check the tag matches app/package.json
+        run: test "v$(node -p "require('./app/package.json').version")" = "$GITHUB_REF_NAME"
+      - run: make deps engine ui licenses
+      - run: cd app && npx electron-builder --linux AppImage deb --publish never
+      - name: Checksums
+        run: cd app/release && sha256sum *.deb *.AppImage > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            app/release/*.deb
+            app/release/*.AppImage
+            app/release/SHA256SUMS

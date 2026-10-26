@@ -1,0 +1,1 @@
+hello {{ .Release.Name }} installed with {{ .Values.replicaCount }} replica(s).

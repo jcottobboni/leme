@@ -1,0 +1,37 @@
+# End-to-end tests against a throwaway kind cluster created inside the runner.
+# Manual for now; enable on pull requests once it has run green on GitHub.
+name: e2e
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.31.0 && echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: make deps engine ui
+      - run: make dev-cluster
+      - name: Let Prometheus collect samples for the metric charts
+        run: sleep 90
+      - run: cd app && xvfb-run -a npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: app/test-results/
