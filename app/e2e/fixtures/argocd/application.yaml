@@ -1,0 +1,49 @@
+# The Application of the M5 argocd e2e. Recreated (delete + create of this object only) before
+# each test. The status is written by hand because no Argo CD controller runs in the kind cluster;
+# the CRD has no status subresource, so kubectl create stores it as is.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: m5-argocd-guestbook
+  namespace: m5-argocd-system
+spec:
+  project: m5-argocd-default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    path: guestbook
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: m5-argocd-guestbook
+status:
+  sync:
+    status: OutOfSync
+    revision: 53e28ff20cc530b9ada2173fbbd64d48338583ba
+  health:
+    status: Healthy
+  reconciledAt: '2026-10-27T10:00:00Z'
+  resources:
+    - {version: v1, kind: Service, namespace: m5-argocd-guestbook, name: m5-argocd-guestbook-ui, status: Synced, health: {status: Healthy}}
+    - {group: apps, version: v1, kind: Deployment, namespace: m5-argocd-guestbook, name: m5-argocd-guestbook-ui, status: OutOfSync, health: {status: Healthy}}
+    - {version: v1, kind: ConfigMap, namespace: m5-argocd-guestbook, name: m5-argocd-guestbook-config, status: OutOfSync, health: {status: Missing}}
+  conditions:
+    - {type: SyncError, message: 'Fixture: o ConfigMap m5-argocd-guestbook-config ainda não existe', lastTransitionTime: '2026-10-27T10:00:00Z'}
+  history:
+    - id: 1
+      revision: 1a2b3c4d5e6f708192a3b4c5d6e7f80910111213
+      deployedAt: '2026-10-20T09:00:00Z'
+      source: {repoURL: 'https://github.com/argoproj/argocd-example-apps.git', path: guestbook, targetRevision: HEAD}
+    - id: 2
+      revision: 9f8e7d6c5b4a39281706f5e4d3c2b1a098765432
+      deployedAt: '2026-10-25T09:00:00Z'
+      source: {repoURL: 'https://github.com/argoproj/argocd-example-apps.git', path: guestbook, targetRevision: HEAD}
+  operationState:
+    phase: Succeeded
+    message: successfully synced (all tasks run)
+    startedAt: '2026-10-25T09:00:00Z'
+    finishedAt: '2026-10-25T09:00:20Z'
+    operation:
+      initiatedBy: {username: admin}
+      sync: {revision: 9f8e7d6c5b4a39281706f5e4d3c2b1a098765432}
+    syncResult:
+      revision: 9f8e7d6c5b4a39281706f5e4d3c2b1a098765432
