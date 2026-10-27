@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
@@ -90,7 +90,9 @@ type Input struct {
 	Errors                                                             map[string]string
 }
 
-type wkey struct{ ns, kind, name string }
+// wkey identifies a workload; the group keeps a CRD named like a built-in kind (an operator's
+// "Deployment") apart from the built-in one.
+type wkey struct{ ns, group, kind, name string }
 
 type wl struct {
 	w        Workload
@@ -109,18 +111,22 @@ func ownerOf(u *unstructured.Unstructured) (kind, name, apiVersion string) {
 	return "", "", ""
 }
 
-func groupOf(apiVersion string) string {
-	gv, _ := schema.ParseGroupVersion(apiVersion)
-	return gv.Group
+func templateLabels(group, kind string, u *unstructured.Unstructured) map[string]string {
+	p := kinds.PodTemplateMetaPath(group, kind)
+	if p == nil {
+		return nil
+	}
+	m, _, _ := unstructured.NestedStringMap(u.Object, append(p, "labels")...)
+	return m
 }
 
-func templateLabels(u *unstructured.Unstructured) map[string]string {
-	if u.GetKind() == "CronJob" {
-		m, _, _ := unstructured.NestedStringMap(u.Object, "spec", "jobTemplate", "spec", "template", "metadata", "labels")
-		return m
+func templateVolumes(group, kind string, u *unstructured.Unstructured) []any {
+	p := kinds.PodTemplatePath(group, kind)
+	if p == nil {
+		return nil
 	}
-	m, _, _ := unstructured.NestedStringMap(u.Object, "spec", "template", "metadata", "labels")
-	return m
+	v, _, _ := unstructured.NestedSlice(u.Object, append(p, "volumes")...)
+	return v
 }
 
 func volumeClaims(vols []any, into map[string]bool) {
@@ -161,17 +167,17 @@ func Build(in Input) *ClusterMap {
 	works := map[wkey]*wl{}
 	order := []wkey{}
 	add := func(group string, u *unstructured.Unstructured, kind string) *wl {
-		k := wkey{u.GetNamespace(), kind, u.GetName()}
+		k := wkey{u.GetNamespace(), group, kind, u.GetName()}
 		if w, ok := works[k]; ok {
 			return w
 		}
 		row := project.Project(u)
-		w := &wl{obj: u, claims: map[string]bool{}, labels: templateLabels(u), appLabel: u.GetLabels(),
+		w := &wl{obj: u, claims: map[string]bool{}, labels: templateLabels(group, kind, u), appLabel: u.GetLabels(),
 			w: Workload{Group: group, Kind: kind, Name: u.GetName(), Health: row.Health, Status: str(row, "status"), Ready: str(row, "ready")}}
 		if w.w.Ready == "" {
 			w.w.Ready = str(row, "completions")
 		}
-		if t, _, _ := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "volumes"); t != nil {
+		if t := templateVolumes(group, kind, u); t != nil {
 			volumeClaims(t, w.claims)
 		}
 		works[k] = w
@@ -190,22 +196,22 @@ func Build(in Input) *ClusterMap {
 	// Owner lookups for the intermediate controllers.
 	rsOwner := map[wkey]wkey{}
 	for _, u := range in.ReplicaSets {
-		if k, n, _ := ownerOf(u); k == "Deployment" {
-			rsOwner[wkey{u.GetNamespace(), "ReplicaSet", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "Deployment" && kinds.GroupOf(av) == "apps" {
+			rsOwner[wkey{u.GetNamespace(), "apps", "ReplicaSet", u.GetName()}] = wkey{u.GetNamespace(), "apps", k, n}
 		} else {
 			add("apps", u, "ReplicaSet") // standalone ReplicaSet
 		}
 	}
 	for _, u := range in.ReplicationControllers {
-		if k, n, _ := ownerOf(u); k == "DeploymentConfig" {
-			rsOwner[wkey{u.GetNamespace(), "ReplicationController", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "DeploymentConfig" && kinds.GroupOf(av) == "apps.openshift.io" {
+			rsOwner[wkey{u.GetNamespace(), "", "ReplicationController", u.GetName()}] = wkey{u.GetNamespace(), "apps.openshift.io", k, n}
 		} else {
 			add("", u, "ReplicationController")
 		}
 	}
 	for _, u := range in.Jobs {
-		if k, n, _ := ownerOf(u); k == "CronJob" {
-			rsOwner[wkey{u.GetNamespace(), "Job", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "CronJob" && kinds.GroupOf(av) == "batch" {
+			rsOwner[wkey{u.GetNamespace(), "batch", "Job", u.GetName()}] = wkey{u.GetNamespace(), "batch", k, n}
 		} else {
 			add("batch", u, "Job")
 		}
@@ -223,14 +229,14 @@ func Build(in Input) *ClusterMap {
 		hc.add(row.Health)
 
 		var w *wl
-		if kind, name, av := ownerOf(p); kind != "" && kind != "Node" {
-			k := wkey{ns, kind, name}
+		if kind, name, av := ownerOf(p); kind != "" && !(kind == "Node" && kinds.GroupOf(av) == "") {
+			k := wkey{ns, kinds.GroupOf(av), kind, name}
 			if top, ok := rsOwner[k]; ok {
 				k = top
 			}
 			w = works[k]
 			if w == nil { // controller unknown (CRD operator, cache gap): synthesize it from the owner reference
-				w = &wl{claims: map[string]bool{}, appLabel: p.GetLabels(), w: Workload{Group: groupOf(av), Kind: k.kind, Name: k.name, Health: "neutral"}}
+				w = &wl{claims: map[string]bool{}, appLabel: p.GetLabels(), w: Workload{Group: k.group, Kind: k.kind, Name: k.name, Health: "neutral"}}
 				works[k] = w
 				order = append(order, k)
 			}

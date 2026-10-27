@@ -22,7 +22,11 @@ func obj(t *testing.T, y string) *unstructured.Unstructured {
 func pod(t *testing.T, name, owner, ownerKind, phase string, extra string) *unstructured.Unstructured {
 	own := ""
 	if owner != "" {
-		own = fmt.Sprintf("ownerReferences: [{apiVersion: apps/v1, kind: %s, name: %s, controller: true}]", ownerKind, owner)
+		av := map[string]string{"Job": "batch/v1", "ReplicationController": "v1"}[ownerKind]
+		if av == "" {
+			av = "apps/v1"
+		}
+		own = fmt.Sprintf("ownerReferences: [{apiVersion: %s, kind: %s, name: %s, controller: true}]", av, ownerKind, owner)
 	}
 	return obj(t, fmt.Sprintf(`{apiVersion: v1, kind: Pod, metadata: {name: %s, namespace: demo, uid: %s, labels: {app: web}, %s}, spec: {containers: [{name: c}], %s}, status: {phase: %s, containerStatuses: [{name: c, ready: %v, restartCount: 0, state: {running: {}}}]}}`,
 		name, name, own, extra, phase, phase == "Running"))
@@ -188,5 +192,26 @@ func TestRestartsAndIngressHosts(t *testing.T) {
 	}
 	if strings.Join(w.Hosts, ",") != "*,shop.example.com" {
 		t.Fatalf("hosts must come only from the same namespace: %v", w.Hosts)
+	}
+}
+
+// A pod owned by a CRD that reuses a built-in kind name ("Deployment" of some operator) must not be
+// merged into the built-in Deployment with the same name.
+func TestCRDOwnerKeptApartFromBuiltinHomonym(t *testing.T) {
+	in := Input{
+		Deployments: []*unstructured.Unstructured{obj(t, `{apiVersion: apps/v1, kind: Deployment, metadata: {name: web, namespace: demo, uid: d1}, spec: {replicas: 1}, status: {readyReplicas: 1, availableReplicas: 1, updatedReplicas: 1}}`)},
+		Pods: []*unstructured.Unstructured{
+			obj(t, `{apiVersion: v1, kind: Pod, metadata: {name: op-1, namespace: demo, ownerReferences: [{apiVersion: example.io/v1, kind: Deployment, name: web, controller: true}]}, status: {phase: Running, containerStatuses: [{name: c, ready: true}]}}`),
+		},
+	}
+	m := Build(in)
+	got := map[string]Workload{}
+	for _, a := range m.Namespaces[0].Apps {
+		for _, w := range a.Workloads {
+			got[w.Group+"/"+w.Kind] = w
+		}
+	}
+	if len(got) != 2 || got["apps/Deployment"].Pods.Total != 0 || got["example.io/Deployment"].Pods.Total != 1 {
+		t.Fatalf("workloads: %+v", got)
 	}
 }

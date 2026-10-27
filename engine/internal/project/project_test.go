@@ -79,18 +79,42 @@ status:
 	}
 }
 
-func TestDeploymentStates(t *testing.T) {
-	cases := map[string]string{
-		`{kind: Deployment, metadata: {name: a, uid: a}, spec: {replicas: 3}, status: {readyReplicas: 3, updatedReplicas: 3, availableReplicas: 3}}`:                           "Healthy",
-		`{kind: Deployment, metadata: {name: b, uid: b}, spec: {replicas: 1}, status: {}}`:                                                                                     "Pending",
-		`{kind: Deployment, metadata: {name: c, uid: c}, spec: {replicas: 3}, status: {readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1}}`:                           "Scaling",
-		`{kind: Deployment, metadata: {name: d, uid: d}, spec: {replicas: 1}, status: {conditions: [{type: Progressing, status: "False", reason: ProgressDeadlineExceeded}]}}`: "Blocked",
-		`{kind: Deployment, metadata: {name: e, uid: e}, spec: {replicas: 0}, status: {}}`:                                                                                     "Scaled to 0",
+func TestWorkloadStates(t *testing.T) {
+	cases := []struct{ y, state, health string }{
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: a, uid: a, generation: 2}, spec: {replicas: 3}, status: {observedGeneration: 2, readyReplicas: 3, updatedReplicas: 3, availableReplicas: 3,
+			conditions: [{type: Progressing, status: "True", reason: NewReplicaSetAvailable}]}}`, StateAvailable, "ok"},
+		// Just created: the controller has not observed it yet.
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: b, uid: b, generation: 1}, spec: {replicas: 1}, status: {}}`, StateProgressing, "warn"},
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c, uid: c, generation: 3}, spec: {replicas: 3}, status: {observedGeneration: 3, readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1,
+			conditions: [{type: Progressing, status: "True", reason: ReplicaSetUpdated}]}}`, StateProgressing, "warn"},
+		// Rollout finished, then pods stopped being ready.
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c2, uid: c2, generation: 3}, spec: {replicas: 3}, status: {observedGeneration: 3, readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1,
+			conditions: [{type: Progressing, status: "True", reason: NewReplicaSetAvailable}]}}`, StateDegraded, "warn"},
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c3, uid: c3, generation: 3}, spec: {replicas: 2}, status: {observedGeneration: 3, replicas: 2, updatedReplicas: 2,
+			conditions: [{type: Progressing, status: "True", reason: NewReplicaSetAvailable}]}}`, StateDegraded, "error"},
+		// The demo/broken fixture (nginx:does-not-exist) after progressDeadlineSeconds.
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: d, uid: d, generation: 1}, spec: {replicas: 1}, status: {observedGeneration: 1, replicas: 1, updatedReplicas: 1, unavailableReplicas: 1,
+			conditions: [{type: Available, status: "False", reason: MinimumReplicasUnavailable}, {type: Progressing, status: "False", reason: ProgressDeadlineExceeded, message: "ReplicaSet \"broken-x\" has timed out progressing."}]}}`, StateStuck, "error"},
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: e, uid: e}, spec: {replicas: 0}, status: {}}`, StateNoReplicas, "neutral"},
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: f, uid: f, generation: 4}, spec: {replicas: 2, paused: true}, status: {observedGeneration: 4, readyReplicas: 2, updatedReplicas: 1, availableReplicas: 2}}`, StatePaused, "warn"},
+		{`{apiVersion: apps/v1, kind: ReplicaSet, metadata: {name: g, uid: g, generation: 1}, spec: {replicas: 2}, status: {observedGeneration: 1, replicas: 2, readyReplicas: 2, availableReplicas: 2}}`, StateAvailable, "ok"},
+		{`{apiVersion: apps/v1, kind: ReplicaSet, metadata: {name: h, uid: h, generation: 1}, spec: {replicas: 2}, status: {observedGeneration: 1, replicas: 2,
+			conditions: [{type: ReplicaFailure, status: "True", reason: FailedCreate, message: "exceeded quota"}]}}`, StateDegraded, "error"},
+		{`{apiVersion: apps/v1, kind: StatefulSet, metadata: {name: i, uid: i, generation: 1}, spec: {replicas: 3}, status: {observedGeneration: 1, replicas: 2, readyReplicas: 2, availableReplicas: 2, updatedReplicas: 2}}`, StateProgressing, "warn"},
+		{`{apiVersion: apps/v1, kind: DaemonSet, metadata: {name: j, uid: j, generation: 1}, status: {observedGeneration: 1, desiredNumberScheduled: 3, numberReady: 3, numberAvailable: 3, updatedNumberScheduled: 3}}`, StateAvailable, "ok"},
+		{`{apiVersion: apps/v1, kind: DaemonSet, metadata: {name: k, uid: k, generation: 2}, status: {observedGeneration: 2, desiredNumberScheduled: 3, numberReady: 3, numberAvailable: 3, updatedNumberScheduled: 1}}`, StateProgressing, "warn"},
+		{`{apiVersion: apps.openshift.io/v1, kind: DeploymentConfig, metadata: {name: l, uid: l, generation: 1}, spec: {replicas: 1}, status: {observedGeneration: 1, latestVersion: 3,
+			conditions: [{type: Progressing, status: "False", reason: RolloutCancelled}]}}`, StateStuck, "error"},
 	}
-	for y, want := range cases {
-		if got := Project(obj(t, y)).Cells["status"]; got != want {
-			t.Errorf("%s: got %v want %v", y, got, want)
+	for _, c := range cases {
+		r := Project(obj(t, c.y))
+		if r.Cells["status"] != c.state || r.Health != c.health {
+			t.Errorf("%s: got %v/%s, want %s/%s", r.Name, r.Cells["status"], r.Health, c.state, c.health)
 		}
+	}
+	// A CRD named like a workload gets no workload state.
+	if _, ok := StateOf(obj(t, `{apiVersion: argoproj.io/v1alpha1, kind: Deployment, metadata: {name: x}}`)); ok {
+		t.Error("StateOf accepted a CRD homonym")
 	}
 }
 

@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 	"github.com/jcottobboni/leme/engine/internal/kube"
-	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
 // ErrReadOnly is returned for mutations on a read-only (production-guarded) cluster.
@@ -404,14 +404,15 @@ var categories = map[string]string{
 }
 
 func categorize(group, kind string) string {
-	if c, ok := categories[kind]; ok && project.Builtin(group) {
-		if kind == "Event" && group == "events.k8s.io" {
-			return "Cluster"
-		}
+	if !kinds.Builtin(group) {
+		return "Custom Resources"
+	}
+	if c, ok := categories[kind]; ok && !(kind == "Event" && group == "events.k8s.io") {
 		return c
 	}
-	if group == "" || strings.HasSuffix(group, ".k8s.io") && !strings.Contains(group, "x-k8s.io") {
-		return "Cluster"
+	if strings.HasSuffix(group, ".openshift.io") {
+		// Built-in OpenShift groups without a curated category stay with the custom resources, as before.
+		return "Custom Resources"
 	}
-	return "Custom Resources"
+	return "Cluster"
 }

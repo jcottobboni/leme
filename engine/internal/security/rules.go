@@ -8,6 +8,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 // Severities, most severe first.
@@ -51,31 +53,15 @@ type Finding struct {
 	Effective bool `json:"effective,omitempty"`
 }
 
-// templatePath returns where the pod spec lives for workload kinds.
-func templatePath(kind string) []string {
-	switch kind {
-	case "Pod":
-		return []string{"spec"}
-	case "CronJob":
-		return []string{"spec", "jobTemplate", "spec", "template", "spec"}
-	case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job", "ReplicationController", "DeploymentConfig":
-		return []string{"spec", "template", "spec"}
-	}
-	return nil
-}
-
-// PodSpec extracts the pod spec of a workload (or pod).
+// PodSpec extracts the pod spec of a workload (or pod) of a built-in group.
 func PodSpec(u *unstructured.Unstructured) (map[string]any, bool) {
-	p := templatePath(u.GetKind())
+	p := kinds.PodTemplatePath(kinds.GroupOf(u.GetAPIVersion()), u.GetKind())
 	if p == nil {
 		return nil, false
 	}
 	m, ok, _ := unstructured.NestedMap(u.Object, p...)
 	return m, ok
 }
-
-// IsWorkloadKind reports kinds whose pod template is checked.
-func IsWorkloadKind(kind string) bool { return templatePath(kind) != nil }
 
 func boolAt(m map[string]any, path ...string) (bool, bool) {
 	v, ok, _ := unstructured.NestedFieldNoCopy(m, path...)

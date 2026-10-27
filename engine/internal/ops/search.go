@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 // Hit is one global-search result.
@@ -103,10 +104,7 @@ func (s *Searcher) index(ctx context.Context, sess *cluster.Session) *searchInde
 			mu.Lock()
 			defer mu.Unlock()
 			for _, u := range objs {
-				path := []string{"spec", "template", "spec"}
-				if res.Kind == "CronJob" {
-					path = []string{"spec", "jobTemplate", "spec", "template", "spec"}
-				}
+				path := kinds.PodTemplatePath(res.Group, res.Kind)
 				for _, field := range []string{"containers", "initContainers"} {
 					cs, _, _ := unstructured.NestedSlice(u.Object, append(path, field)...)
 					for _, c := range cs {
