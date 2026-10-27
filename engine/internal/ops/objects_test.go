@@ -50,7 +50,10 @@ func TestWritesRefusedReadOnly(t *testing.T) {
 	s, dyn := testSession(t, true)
 	ctx := context.Background()
 	checks := map[string]error{
-		"apply":   func() error { _, err := Apply(ctx, s, "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: n}\n", false); return err }(),
+		"apply": func() error {
+			_, err := Apply(ctx, s, "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: n}\n", false)
+			return err
+		}(),
 		"delete":  Delete(ctx, s, ref(cmRes, "app")),
 		"scale":   Scale(ctx, s, ref(depRes, "web"), 3),
 		"restart": Restart(ctx, s, ref(depRes, "web")),
