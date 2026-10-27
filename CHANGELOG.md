@@ -7,6 +7,10 @@ while in 0.x, minor versions may change behavior.
 
 First public release.
 
+### Distribution
+- Signed APT repository published with every release: `apt install leme`, updates through
+  `apt upgrade`. `.deb` and AppImage with `SHA256SUMS`; third-party license texts inside the packages.
+
 ### Fixed before release
 - Desktop app: hotbar pins, cluster profiles, theme, column widths and the tab layout now survive
   restarts. The page origin changed with the engine's random port on every launch, so the browser

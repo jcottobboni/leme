@@ -1,8 +1,10 @@
 # End-to-end tests against a throwaway kind cluster created inside the runner.
-# Manual for now; enable on pull requests once it has run green on GitHub.
 name: e2e
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -26,6 +28,24 @@ jobs:
       - name: Install kind
         run: go install sigs.k8s.io/kind@v0.31.0 && echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: make deps engine ui
+      - name: Install the optional security scanners (checksum-verified)
+        run: |
+          set -euo pipefail
+          bin="$HOME/.local/bin"; mkdir -p "$bin"; cd "$(mktemp -d)"
+          get() { curl -fsSLO "$1"; }
+          get https://github.com/FairwindsOps/polaris/releases/download/v10.2.5/polaris_10.2.5_linux_amd64.tar.gz
+          get https://github.com/FairwindsOps/polaris/releases/download/v10.2.5/checksums.txt
+          get https://github.com/kubescape/kubescape/releases/download/v4.0.15/kubescape_4.0.15_linux_amd64
+          get https://github.com/kubescape/kubescape/releases/download/v4.0.15/checksums.sha256
+          get https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz
+          get https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_checksums.txt
+          sha256sum --check --ignore-missing checksums.txt
+          sha256sum --check --ignore-missing checksums.sha256
+          sha256sum --check --ignore-missing trivy_0.70.0_checksums.txt
+          tar -xzf polaris_10.2.5_linux_amd64.tar.gz polaris && install -m 755 polaris "$bin/polaris"
+          install -m 755 kubescape_4.0.15_linux_amd64 "$bin/kubescape"
+          tar -xzf trivy_0.70.0_Linux-64bit.tar.gz trivy && install -m 755 trivy "$bin/trivy"
+          echo "$bin" >> "$GITHUB_PATH"
       - run: make dev-cluster
       - name: Let Prometheus collect samples for the metric charts
         run: sleep 90

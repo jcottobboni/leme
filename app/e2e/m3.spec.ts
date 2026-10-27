@@ -13,6 +13,12 @@ const ROOT = path.join(__dirname, '..', '..')
 const ENGINE = path.join(ROOT, 'engine', 'bin', 'leme')
 const STATIC = path.join(__dirname, '..', 'renderer-dist')
 const TOKEN = 'e2e-m3-' + Math.random().toString(36).slice(2)
+
+// The external scanners are optional: their tests run only where they are installed (same lookup as the engine).
+function hasTool(name: string) {
+  const dirs = [...(process.env.PATH ?? '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/usr/local/bin']
+  return dirs.some((d) => d && fs.existsSync(path.join(d, name)))
+}
 // Trivy's vulnerability DB is large: keep it between runs (outside the repo, never in the user's config).
 const TRIVY_DIR = path.join(os.homedir(), '.cache', 'leme-e2e')
 
@@ -107,6 +113,7 @@ test('CA03: riscos de RBAC listam o cluster-admin de uma ServiceAccount', async 
 })
 
 test('CA04: Polaris e Kubescape rodam sobre o YAML exportado', async ({ page }) => {
+  test.skip(!hasTool('polaris') || !hasTool('kubescape'), 'polaris/kubescape not installed')
   test.setTimeout(240_000)
   await openApp(page)
   await page.getByTestId('tool-security').click()
@@ -121,6 +128,7 @@ test('CA04: Polaris e Kubescape rodam sobre o YAML exportado', async ({ page }) 
 })
 
 test('CA05: Trivy lista CVEs da imagem do web', async ({ page }) => {
+  test.skip(!hasTool('trivy'), 'trivy not installed')
   test.setTimeout(600_000)
   await openApp(page)
   await openObjectFromGrid(page, 'Deployment', 'web')

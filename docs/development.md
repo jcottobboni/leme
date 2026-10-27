@@ -85,8 +85,15 @@ their container or the viewport, and text clipped without an ellipsis.
 
 ## Releases
 
-Tag `vX.Y.Z` on `main`; the release workflow builds the engine and the Linux packages and attaches
-them to a draft GitHub release. Bump `app/package.json` and update `CHANGELOG.md` first.
+Bump `app/package.json`, update `CHANGELOG.md`, then tag `vX.Y.Z` on `main`. The release workflow
+builds the engine and the Linux packages and publishes a GitHub release that is also a flat, signed
+APT repository: `Packages`, `Release`, `InRelease` and `Release.gpg` sit next to the `.deb`, and
+`releases/latest/download/` always resolves to the newest release, so APT users get it with
+`apt upgrade`.
+
+The index is signed with the key in `packaging/leme-archive-keyring.asc`; its private part is the
+`APT_SIGNING_KEY` repository secret. Rotating it means publishing the new public key and asking
+users to replace `/usr/share/keyrings/leme-archive-keyring.gpg`.
 
 ## Troubleshooting
 
