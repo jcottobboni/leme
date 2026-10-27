@@ -16,6 +16,8 @@ import { CopilotPanel } from './features/ai/CopilotPanel'
 import { ClusterGate, Loading } from './features/common'
 import { Palette } from './features/search/Palette'
 import { PanelVisibilityProvider } from './hooks/visibility'
+// Registers the traffic source for the map and the topology at startup (the Traffic panel itself is lazy).
+import './features/traffic/provider'
 import { ClusterTab, HeaderActions, restoreLayout, saveLayout } from './features/workspace/Dock'
 
 type PanelComponent = ComponentType<IDockviewPanelProps<any>>
