@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/github/downloads/jcottobboni/leme/total)](https://github.com/jcottobboni/leme/releases)
 [![License](https://img.shields.io/github/license/jcottobboni/leme)](LICENSE)
 [![Go](https://img.shields.io/github/go-mod/go-version/jcottobboni/leme?filename=engine%2Fgo.mod)](engine/go.mod)
-![Platform](https://img.shields.io/badge/platform-linux-informational)
+![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows-informational)
 
 *O leme dos seus clusters, com segurança.*
 
@@ -14,7 +14,7 @@ O nome vem do timoneiro: "Kubernetes" é a palavra grega *kybernḗtēs*, quem s
 O Leme é um cliente desktop de Kubernetes e OpenShift, sem agente no cluster, feito para quem opera muitos
 clusters e precisa ter certeza de que não vai quebrar produção.
 
-> **Status:** inicial (v0.3.x). Pacotes para Linux (`.deb`, AppImage). A interface está em português;
+> **Status:** inicial (v0.3.x). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
 > inglês está no roadmap. [Read in English](README.md).
 
 ![Visão geral](docs/images/overview.png)
@@ -66,7 +66,18 @@ sudo apt update && sudo apt install leme
 As novas versões chegam com `sudo apt upgrade`. O repositório é assinado com a chave
 `8230 020B 4E3A B433 7EBE  0D95 88ED 1FDA 269D 1375` (também em [`packaging/leme-archive-keyring.asc`](packaging/leme-archive-keyring.asc)).
 
-### Manual
+### Windows
+
+Baixe o `leme-setup-<versão>.exe` na [última release](https://github.com/jcottobboni/leme/releases/latest) e execute
+(instalação por usuário, sem precisar de administrador). O instalador ainda não é assinado
+digitalmente, então o SmartScreen pede confirmação na primeira vez: **Mais informações → Executar assim mesmo**.
+
+### macOS
+
+Ainda sem pacote: o app compila e passa no teste de fumaça em macOS no CI, mas um pacote utilizável
+precisa de assinatura e notarização da Apple.
+
+### Manual (Linux)
 
 Baixe o `.deb` ou o AppImage na [página de releases](https://github.com/jcottobboni/leme/releases) e confira com o `SHA256SUMS`.
 

@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/github/downloads/jcottobboni/leme/total)](https://github.com/jcottobboni/leme/releases)
 [![License](https://img.shields.io/github/license/jcottobboni/leme)](LICENSE)
 [![Go](https://img.shields.io/github/go-mod/go-version/jcottobboni/leme?filename=engine%2Fgo.mod)](engine/go.mod)
-![Platform](https://img.shields.io/badge/platform-linux-informational)
+![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows-informational)
 
 *Steer your clusters, safely.*
 
@@ -14,7 +14,7 @@
 word that gave Kubernetes its name. It is an agentless desktop client for Kubernetes and OpenShift, built for people who operate many clusters
 and need to be sure they are not about to break production.
 
-> **Status:** early (v0.3.x). Linux builds (`.deb`, AppImage). The UI is currently in Brazilian
+> **Status:** early (v0.3.x). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
 > Portuguese; English is on the roadmap. [Leia em português](README.pt-BR.md).
 
 ![Overview](docs/images/overview.png)
@@ -69,7 +69,18 @@ sudo apt update && sudo apt install leme
 New versions arrive with `sudo apt upgrade`. The repository is signed with the key
 `8230 020B 4E3A B433 7EBE  0D95 88ED 1FDA 269D 1375` (also in [`packaging/leme-archive-keyring.asc`](packaging/leme-archive-keyring.asc)).
 
-### Manual
+### Windows
+
+Download `leme-setup-<version>.exe` from the [latest release](https://github.com/jcottobboni/leme/releases/latest) and run it
+(per-user install, no admin rights needed). The installer is not code-signed yet, so Windows
+SmartScreen asks for confirmation the first time: **More info → Run anyway**.
+
+### macOS
+
+Not packaged yet: the app builds and passes its smoke test on macOS in CI, but a usable package
+needs Apple code signing and notarization.
+
+### Manual (Linux)
 
 Download the `.deb` or AppImage from the [releases page](https://github.com/jcottobboni/leme/releases) and check it against `SHA256SUMS`.
 

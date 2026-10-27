@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.3.5] - 2026-10-26
+
+### Added
+- Windows installer (x64, per-user, NSIS). Unsigned for now: SmartScreen asks once.
+- CI runs the engine tests and a desktop smoke test (engine start, contexts, UI state across
+  restart) on Linux, Windows and macOS; the release installs and starts the Windows package.
+
+### Changed
+- External scanners get a portable minimal environment (Windows system variables, `.exe` lookup).
+
 ## [0.3.4] - 2026-10-26
 
 First public release.
