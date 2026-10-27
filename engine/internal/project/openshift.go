@@ -11,13 +11,13 @@ import (
 
 // OpenShift and related kinds. Registered separately so the core table stays readable.
 func init() {
-	projectors["Route"] = projector{cols(Column{Key: "url", Label: "URL", Width: 320}, Column{Key: "service", Label: "Service", Width: 160}, Column{Key: "tls", Label: "TLS", Width: 110}, Column{Key: "status", Label: "Status", Type: "status", Width: 100}), route}
-	projectors["DeploymentConfig"] = projector{cols(Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "revision", Label: "Revision", Type: "number", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), deploymentConfig}
-	projectors["ReplicationController"] = projector{cols(Column{Key: "desired", Label: "Desired", Type: "number", Width: 80}, Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload}
-	projectors["BuildConfig"] = projector{cols(Column{Key: "strategy", Label: "Strategy", Width: 100}, Column{Key: "source", Label: "Source", Width: 300}, Column{Key: "lastVersion", Label: "Last build", Type: "number", Width: 90}), buildConfig}
-	projectors["Build"] = projector{cols(Column{Key: "status", Label: "Status", Type: "status", Width: 110}, Column{Key: "strategy", Label: "Strategy", Width: 100}, Column{Key: "duration", Label: "Duration", Width: 90}, Column{Key: "config", Label: "BuildConfig", Width: 180}), build}
-	projectors["ImageStream"] = projector{cols(Column{Key: "tags", Label: "Tags", Width: 200}, Column{Key: "repository", Label: "Repository", Width: 360}), imageStream}
-	projectors["Project"] = projector{[]Column{{Key: "name", Label: "Name", Width: 300}, {Key: "displayName", Label: "Display name", Width: 220}, {Key: "status", Label: "Status", Type: "status", Width: 110}, ageCol}, openshiftProject}
+	projectors["Route"] = projector{cols(Column{Key: "url", Label: "URL", Width: 320}, Column{Key: "service", Label: "Serviço", Width: 160}, Column{Key: "tls", Label: "TLS", Width: 110}, Column{Key: "status", Label: "Status", Type: "status", Width: 100}), route}
+	projectors["DeploymentConfig"] = projector{cols(Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "revision", Label: "Revisão", Type: "number", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), deploymentConfig}
+	projectors["ReplicationController"] = projector{cols(Column{Key: "desired", Label: "Desejados", Type: "number", Width: 80}, Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload}
+	projectors["BuildConfig"] = projector{cols(Column{Key: "strategy", Label: "Estratégia", Width: 100}, Column{Key: "source", Label: "Origem", Width: 300}, Column{Key: "lastVersion", Label: "Último build", Type: "number", Width: 90}), buildConfig}
+	projectors["Build"] = projector{cols(Column{Key: "status", Label: "Status", Type: "status", Width: 110}, Column{Key: "strategy", Label: "Estratégia", Width: 100}, Column{Key: "duration", Label: "Duração", Width: 90}, Column{Key: "config", Label: "BuildConfig", Width: 180}), build}
+	projectors["ImageStream"] = projector{cols(Column{Key: "tags", Label: "Tags", Width: 200}, Column{Key: "repository", Label: "Repositório", Width: 360}), imageStream}
+	projectors["Project"] = projector{[]Column{{Key: "name", Label: "Nome", Width: 300}, {Key: "displayName", Label: "Nome de exibição", Width: 220}, {Key: "status", Label: "Status", Type: "status", Width: 110}, ageCol}, openshiftProject}
 }
 
 var routeHost = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)

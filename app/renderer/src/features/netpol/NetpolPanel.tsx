@@ -2,10 +2,11 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { Network } from 'lucide-react'
 import { api3, type NetAnalysis, type NetCheck, type NetEndpoint } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { NamespaceSelect } from '../../components/ResourceGrid'
-import { ClusterGate, ErrorBanner, Partial, Tabs, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, PanelHeader, Partial, RefreshButton, Tabs, useAsync } from '../common'
 import { layout, NODE_H, NODE_W } from '../topology/layout'
 
 type Tab = 'graph' | 'pods' | 'policies' | 'simulate'
@@ -122,18 +123,17 @@ function Netpol({ clusterId }: { clusterId: string }) {
   const open = a?.groups.filter((g) => !g.ingressIsolated).length ?? 0
   return (
     <div className="object-panel">
-      <div className="toolbar">
+      <PanelHeader icon={<Network size={16} />} title="Análise de NetworkPolicy">
         <NamespaceSelect clusterId={clusterId} effective={ns} />
-        {a && <span className={open ? 's-warn' : 's-ok'}>{a.policies.length} políticas · {open} de {a.groups.length} workloads abertos para entrada</span>}
-        {loading && <span className="spinner" />}
+        {a && <span className={open ? 's-warn' : a.groups.length ? 's-ok' : 'muted'}>{a.policies.length} políticas · {open} de {a.groups.length} workloads abertos para entrada</span>}
         <span className="spacer" />
-        <button onClick={() => setRev((r) => r + 1)}>Recarregar</button>
-      </div>
+        <RefreshButton onClick={() => setRev((r) => r + 1)} loading={loading} />
+      </PanelHeader>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />
       <Tabs<Tab> tabs={[['graph', 'Fluxos permitidos'], ['pods', 'Workloads'], ['policies', 'Políticas'], ['simulate', 'Simulador']]} value={tab} onChange={setTab} />
       <div className={`obj-body ${tab === 'graph' ? 'flex-col' : ''}`}>
-        {a && tab === 'graph' && (a.groups.length ? <FlowGraph a={a} /> : <div className="empty">Nenhum workload com pods em <b>{ns}</b>. Escolha outro namespace.</div>)}
+        {a && tab === 'graph' && (a.groups.length ? <FlowGraph a={a} /> : <div className="empty"><Network size={22} /><span>Nenhum workload com pods em <b>{ns}</b>. Escolha outro namespace.</span></div>)}
         {a && tab === 'pods' && (
           <table className="table" data-testid="netpol-groups">
             <thead><tr><th>Workload</th><th>Pods</th><th>Entrada</th><th>Saída</th></tr></thead>

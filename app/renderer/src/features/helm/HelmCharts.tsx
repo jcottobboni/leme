@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Package } from 'lucide-react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type ChartHit, type ChartInfo } from '../../api'
 import { clusterName, useApp } from '../../store'
@@ -166,7 +167,7 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
           {hits && !hits.length && <div className="pad muted small">Nenhum chart. Adicione um repositório acima.</div>}
         </div>
       </div>
-      <div className="split-right">{sel ? <ChartDetail key={sel.ref} hit={sel} clusterId={params.clusterId} /> : <div className="pad muted">Escolha um chart.</div>}</div>
+      <div className="split-right">{sel ? <ChartDetail key={sel.ref} hit={sel} clusterId={params.clusterId} /> : <div className="empty"><Package size={22} /><span>Selecione um chart à esquerda para ver detalhes.</span></div>}</div>
     </div>
   )
 }

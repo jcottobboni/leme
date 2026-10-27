@@ -34,30 +34,56 @@ type projector struct {
 	fn      func(u *unstructured.Unstructured, r *Row)
 }
 
-var base = []Column{{Key: "name", Label: "Name", Width: 280}, {Key: "namespace", Label: "Namespace", Width: 160}}
-var ageCol = Column{Key: "age", Label: "Age", Type: "age", Width: 80}
+// Labels are shown in PT-BR; keys stay stable because column visibility and widths are persisted by key.
+var base = []Column{{Key: "name", Label: "Nome", Width: 280}, {Key: "namespace", Label: "Namespace", Width: 160}}
+var ageCol = Column{Key: "age", Label: "Idade", Type: "age", Width: 80}
 
 var projectors = map[string]projector{
-	"Pod": {cols(Column{Key: "containers", Label: "Containers", Type: "containers", Width: 96}, Column{Key: "ready", Label: "Ready", Width: 70}, Column{Key: "status", Label: "Status", Type: "status", Width: 150},
-		Column{Key: "restarts", Label: "Restarts", Type: "number", Width: 80}, Column{Key: "cpu", Label: "CPU", Type: "number", Width: 80},
-		Column{Key: "memory", Label: "Memory", Type: "number", Width: 90}, Column{Key: "node", Label: "Node", Width: 180},
+	"Pod": {cols(Column{Key: "containers", Label: "Contêineres", Type: "containers", Width: 96}, Column{Key: "ready", Label: "Prontos", Width: 70}, Column{Key: "status", Label: "Status", Type: "status", Width: 150},
+		Column{Key: "restarts", Label: "Reinícios", Type: "number", Width: 80}, Column{Key: "cpu", Label: "CPU", Type: "number", Width: 80},
+		Column{Key: "memory", Label: "Memória", Type: "number", Width: 90}, Column{Key: "node", Label: "Nó", Width: 140},
 		Column{Key: "ip", Label: "IP", Width: 120}), pod},
-	"Deployment":              {cols(Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "upToDate", Label: "Up-to-date", Type: "number", Width: 90}, Column{Key: "available", Label: "Available", Type: "number", Width: 90}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
-	"StatefulSet":             {cols(Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
-	"ReplicaSet":              {cols(Column{Key: "desired", Label: "Desired", Type: "number", Width: 80}, Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
-	"DaemonSet":               {cols(Column{Key: "desired", Label: "Desired", Type: "number", Width: 80}, Column{Key: "ready", Label: "Ready", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), daemonSet},
-	"Job":                     {cols(Column{Key: "completions", Label: "Completions", Width: 100}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), job},
-	"CronJob":                 {cols(Column{Key: "schedule", Label: "Schedule", Width: 130}, Column{Key: "suspend", Label: "Suspend", Width: 80}, Column{Key: "active", Label: "Active", Type: "number", Width: 70}, Column{Key: "lastSchedule", Label: "Last schedule", Type: "age", Width: 110}), cronJob},
-	"Service":                 {cols(Column{Key: "type", Label: "Type", Width: 110}, Column{Key: "clusterIP", Label: "Cluster IP", Width: 120}, Column{Key: "ports", Label: "Ports", Width: 200}, Column{Key: "selector", Label: "Selector", Width: 220}), service},
-	"Ingress":                 {cols(Column{Key: "class", Label: "Class", Width: 100}, Column{Key: "hosts", Label: "Hosts", Width: 260}, Column{Key: "address", Label: "Address", Width: 140}), ingress},
-	"ConfigMap":               {cols(Column{Key: "keys", Label: "Keys", Type: "number", Width: 70}), configMap},
-	"Secret":                  {cols(Column{Key: "type", Label: "Type", Width: 260}, Column{Key: "keys", Label: "Keys", Type: "number", Width: 70}), secret},
-	"Node":                    {[]Column{{Key: "name", Label: "Name", Width: 260}, {Key: "status", Label: "Status", Type: "status", Width: 110}, {Key: "roles", Label: "Roles", Width: 140}, {Key: "version", Label: "Version", Width: 110}, {Key: "cpu", Label: "CPU", Type: "number", Width: 80}, {Key: "memory", Label: "Memory", Type: "number", Width: 90}, {Key: "internalIP", Label: "Internal IP", Width: 130}, ageCol}, node},
-	"Namespace":               {[]Column{{Key: "name", Label: "Name", Width: 300}, {Key: "status", Label: "Status", Type: "status", Width: 110}, ageCol}, namespace},
-	"Event":                   {[]Column{{Key: "type", Label: "Type", Type: "status", Width: 100}, {Key: "reason", Label: "Reason", Width: 150}, {Key: "object", Label: "Object", Width: 240}, {Key: "message", Label: "Message", Width: 420}, {Key: "count", Label: "Count", Type: "number", Width: 70}, {Key: "namespace", Label: "Namespace", Width: 140}, {Key: "lastSeen", Label: "Last seen", Type: "age", Width: 90}}, event},
-	"PersistentVolumeClaim":   {cols(Column{Key: "status", Label: "Status", Type: "status", Width: 100}, Column{Key: "volume", Label: "Volume", Width: 220}, Column{Key: "capacity", Label: "Capacity", Width: 90}, Column{Key: "storageClass", Label: "Storage class", Width: 140}), pvc},
-	"PersistentVolume":        {[]Column{{Key: "name", Label: "Name", Width: 260}, {Key: "capacity", Label: "Capacity", Width: 90}, {Key: "status", Label: "Status", Type: "status", Width: 100}, {Key: "claim", Label: "Claim", Width: 240}, {Key: "storageClass", Label: "Storage class", Width: 140}, ageCol}, pv},
-	"HorizontalPodAutoscaler": {cols(Column{Key: "target", Label: "Target", Width: 200}, Column{Key: "replicas", Label: "Replicas", Width: 120}), hpa},
+	"Deployment":                     {cols(Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "upToDate", Label: "Atualizados", Type: "number", Width: 90}, Column{Key: "available", Label: "Disponíveis", Type: "number", Width: 90}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
+	"StatefulSet":                    {cols(Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
+	"ReplicaSet":                     {cols(Column{Key: "desired", Label: "Desejados", Type: "number", Width: 80}, Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), workload},
+	"DaemonSet":                      {cols(Column{Key: "desired", Label: "Desejados", Type: "number", Width: 80}, Column{Key: "ready", Label: "Prontos", Width: 80}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), daemonSet},
+	"Job":                            {cols(Column{Key: "completions", Label: "Conclusões", Width: 100}, Column{Key: "status", Label: "Status", Type: "status", Width: 110}), job},
+	"CronJob":                        {cols(Column{Key: "schedule", Label: "Agendamento", Width: 130}, Column{Key: "state", Label: "Status", Type: "status", Width: 100}, Column{Key: "active", Label: "Ativos", Type: "number", Width: 70}, Column{Key: "lastSchedule", Label: "Executado há", Type: "age", Width: 110}), cronJob},
+	"Service":                        {cols(Column{Key: "type", Label: "Tipo", Width: 110}, Column{Key: "clusterIP", Label: "IP do cluster", Width: 130}, Column{Key: "ports", Label: "Portas", Width: 200}, Column{Key: "selector", Label: "Seletor", Width: 220}), service},
+	"Ingress":                        {cols(Column{Key: "class", Label: "Classe", Width: 100}, Column{Key: "hosts", Label: "Hosts", Width: 260}, Column{Key: "address", Label: "Endereço", Width: 140}), ingress},
+	"ConfigMap":                      {cols(Column{Key: "keys", Label: "Chaves", Type: "number", Width: 70}), configMap},
+	"Secret":                         {cols(Column{Key: "type", Label: "Tipo", Width: 260}, Column{Key: "keys", Label: "Chaves", Type: "number", Width: 70}), secret},
+	"Node":                           {[]Column{{Key: "name", Label: "Nome", Width: 260}, {Key: "status", Label: "Status", Type: "status", Width: 110}, {Key: "roles", Label: "Papéis", Width: 140}, {Key: "version", Label: "Versão", Width: 110}, {Key: "cpu", Label: "CPU", Type: "number", Width: 80}, {Key: "memory", Label: "Memória", Type: "number", Width: 90}, {Key: "internalIP", Label: "IP interno", Width: 130}, ageCol}, node},
+	"Namespace":                      {[]Column{{Key: "name", Label: "Nome", Width: 300}, {Key: "status", Label: "Status", Type: "status", Width: 110}, ageCol}, namespace},
+	"Event":                          {[]Column{{Key: "type", Label: "Tipo", Type: "status", Width: 100}, {Key: "reason", Label: "Motivo", Width: 150}, {Key: "object", Label: "Objeto", Width: 240}, {Key: "message", Label: "Mensagem", Width: 420}, {Key: "count", Label: "Contagem", Type: "number", Width: 70}, {Key: "namespace", Label: "Namespace", Width: 140}, {Key: "lastSeen", Label: "Visto há", Type: "age", Width: 90}}, event},
+	"PersistentVolumeClaim":          {cols(Column{Key: "status", Label: "Status", Type: "status", Width: 100}, Column{Key: "volume", Label: "Volume", Width: 220}, Column{Key: "capacity", Label: "Capacidade", Width: 90}, Column{Key: "storageClass", Label: "Classe de storage", Width: 140}), pvc},
+	"PersistentVolume":               {[]Column{{Key: "name", Label: "Nome", Width: 260}, {Key: "capacity", Label: "Capacidade", Width: 90}, {Key: "status", Label: "Status", Type: "status", Width: 100}, {Key: "claim", Label: "Claim", Width: 240}, {Key: "storageClass", Label: "Classe de storage", Width: 140}, ageCol}, pv},
+	"HorizontalPodAutoscaler":        {cols(Column{Key: "target", Label: "Alvo", Width: 200}, Column{Key: "metrics", Label: "Métricas (atual/alvo)", Width: 220}, Column{Key: "min", Label: "Mín", Type: "number", Width: 60}, Column{Key: "max", Label: "Máx", Type: "number", Width: 60}, Column{Key: "replicas", Label: "Réplicas", Type: "number", Width: 80}), hpa},
+	"PodDisruptionBudget":            {cols(Column{Key: "minAvailable", Label: "Mín disponível", Width: 120}, Column{Key: "maxUnavailable", Label: "Máx indisponível", Width: 130}, Column{Key: "allowed", Label: "Interrupções permitidas", Type: "number", Width: 120}), pdb},
+	"ResourceQuota":                  {cols(Column{Key: "usage", Label: "Uso / limite", Width: 420}), resourceQuota},
+	"LimitRange":                     {cols(Column{Key: "types", Label: "Tipos", Width: 200}), limitRange},
+	"CustomResourceDefinition":       {clusterCols(Column{Key: "group", Label: "Grupo", Width: 220}, Column{Key: "versions", Label: "Versões", Width: 140}, Column{Key: "scope", Label: "Escopo", Width: 110}), crd},
+	"RoleBinding":                    {cols(Column{Key: "role", Label: "Papel", Width: 220}, Column{Key: "subjects", Label: "Sujeitos", Width: 260}), binding},
+	"ClusterRoleBinding":             {clusterCols(Column{Key: "role", Label: "Papel", Width: 220}, Column{Key: "subjects", Label: "Sujeitos", Width: 260}), binding},
+	"Role":                           {cols(Column{Key: "rules", Label: "Regras", Type: "number", Width: 70}), rbacRole},
+	"ClusterRole":                    {clusterCols(Column{Key: "rules", Label: "Regras", Type: "number", Width: 70}), rbacRole},
+	"StorageClass":                   {clusterCols(Column{Key: "provisioner", Label: "Provisionador", Width: 220}, Column{Key: "reclaimPolicy", Label: "Política de reclaim", Width: 140}, Column{Key: "volumeBindingMode", Label: "Modo de binding", Width: 160}, Column{Key: "default", Label: "Padrão", Width: 70}), storageClass},
+	"PriorityClass":                  {clusterCols(Column{Key: "value", Label: "Valor", Type: "number", Width: 110}, Column{Key: "globalDefault", Label: "Padrão global", Width: 120}), priorityClass},
+	"RuntimeClass":                   {clusterCols(Column{Key: "handler", Label: "Handler", Width: 160}), runtimeClass},
+	"Lease":                          {cols(Column{Key: "holder", Label: "Detentor", Width: 280}), lease},
+	"IngressClass":                   {clusterCols(Column{Key: "controller", Label: "Controlador", Width: 260}), ingressClass},
+	"MutatingWebhookConfiguration":   {clusterCols(Column{Key: "webhooks", Label: "Webhooks", Type: "number", Width: 90}), webhookConfig},
+	"ValidatingWebhookConfiguration": {clusterCols(Column{Key: "webhooks", Label: "Webhooks", Type: "number", Width: 90}), webhookConfig},
+	"EndpointSlice":                  {cols(Column{Key: "addressType", Label: "Tipo de endereço", Width: 130}, Column{Key: "ports", Label: "Portas", Width: 180}, Column{Key: "endpoints", Label: "Endpoints", Type: "number", Width: 90}), endpointSlice},
+	"Endpoints":                      {cols(Column{Key: "addresses", Label: "Endereços", Width: 300}), endpoints},
+	"NetworkPolicy":                  {cols(Column{Key: "podSelector", Label: "Seletor de pods", Width: 240}, Column{Key: "policyTypes", Label: "Tipos de política", Width: 140}), networkPolicy},
+	"VolumeAttachment":               {clusterCols(Column{Key: "attacher", Label: "Attacher", Width: 200}, Column{Key: "pv", Label: "PV", Width: 220}, Column{Key: "node", Label: "Nó", Width: 160}, Column{Key: "attached", Label: "Anexado", Type: "status", Width: 90}), volumeAttachment},
+}
+
+// clusterCols is cols for cluster-scoped kinds (no Namespace column).
+func clusterCols(extra ...Column) []Column {
+	out := append([]Column{base[0]}, extra...)
+	return append(out, ageCol)
 }
 
 func cols(extra ...Column) []Column {
@@ -339,12 +365,12 @@ func job(u *unstructured.Unstructured, r *Row) {
 func cronJob(u *unstructured.Unstructured, r *Row) {
 	r.Cells["schedule"] = str(u, "spec", "schedule")
 	susp, _, _ := unstructured.NestedBool(u.Object, "spec", "suspend")
-	r.Cells["suspend"] = fmt.Sprint(susp)
+	r.Cells["state"] = "Active"
 	r.Cells["active"] = int64(len(slice(u, "status", "active")))
 	r.Cells["lastSchedule"] = str(u, "status", "lastScheduleTime")
 	r.Health = "ok"
 	if susp {
-		r.Health = "neutral"
+		r.Cells["state"], r.Health = "Suspended", "warn"
 	}
 }
 
@@ -499,8 +525,228 @@ func pv(u *unstructured.Unstructured, r *Row) {
 
 func hpa(u *unstructured.Unstructured, r *Row) {
 	r.Cells["target"] = str(u, "spec", "scaleTargetRef", "kind") + "/" + str(u, "spec", "scaleTargetRef", "name")
-	r.Cells["replicas"] = fmt.Sprintf("%d (%d-%d)", num(u, "status", "currentReplicas"), num(u, "spec", "minReplicas"), num(u, "spec", "maxReplicas"))
+	minR := num(u, "spec", "minReplicas")
+	if _, found, _ := unstructured.NestedFieldNoCopy(u.Object, "spec", "minReplicas"); !found {
+		minR = 1
+	}
+	r.Cells["min"] = minR
+	r.Cells["max"] = num(u, "spec", "maxReplicas")
+	r.Cells["replicas"] = num(u, "status", "currentReplicas")
+	r.Cells["metrics"] = hpaMetrics(u)
 	r.Health = "ok"
+}
+
+// hpaMetrics summarizes resource metrics as "cpu: 35%/80%" (current/target); other metric types by name.
+func hpaMetrics(u *unstructured.Unstructured) string {
+	current := map[string]string{}
+	for _, m := range slice(u, "status", "currentMetrics") {
+		mm, _ := m.(map[string]any)
+		if res := mapAt(mm, "resource"); res != nil {
+			current[strOr(res["name"], "")] = metricValue(mapAt(res, "current"))
+		}
+	}
+	var parts []string
+	for _, m := range slice(u, "spec", "metrics") {
+		mm, _ := m.(map[string]any)
+		t := strOr(mm["type"], "")
+		res := mapAt(mm, "resource")
+		if t != "Resource" || res == nil {
+			parts = append(parts, t)
+			continue
+		}
+		name := strOr(res["name"], "")
+		cur := current[name]
+		if cur == "" {
+			cur = "?"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s/%s", name, cur, metricValue(mapAt(res, "target"))))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func metricValue(m map[string]any) string {
+	if m == nil {
+		return ""
+	}
+	if v, ok := m["averageUtilization"]; ok {
+		return fmt.Sprintf("%d%%", toInt(v))
+	}
+	for _, k := range []string{"averageValue", "value"} {
+		if v, ok := m[k]; ok {
+			return fmt.Sprint(v)
+		}
+	}
+	return ""
+}
+
+func pdb(u *unstructured.Unstructured, r *Row) {
+	r.Cells["minAvailable"] = str(u, "spec", "minAvailable")
+	r.Cells["maxUnavailable"] = str(u, "spec", "maxUnavailable")
+	allowed := num(u, "status", "disruptionsAllowed")
+	r.Cells["allowed"] = allowed
+	r.Health = "ok"
+	if allowed == 0 {
+		r.Health = "warn"
+	}
+}
+
+func resourceQuota(u *unstructured.Unstructured, r *Row) {
+	hard, _, _ := unstructured.NestedStringMap(u.Object, "status", "hard")
+	if len(hard) == 0 {
+		hard, _, _ = unstructured.NestedStringMap(u.Object, "spec", "hard")
+	}
+	used, _, _ := unstructured.NestedStringMap(u.Object, "status", "used")
+	keys := make([]string, 0, len(hard))
+	for k := range hard {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		v := used[k]
+		if v == "" {
+			v = "0"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s/%s", k, v, hard[k]))
+	}
+	r.Cells["usage"] = strings.Join(parts, ", ")
+}
+
+func limitRange(u *unstructured.Unstructured, r *Row) {
+	var types []string
+	for _, l := range slice(u, "spec", "limits") {
+		lm, _ := l.(map[string]any)
+		types = append(types, strOr(lm["type"], "?"))
+	}
+	r.Cells["types"] = strings.Join(types, ", ")
+}
+
+func crd(u *unstructured.Unstructured, r *Row) {
+	r.Cells["group"] = str(u, "spec", "group")
+	var versions []string
+	for _, v := range slice(u, "spec", "versions") {
+		vm, _ := v.(map[string]any)
+		if served, _ := vm["served"].(bool); served {
+			versions = append(versions, strOr(vm["name"], ""))
+		}
+	}
+	r.Cells["versions"] = strings.Join(versions, ", ")
+	r.Cells["scope"] = str(u, "spec", "scope")
+}
+
+func binding(u *unstructured.Unstructured, r *Row) {
+	r.Cells["role"] = str(u, "roleRef", "kind") + "/" + str(u, "roleRef", "name")
+	subjects := slice(u, "subjects")
+	if len(subjects) == 0 {
+		return
+	}
+	sm, _ := subjects[0].(map[string]any)
+	s := strOr(sm["kind"], "") + "/" + strOr(sm["name"], "")
+	if len(subjects) > 1 {
+		s += fmt.Sprintf(" +%d", len(subjects)-1)
+	}
+	r.Cells["subjects"] = s
+}
+
+func rbacRole(u *unstructured.Unstructured, r *Row) {
+	r.Cells["rules"] = int64(len(slice(u, "rules")))
+}
+
+func storageClass(u *unstructured.Unstructured, r *Row) {
+	r.Cells["provisioner"] = str(u, "provisioner")
+	r.Cells["reclaimPolicy"] = str(u, "reclaimPolicy")
+	r.Cells["volumeBindingMode"] = str(u, "volumeBindingMode")
+	ann := u.GetAnnotations()
+	if ann["storageclass.kubernetes.io/is-default-class"] == "true" || ann["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+		r.Cells["default"] = "Sim"
+	}
+}
+
+func priorityClass(u *unstructured.Unstructured, r *Row) {
+	r.Cells["value"] = num(u, "value")
+	if b, _, _ := unstructured.NestedBool(u.Object, "globalDefault"); b {
+		r.Cells["globalDefault"] = "Sim"
+	}
+}
+
+func runtimeClass(u *unstructured.Unstructured, r *Row) {
+	r.Cells["handler"] = str(u, "handler")
+}
+
+func lease(u *unstructured.Unstructured, r *Row) {
+	r.Cells["holder"] = str(u, "spec", "holderIdentity")
+}
+
+func ingressClass(u *unstructured.Unstructured, r *Row) {
+	r.Cells["controller"] = str(u, "spec", "controller")
+}
+
+func webhookConfig(u *unstructured.Unstructured, r *Row) {
+	r.Cells["webhooks"] = int64(len(slice(u, "webhooks")))
+}
+
+func endpointSlice(u *unstructured.Unstructured, r *Row) {
+	r.Cells["addressType"] = str(u, "addressType")
+	var ports []string
+	for _, p := range slice(u, "ports") {
+		pm, _ := p.(map[string]any)
+		ports = append(ports, fmt.Sprintf("%v/%v", pm["port"], strOr(pm["protocol"], "TCP")))
+	}
+	r.Cells["ports"] = strings.Join(ports, ", ")
+	r.Cells["endpoints"] = int64(len(slice(u, "endpoints")))
+}
+
+func endpoints(u *unstructured.Unstructured, r *Row) {
+	var addrs []string
+	for _, s := range slice(u, "subsets") {
+		sm, _ := s.(map[string]any)
+		var ports []string
+		for _, p := range asSlice(sm["ports"]) {
+			pm, _ := p.(map[string]any)
+			ports = append(ports, fmt.Sprint(pm["port"]))
+		}
+		for _, a := range asSlice(sm["addresses"]) {
+			am, _ := a.(map[string]any)
+			ip := strOr(am["ip"], "")
+			if len(ports) == 0 {
+				addrs = append(addrs, ip)
+			}
+			for _, p := range ports {
+				addrs = append(addrs, ip+":"+p)
+			}
+		}
+	}
+	r.Cells["addresses"] = strings.Join(addrs, ", ")
+}
+
+func networkPolicy(u *unstructured.Unstructured, r *Row) {
+	sel, _, _ := unstructured.NestedStringMap(u.Object, "spec", "podSelector", "matchLabels")
+	if s := joinMap(sel); s != "" {
+		r.Cells["podSelector"] = s
+	} else if len(slice(u, "spec", "podSelector", "matchExpressions")) == 0 {
+		r.Cells["podSelector"] = "(todos os pods)"
+	}
+	var types []string
+	for _, t := range slice(u, "spec", "policyTypes") {
+		types = append(types, fmt.Sprint(t))
+	}
+	r.Cells["policyTypes"] = strings.Join(types, ", ")
+}
+
+func volumeAttachment(u *unstructured.Unstructured, r *Row) {
+	r.Cells["attacher"] = str(u, "spec", "attacher")
+	r.Cells["pv"] = str(u, "spec", "source", "persistentVolumeName")
+	r.Cells["node"] = str(u, "spec", "nodeName")
+	if b, _, _ := unstructured.NestedBool(u.Object, "status", "attached"); b {
+		r.Cells["attached"], r.Health = "True", "ok"
+	} else {
+		r.Cells["attached"], r.Health = "False", "warn"
+	}
+}
+
+func asSlice(v any) []any {
+	s, _ := v.([]any)
+	return s
 }
 
 func genericConditions(u *unstructured.Unstructured, r *Row) {

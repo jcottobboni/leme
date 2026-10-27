@@ -140,3 +140,41 @@ func TestAppOf(t *testing.T) {
 		}
 	}
 }
+
+func TestCronJobState(t *testing.T) {
+	r := Project(obj(t, `{kind: CronJob, metadata: {name: c, namespace: demo, uid: c}, spec: {schedule: "*/5 * * * *", suspend: true}}`))
+	if r.Cells["state"] != "Suspended" || r.Health != "warn" {
+		t.Fatalf("got %+v", r)
+	}
+	if r := Project(obj(t, `{kind: CronJob, metadata: {name: d, uid: d}, spec: {schedule: "@daily"}}`)); r.Cells["state"] != "Active" || r.Health != "ok" {
+		t.Fatalf("got %+v", r)
+	}
+}
+
+func TestMoreProjectors(t *testing.T) {
+	cases := []struct {
+		y      string
+		key    string
+		want   any
+		health string
+	}{
+		{`{kind: PodDisruptionBudget, metadata: {name: p, uid: p}, spec: {minAvailable: 1}, status: {disruptionsAllowed: 0}}`, "minAvailable", "1", "warn"},
+		{`{kind: ResourceQuota, metadata: {name: q, uid: q}, status: {hard: {pods: "10", cpu: "4"}, used: {pods: "3"}}}`, "usage", "cpu: 0/4, pods: 3/10", "neutral"},
+		{`{kind: CustomResourceDefinition, metadata: {name: x, uid: x}, spec: {group: a.io, scope: Namespaced, versions: [{name: v1, served: true}, {name: v0, served: false}]}}`, "versions", "v1", "neutral"},
+		{`{kind: ClusterRoleBinding, metadata: {name: b, uid: b}, roleRef: {kind: ClusterRole, name: admin}, subjects: [{kind: User, name: ana}, {kind: Group, name: ops}]}`, "subjects", "User/ana +1", "neutral"},
+		{`{kind: StorageClass, metadata: {name: s, uid: s, annotations: {storageclass.kubernetes.io/is-default-class: "true"}}, provisioner: rancher.io/local-path}`, "default", "Sim", "neutral"},
+		{`{kind: PriorityClass, metadata: {name: pc, uid: pc}, value: 1000}`, "value", int64(1000), "neutral"},
+		{`{kind: HorizontalPodAutoscaler, metadata: {name: h, uid: h}, spec: {maxReplicas: 5, metrics: [{type: Resource, resource: {name: cpu, target: {type: Utilization, averageUtilization: 80}}}]}, status: {currentReplicas: 2, currentMetrics: [{type: Resource, resource: {name: cpu, current: {averageUtilization: 35}}}]}}`, "metrics", "cpu: 35%/80%", "ok"},
+		{`{kind: Endpoints, metadata: {name: e, uid: e}, subsets: [{addresses: [{ip: 10.0.0.1}], ports: [{port: 80}]}]}`, "addresses", "10.0.0.1:80", "neutral"},
+		{`{kind: VolumeAttachment, metadata: {name: va, uid: va}, spec: {attacher: csi, nodeName: n1, source: {persistentVolumeName: pv1}}, status: {attached: true}}`, "attached", "True", "ok"},
+	}
+	for _, c := range cases {
+		r := Project(obj(t, c.y))
+		if r.Cells[c.key] != c.want || r.Health != c.health {
+			t.Errorf("%s: %s=%#v health=%s, want %#v %s", c.y, c.key, r.Cells[c.key], r.Health, c.want, c.health)
+		}
+	}
+	if cs := Columns("ClusterRoleBinding", false); cs[1].Key == "namespace" {
+		t.Errorf("cluster-scoped kind got a namespace column: %+v", cs)
+	}
+}

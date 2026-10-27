@@ -76,7 +76,7 @@ function readyHealth(v: string) {
   return b === 0 ? 'neutral' : a === b ? 'ok' : a === 0 ? 'error' : 'warn'
 }
 
-function render(v: unknown, col: Column, max: Record<string, number>, onNamespace: (ns: string) => void) {
+function render(v: unknown, col: Column, max: Record<string, number>, onNamespace: (ns: string) => void, row: Row) {
   if (col.type === 'containers' && Array.isArray(v)) {
     return (
       <span className="ctr-squares">
@@ -96,8 +96,9 @@ function render(v: unknown, col: Column, max: Record<string, number>, onNamespac
       </span>
     )
   }
-  if (col.type === 'status') return <span className={`pill pill-${healthOfStatus(String(v))}`}>{String(v)}</span>
-  if (col.key === 'ready' && typeof v === 'string' && v.includes('/')) return <span className={`ready-chip ${readyHealth(v)}`}>{v}</span>
+  // The engine's row health wins over the label text, so the pill agrees with the dot and the header counts.
+  if (col.type === 'status') return <span className={`pill pill-${row.health && row.health !== 'neutral' ? row.health : healthOfStatus(String(v))}`}>{String(v)}</span>
+  if (col.key === 'ready' && typeof v === 'string' && v.includes('/')) return <span className={`ready-chip ${row.health === 'neutral' ? 'neutral' : readyHealth(v)}`}>{v}</span>
   if (col.key === 'namespace') {
     return <span className="ns-link" title={`Filtrar pelo namespace ${v}`} onClick={(e) => (e.stopPropagation(), onNamespace(String(v)))}>{String(v)}</span>
   }
@@ -110,6 +111,10 @@ function render(v: unknown, col: Column, max: Record<string, number>, onNamespac
 const CHECK_W = 34
 const ACTIONS_W = 40
 const SCROLLBAR_W = 10 // matches ::-webkit-scrollbar in styles.css (both head and body reserve it)
+// Short fixed-format values (addresses, versions) get a fixed track so the spare width goes to free text.
+const FIXED_KEYS = ['ip', 'internalIP', 'clusterIP', 'version']
+/** Width an uppercase header label needs (11px, letter-spacing, padding and sort chevron). */
+const labelMin = (c: Column) => Math.ceil(c.label.length * 7.5) + 24
 
 export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const { clusterId, group, resource } = params
@@ -132,6 +137,11 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const tableRef = useRef<HTMLDivElement>(null)
   const KindIcon = kindIcon(res?.kind)
 
+  // Without columns that carry a sort key (e.g. Events have no Name column) rows would sort by a hidden field.
+  useEffect(() => {
+    if (columns.length && !columns.some((c) => c.key === sort.key)) setSort(columns.some((c) => c.key === 'lastSeen') ? { key: 'lastSeen', dir: 1 } : { key: columns[0].key, dir: 1 })
+  }, [columns]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const visibleCols = useMemo(() => columns.filter((c) => !(c.key === 'namespace' && namespace) && (c.key === 'name' || !hidden.includes(c.key))), [columns, namespace, hidden])
 
   const sorted = useMemo(() => {
@@ -144,7 +154,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       let va = col ? cellValue(a, col, usage, res?.kind) : a.name
       let vb = col ? cellValue(b, col, usage, res?.kind) : b.name
       if (col?.type === 'age') {
-        // older first when ascending by age
+        // newest first when ascending by age
         va = va ? -new Date(String(va)).getTime() : 0
         vb = vb ? -new Date(String(vb)).getTime() : 0
       }
@@ -183,7 +193,11 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const template = `${CHECK_W}px ` + visibleCols.map((c) => {
     if (widths[c.key]) return (minWidth += widths[c.key], `${widths[c.key]}px`)
     const w = c.width ?? 140
-    const min = c === flex ? 140 : c.key === 'name' ? Math.min(w, 200) : c.type === 'status' ? w : Math.max(56, Math.round(w * 0.75))
+    if (c.type === 'age' || FIXED_KEYS.includes(c.key)) {
+      const fw = Math.max(w, labelMin(c))
+      return (minWidth += fw, `${fw}px`)
+    }
+    const min = Math.max(labelMin(c), c === flex ? 140 : c.key === 'name' ? Math.min(w, 160) : c.key === 'node' ? 100 : c.type === 'status' ? w : c.type === 'number' ? Math.max(w, 72) : w >= 200 ? Math.round(w * 0.6) : Math.max(56, Math.round(w * 0.75)))
     minWidth += min
     return `minmax(${min}px, ${w}fr)`
   }).join(' ') + ` ${ACTIONS_W}px`
@@ -192,6 +206,8 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
     for (const r of rows) if (r.health in c) c[r.health as keyof typeof c]++
     return c
   }, [rows])
+  // Kinds with no status (ConfigMaps, Secrets, RBAC…) skip the dot: a grey dot would read as "inactive".
+  const hasHealth = useMemo(() => columns.some((c) => c.type === 'status') || rows.some((r) => r.health !== 'neutral'), [columns, rows])
 
   const objParams = (r: Row): ObjectParams | undefined =>
     res && { clusterId, group, version: res.version, resource, kind: res.kind, namespace: r.namespace, name: r.name }
@@ -301,11 +317,13 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
           <input ref={searchRef} className="search" placeholder="Buscar (/)…" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <span className="count-pill">{sorted.length === rows.length ? `${rows.length} ${rows.length === 1 ? 'item' : 'itens'}` : `${sorted.length} de ${rows.length}`}</span>
-        <span className="health-counts">
-          {counts.ok > 0 && <span className="s-ok">● {counts.ok}</span>}
-          {counts.warn > 0 && <span className="s-warn">● {counts.warn}</span>}
-          {counts.error > 0 && <span className="s-error">● {counts.error}</span>}
-        </span>
+        {counts.warn + counts.error > 0 && (
+          <span className="health-counts">
+            {counts.ok > 0 && <span className="s-ok" title="saudáveis">● {counts.ok} ok</span>}
+            {counts.warn > 0 && <span className="s-warn" title="com alerta">● {counts.warn} alerta</span>}
+            {counts.error > 0 && <span className="s-error" title="com erro">● {counts.error} erro</span>}
+          </span>
+        )}
         {loading && <span className="spinner" />}
         <span className="spacer" />
         <button className="icon-btn" title="Colunas" onClick={columnMenu} data-testid="grid-columns"><Columns3 size={16} /></button>
@@ -314,7 +332,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
         <div className="bulkbar" data-testid="bulkbar">
           <b>{checked.size} selecionado{checked.size === 1 ? '' : 's'}</b>
           <button onClick={() => navigator.clipboard.writeText(checkedRows.map((r) => r.name).join('\n')).then(() => useApp.getState().toast('ok', 'Nomes copiados'))}><Copy size={14} /> Copiar nomes</button>
-          {RESTARTABLE.includes(res.kind) && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Restart</button>}
+          {RESTARTABLE.includes(res.kind) && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Reiniciar</button>}
           <button className="danger" disabled={actions.readOnly} title={actions.readOnly ? 'Cluster em somente leitura' : ''} onClick={() => actions.ask('delete', checkedRows)} data-testid="bulk-delete">
             <Trash2 size={14} /> Excluir {checked.size}
           </button>
@@ -327,12 +345,12 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
         <div className="grid-table" ref={tableRef}>
           <div className="grid-head" style={{ gridTemplateColumns: template, minWidth: minWidth + SCROLLBAR_W }}>
             <div className="th td-check" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" aria-label="Selecionar todos" checked={allChecked} onChange={() => setChecked(allChecked ? new Set() : new Set(sorted.map((r) => r.uid)))} />
+              <input type="checkbox" aria-label="Selecionar todos" disabled={sorted.length === 0} checked={allChecked} onChange={() => setChecked(allChecked ? new Set() : new Set(sorted.map((r) => r.uid)))} />
             </div>
             {visibleCols.map((c) => (
               <div key={c.key} className={`th ${sort.key === c.key ? 'sorted' : ''}`} onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? ((-s.dir) as 1 | -1) : 1 }))}>
-                {c.label}
-                {sort.key === c.key && <span className="sort">{sort.dir === 1 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>}
+                <span className="th-label" title={c.label}>{c.label}</span>
+                {sort.key === c.key && sorted.length > 0 && <span className="sort">{sort.dir === 1 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>}
                 <span className="th-resize" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => startColResize(e, c)} />
               </div>
             ))}
@@ -359,9 +377,9 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
                     {visibleCols.map((c) => {
                       const v = cellValue(r, c, usage, res.kind)
                       return (
-                        <div key={c.key} className={`td ${c.key === 'name' ? 'name' : ''}`} title={typeof v === 'object' ? undefined : String(v ?? '')}>
-                          {c.key === 'name' && <span className={`dot d-${r.health}`} />}
-                          {render(v, c, max, setNs)}
+                        <div key={c.key} className={`td ${c.key === 'name' ? 'name' : ''} ${c.type === 'number' || c.type === 'age' || c.key === 'ready' ? 'num' : ''}`} title={typeof v === 'object' ? undefined : String(v ?? '')}>
+                          {c.key === 'name' && hasHealth && <span className={`dot d-${r.health}`} />}
+                          {render(v, c, max, setNs, r)}
                         </div>
                       )
                     })}
@@ -381,7 +399,11 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
               </div>
             )}
             {!loading && !error && sorted.length === 0 && (
-              <div className="empty"><KindIcon size={32} /><div>{rows.length ? 'Nenhum item com esse filtro.' : `Nenhum ${res.kind} ${namespace ? `em ${namespace}` : 'no cluster'}.`}</div></div>
+              <div className="empty">
+                <KindIcon size={32} />
+                <div>{rows.length ? 'Nenhum item com esse filtro.' : `Nenhum recurso do tipo ${plural(res.kind)} ${namespace ? `em ${namespace}` : 'no cluster'}.`}</div>
+                {!rows.length && namespace && <div className="muted">Selecione "Todos os namespaces" para ver os demais.</div>}
+              </div>
             )}
           </div>
         </div>

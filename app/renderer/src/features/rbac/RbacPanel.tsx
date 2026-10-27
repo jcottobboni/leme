@@ -41,7 +41,7 @@ function Mine({ clusterId }: { clusterId: string }) {
       {data?.incomplete && <div className="banner warn">O servidor marcou a resposta como incompleta (webhook ou autorizador externo): use “Posso…?” para confirmar casos específicos.{data.evaluationError ? ` ${data.evaluationError}` : ''}</div>}
       <div className="scroll">
         <table className="table matrix" data-testid="rbac-matrix">
-          <thead><tr><th>Recurso</th><th>Grupo</th>{VERBS.map((v) => <th key={v}>{v}</th>)}</tr></thead>
+          <thead><tr><th>Recurso</th><th>Grupo</th>{VERBS.map((v) => <th key={v} title={v}>{v === 'deletecollection' ? 'del·col' : v}</th>)}</tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.group + '/' + r.resource}>

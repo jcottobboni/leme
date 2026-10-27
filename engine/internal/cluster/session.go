@@ -393,12 +393,12 @@ var categories = map[string]string{
 	"EndpointSlice": "Network", "NetworkPolicy": "Network", "Route": "Network",
 	"Gateway": "Network", "GatewayClass": "Network", "HTTPRoute": "Network", "GRPCRoute": "Network", "ReferenceGrant": "Network",
 	"ConfigMap": "Config", "Secret": "Config", "ResourceQuota": "Config", "LimitRange": "Config",
-	"PriorityClass": "Config", "RuntimeClass": "Config", "Lease": "Config",
 	"MutatingWebhookConfiguration": "Config", "ValidatingWebhookConfiguration": "Config",
 	"PersistentVolumeClaim": "Storage", "PersistentVolume": "Storage", "StorageClass": "Storage",
 	"VolumeAttachment": "Storage", "CSIDriver": "Storage", "CSINode": "Storage", "VolumeSnapshot": "Storage",
 	"ServiceAccount": "Access", "Role": "Access", "ClusterRole": "Access", "RoleBinding": "Access", "ClusterRoleBinding": "Access",
 	"Node": "Cluster", "Namespace": "Cluster", "Event": "Cluster", "Project": "Cluster",
+	"PriorityClass": "Cluster", "RuntimeClass": "Cluster", "Lease": "Cluster",
 	"CustomResourceDefinition": "Cluster", "APIService": "Cluster", "ComponentStatus": "Cluster",
 }
 

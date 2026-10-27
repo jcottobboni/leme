@@ -319,7 +319,7 @@ export function hostTag(host?: string) {
   return host?.split(/[-.]/).find((w) => w && !/^(api|ocp|k8s|kube|openshift|cluster)$/i.test(w))
 }
 
-export const ENV_LABEL: Record<ClusterEnv, string> = { prod: 'PRD', hml: 'HML', dev: 'DEV', test: 'TST', none: '' }
+export const ENV_LABEL: Record<ClusterEnv, string> = { prod: 'PROD', hml: 'HML', dev: 'DEV', test: 'TST', none: '' }
 
 export interface ClusterIdentity { name: string; host?: string; short: string; color: string; icon?: string; env: ClusterEnv; custom: boolean }
 

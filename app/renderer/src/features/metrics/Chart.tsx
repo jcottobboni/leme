@@ -157,17 +157,20 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
     const host = mainEl.current
     const brushHost = brushEl.current
     const css = getComputedStyle(document.documentElement)
-    const grid = css.getPropertyValue('--line-soft').trim() || '#1e2228'
+    const grid = css.getPropertyValue('--line').trim() || '#272c33'
     const text = css.getPropertyValue('--muted').trim() || '#7d8a99'
     const xs = data[0] as number[]
     const full = { min: xs[0], max: xs[xs.length - 1] }
     const hide = hiddenRef.current ?? new Set<string>()
+    // Byte units: a floor of 4 and whole-byte increments so near-zero charts never repeat rounded tick labels.
+    const floor = chart.unit === 'cores' ? 0 : 4
+    const incrs = chart.unit === 'cores' ? undefined : [1, 2, 5, 10, 20, 50, 100, 200, 500, 1024, 2048, 5120, 10240, 51200, 102400, 1048576, 5242880, 10485760, 104857600, 1073741824, 2147483648, 5368709120, 10737418240, 21474836480, 53687091200, 107374182400, 1099511627776]
     const range = (_u: uPlot, min: number, max: number): [number, number] => {
       if (mirrored) {
         const m = Math.max(Math.abs(min), max) * 1.15 // symmetric around the axis so RX and TX read alike
-        return m > 0 ? [-m, m] : [-1, 1]
+        return m > 0 ? [-Math.max(m, floor), Math.max(m, floor)] : [-(floor || 1), floor || 1]
       }
-      return [0, max > 0 ? max * 1.15 : 1]
+      return [0, max > 0 ? Math.max(max * 1.15, floor) : floor || 1]
     }
     const absFmt = (v: number | null) => formatValue(chart.unit, v === null ? v : Math.abs(v))
     let syncing = false
@@ -181,12 +184,12 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
         width: host.clientWidth || 400,
         height: h,
         legend: { show: false },
-        padding: [8, 8, 0, 0],
+        padding: [8, 20, 0, 0],
         cursor: { drag: { x: true, y: false, setScale: true }, points: { size: 7 }, y: false },
         scales: { x: { time: true }, y: { range } },
         axes: [
           { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, font: '11px Inter, sans-serif', gap: 6, size: 28, values: timeTicks },
-          { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, size: 62, font: '11px Inter, sans-serif', values: (_u, vals) => vals.map((v) => (v === 0 && mirrored ? '0' : absFmt(v))) },
+          { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, size: 62, incrs, font: '11px Inter, sans-serif', values: (_u, vals) => vals.map((v) => (v === 0 && mirrored ? '0' : absFmt(v))) },
         ],
         series: [
           {},
@@ -252,7 +255,7 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
         width: brushHost.clientWidth || 400,
         height: 44,
         legend: { show: false },
-        padding: [2, 8, 2, 62],
+        padding: [2, 20, 2, 62],
         cursor: { drag: { x: true, y: false, setScale: false }, points: { show: false }, x: false, y: false },
         select: { show: true, left: 0, top: 0, width: 0, height: 0 },
         scales: { x: { time: true }, y: { range } },

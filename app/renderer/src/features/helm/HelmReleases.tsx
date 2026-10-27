@@ -4,7 +4,8 @@ import { api } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { age } from '../../format'
 import { NamespaceSelect } from '../../components/ResourceGrid'
-import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, RefreshButton, useAsync } from '../common'
+import { Package } from 'lucide-react'
 
 export function helmStatusHealth(s: string) {
   if (s === 'deployed') return 'ok'
@@ -32,12 +33,18 @@ function Releases({ clusterId }: { clusterId: string }) {
         <NamespaceSelect clusterId={clusterId} />
         <input className="search" placeholder="Buscar release…" value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="muted">{rows.length} releases</span>
-        {loading && <span className="spinner" />}
         <span className="spacer" />
-        <button onClick={reload}>Recarregar</button>
+        <RefreshButton onClick={reload} loading={loading} />
         <button className="primary" onClick={() => openCharts(clusterId)}>Instalar chart…</button>
       </div>
       <ErrorBanner error={error} />
+      {!loading && !rows.length ? (
+        <div className="empty">
+          <Package size={22} />
+          <span>Nenhum release de Helm {ns ? <>em <b>{ns}</b></> : 'no cluster'}.</span>
+          <button className="primary" onClick={() => openCharts(clusterId)}>Instalar chart…</button>
+        </div>
+      ) : (
       <div className="scroll">
         <table className="table">
           <thead><tr><th>Release</th><th>Namespace</th><th>Revisão</th><th>Status</th><th>Chart</th><th>App</th><th>Atualizado</th></tr></thead>
@@ -53,10 +60,10 @@ function Releases({ clusterId }: { clusterId: string }) {
                 <td>{age(r.updated)}</td>
               </tr>
             ))}
-            {!loading && !rows.length && <tr><td colSpan={7} className="muted">Nenhum release de Helm {ns ? `em ${ns}` : 'no cluster'}.</td></tr>}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

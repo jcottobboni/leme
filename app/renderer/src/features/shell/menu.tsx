@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { Bot, LogIn, LogOut, Lock, LockOpen, type LucideIcon, Palette as PaletteIcon, Pencil, Pin, PinOff, Plug, Unplug } from 'lucide-react'
+import { Bot, LogIn, LogOut, Lock, LockOpen, type LucideIcon, Pencil, Pin, PinOff, Plug, Unplug } from 'lucide-react'
 import { api3, type ClusterInfo } from '../../api'
-import { PALETTE, useApp, useProfiles, useUi, defaultColor } from '../../store'
+import { useApp, useUi } from '../../store'
 import { UnlockDialog } from '../../components/Dialogs'
 import { LoginDialog } from '../openshift/LoginDialog'
 import { ClusterProfileDialog } from './ClusterProfile'
@@ -125,12 +125,6 @@ export function openProfile(c: ClusterInfo) {
   useDialogs.setState({ profile: c })
 }
 
-export function cycleColor(id: string) {
-  const { profiles, setProfile } = useProfiles.getState()
-  const cur = profiles[id]?.color ?? defaultColor(id)
-  setProfile(id, { ...profiles[id], color: PALETTE[(PALETTE.indexOf(cur) + 1) % PALETTE.length] })
-}
-
 /** Actions of a cluster, shared by the hotbar, the navigator header and the catalog. */
 export function clusterMenu(c: ClusterInfo): MenuItem[] {
   const s = useApp.getState()
@@ -162,7 +156,6 @@ export function clusterMenu(c: ClusterInfo): MenuItem[] {
     { label: pinned ? 'Remover da hotbar' : 'Fixar na hotbar', icon: pinned ? PinOff : Pin, onClick: () => togglePin(c.id) },
     { label: 'Personalizar…', icon: Pencil, hint: 'cor, sigla, nome', onClick: () => openProfile(c) },
     { label: 'Acesso de agentes (MCP)…', icon: Bot, onClick: () => useDialogs.setState({ agents: c }) },
-    { label: 'Trocar cor', icon: PaletteIcon, onClick: () => cycleColor(c.id) },
   )
   return items
 }

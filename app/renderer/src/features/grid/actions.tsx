@@ -42,8 +42,8 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
       )
     }
     if (SCALABLE.includes(kind) || RESTARTABLE.includes(kind)) items.push({ separator: true })
-    if (SCALABLE.includes(kind)) items.push({ label: 'Scale…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })
-    if (RESTARTABLE.includes(kind)) items.push({ label: 'Restart…', icon: RotateCw, disabled: readOnly, onClick: () => setPending({ kind: 'restart', rows: [row] }) })
+    if (SCALABLE.includes(kind)) items.push({ label: 'Escalar…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })
+    if (RESTARTABLE.includes(kind)) items.push({ label: 'Reiniciar…', icon: RotateCw, disabled: readOnly, onClick: () => setPending({ kind: 'restart', rows: [row] }) })
     items.push(
       { separator: true },
       { label: 'Copiar nome', icon: Copy, onClick: () => navigator.clipboard.writeText(row.name).then(() => toast('ok', 'Nome copiado')) },
@@ -93,7 +93,7 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
           onCancel={() => setPending(undefined)} onConfirm={() => run('Restart disparado', pending.rows, (r) => api.restart(clusterId, refOf(res, r)))} />
       )}
       {pending.kind === 'scale' && (
-        <PromptDialog title={`Scale ${pending.rows[0].name}`} label="Réplicas" type="number" initial={String(desiredReplicas(pending.rows[0]))} onCancel={() => setPending(undefined)}
+        <PromptDialog confirmLabel="Aplicar" title={`Escalar ${pending.rows[0].name}`} label={`Réplicas (atual: ${desiredReplicas(pending.rows[0])})`} type="number" initial={String(desiredReplicas(pending.rows[0]))} onCancel={() => setPending(undefined)}
           onConfirm={(v) => {
             const n = Number(v)
             if (!Number.isInteger(n) || n < 0) return toast('error', 'Número de réplicas inválido')

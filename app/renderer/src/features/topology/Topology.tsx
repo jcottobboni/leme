@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import {
   Background, Handle, MarkerType, MiniMap, Panel, Position, ReactFlow, ReactFlowProvider, useReactFlow, useStore,
@@ -51,7 +51,7 @@ const KindNode = memo(function KindNode({ data }: NodeProps<Node<CardData>>) {
           <span className="tc-sub">{n.kind}{n.count ? ` ×${n.count}` : ''}{n.namespace ? ` · ${n.namespace}` : ''}</span>
         </span>
       </div>
-      <div className="tc-status"><i className={`dot h-${n.health}`} />{statusText(n, stats) || '—'}</div>
+      {statusText(n, stats) && <div className="tc-status"><i className={`dot h-${n.health}`} />{statusText(n, stats)}</div>}
       {sq && (
         <div className="tc-pods" data-testid="pod-squares">
           {sq.items.map((h, i) => <i key={i} className={`sq h-${h}`} />)}
@@ -80,7 +80,7 @@ const nodeTypes = { kind: KindNode, region: RegionNode }
 type Focus = { kind: string; name: string; ns: string }
 type Lay = { g: Graph; res: LayoutResult; stats: Map<string, PodStats>; dir: Dir }
 
-export function TopologyView(props: { clusterId: string; namespace: string; kind?: string; name?: string }) {
+export function TopologyView(props: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode }) {
   return (
     <ReactFlowProvider>
       <TopologyInner {...props} />
@@ -88,7 +88,7 @@ export function TopologyView(props: { clusterId: string; namespace: string; kind
   )
 }
 
-function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string; namespace: string; kind?: string; name?: string }) {
+function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode }) {
   const theme = useTheme((s) => s.theme)
   const { fitView } = useReactFlow()
   const root = useRef<HTMLDivElement>(null)
@@ -98,7 +98,7 @@ function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string
   const [busy, setBusy] = useState(false)
   const [rev, setRev] = useState(0)
   const [showDeps, setShowDeps] = useState(true)
-  const [labels, setLabels] = useState(!!kind)
+  const [labels, setLabels] = useState(false)
   const [q, setQ] = useState('')
   const [dir, setDir] = useState<Dir>('RIGHT')
   const [groupPref, setGroupPref] = useState<boolean>()
@@ -225,7 +225,7 @@ function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string
       const hot = !!selected && (e.from === selected || e.to === selected)
       return {
         id: `e${i}`, source: e.from, target: e.to, type: 'default', animated: hot,
-        label: labels ? e.rel : undefined,
+        label: labels || hot ? e.rel : undefined,
         className: selected && !hot ? 'topo-edge-dim' : hot ? 'topo-edge-hot' : undefined,
         style: { stroke: colors[c], strokeWidth: hot ? 2.2 : 1.4, strokeDasharray: c === 'sched' ? '3 5' : undefined },
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: colors[c] },
@@ -270,6 +270,7 @@ function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string
   return (
     <div className="topology" ref={root} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selected && (e.stopPropagation(), setSelected(undefined))}>
       <div className="toolbar tp-bar">
+        {leading}
         <input className="search" placeholder="Destacar…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className={`tp-tog ${showDeps ? 'on' : ''}`} aria-pressed={showDeps} onClick={() => setShowDeps((v) => !v)}>config, RBAC e nodes</button>
         <button className={`tp-tog ${labels ? 'on' : ''}`} aria-pressed={labels} onClick={() => setLabels((v) => !v)}>rótulos</button>
@@ -300,7 +301,7 @@ function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string
           >
             <Background gap={24} size={1} />
             <Panel position="top-left" className="tp-head" data-testid="topo-head">
-              <div className="tp-title"><b>Topologia</b><span>{lay ? `${lay.g.nodes.length} objetos, ${lay.g.edges.length} relações` : '…'}</span></div>
+              <div className="tp-title"><b>Topologia</b><span>{lay ? `${lay.g.nodes.length} objeto${lay.g.nodes.length === 1 ? '' : 's'}, ${lay.g.edges.length} relaç${lay.g.edges.length === 1 ? 'ão' : 'ões'}` : '…'}</span></div>
               <div className="tp-chips">
                 {kinds.map(([k, c]) => {
                   const Icon = kindIcon(k)
@@ -320,7 +321,7 @@ function TopologyInner({ clusterId, namespace, kind, name }: { clusterId: string
                   <span className="tc-txt"><span className="tc-name">{sel.name}</span><span className="tc-sub">{sel.kind}{sel.namespace ? ` · ${sel.namespace}` : ''}</span></span>
                   <button className="tp-x" aria-label="Fechar" onClick={() => setSelected(undefined)}><X size={14} /></button>
                 </div>
-                <div className="tc-status"><i className={`dot h-${sel.health}`} />{statusText(sel, lay?.stats.get(sel.id)) || '—'}</div>
+                {statusText(sel, lay?.stats.get(sel.id)) && <div className="tc-status"><i className={`dot h-${sel.health}`} />{statusText(sel, lay?.stats.get(sel.id))}</div>}
                 <div className="tp-rel">
                   <span><b>{adj.out.get(sel.id)?.size ?? 0}</b> usa</span>
                   <span><b>{adj.inn.get(sel.id)?.size ?? 0}</b> depende dele</span>
@@ -379,10 +380,7 @@ function NamespaceTopology({ clusterId, initial }: { clusterId: string; initial?
   const ns = selected || initial || fallback
   return (
     <div className="object-panel">
-      <div className="toolbar">
-        <NamespaceSelect clusterId={clusterId} effective={ns} />
-      </div>
-      <TopologyView clusterId={clusterId} namespace={ns} />
+      <TopologyView clusterId={clusterId} namespace={ns} leading={<NamespaceSelect clusterId={clusterId} effective={ns} />} />
     </div>
   )
 }

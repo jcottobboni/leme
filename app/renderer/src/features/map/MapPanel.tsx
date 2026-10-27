@@ -97,13 +97,14 @@ const Island = memo(function Island({ isl, k, vp, lod, dr, match }: { isl: Islan
   const c = isl.ns.pods
   const lf = Math.min(Math.max(isl.font, 13 / k), isl.r * 0.2)
   const maxChars = Math.floor((isl.r * 1.5) / (lf * 0.7))
-  const ly = isl.y - isl.r + lf * 1.45 + 6
+  const ly = isl.y - isl.r * 0.72 + lf * 0.5
   const showLabel = maxChars >= 3
   const bw = Math.min(isl.r * 1.0, Math.max(lf * 7, 60)), bh = lf * 0.34
   const inner = isl.r * k > 25
   const dimIsl = match && !match.islands.has(isl.id)
   return (
     <g className="map-island" data-testid={`map-island-${isl.ns.name}`} style={{ '--h': isl.hue } as React.CSSProperties} opacity={dimIsl && !match!.islandsWithTiles.has(isl.id) ? 0.35 : 1}>
+      <title>{isl.ns.name}</title>
       <path className="blob" data-isl={isl.id} d={isl.path} />
       <path className="hexfill" d={isl.path} />
       {showLabel && <text className="nslabel" x={isl.x} y={ly} fontSize={lf}>{trunc(isl.ns.name, maxChars)}</text>}
@@ -431,7 +432,7 @@ function MapView({ clusterId }: { clusterId: string }) {
         <span className="grid-title"><Layers size={16} />Mapa do cluster</span>
         <label className="map-search">
           <Search size={14} />
-          <input data-testid="map-search" placeholder="Buscar workload, app ou namespace" value={q} onChange={(e) => setQ(e.target.value)}
+          <input data-testid="map-search" placeholder="Buscar workload, app, ns…" value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && match?.first) { lastQ.current = q; match.first.k ? animateTo(centerOn(match.first.x, match.first.y, match.first.k)) : zoomToBox(match.first.x, match.first.y, match.first.r) } if (e.key === 'Escape') setQ('') }} />
         </label>
         {q.trim() && <span className="map-count" data-testid="map-matches">{match ? match.tiles.size + (match.islands.size - match.islandsWithTiles.size) : 0} resultado(s)</span>}
@@ -441,7 +442,7 @@ function MapView({ clusterId }: { clusterId: string }) {
         {map.truncated && <span className="badge badge-ro" title="O mapa mostra os primeiros workloads">truncado</span>}
         <span className="spacer" />
         {loading && <span className="spinner" />}
-        <button onClick={reload} data-testid="map-refresh"><RefreshCw size={14} /> Atualizar</button>
+        <button onClick={reload} data-testid="map-refresh"><RefreshCw size={14} /> Recarregar</button>
       </div>
       <Partial errors={map.errors} />
       {error && <ErrorBanner error={error} />}

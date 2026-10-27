@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, EllipsisVertical, LayoutGrid, Lock, LockOpen, Pencil, Plug, Search, Tags, TriangleAlert } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, EllipsisVertical, LayoutGrid, Lock, LockOpen, Pencil, Plug, Search, Tags, TriangleAlert } from 'lucide-react'
 import type { ClusterInfo, Resource } from '../../api'
 import { clusterName, contextParts, ENV_LABEL, hostTag, openPanel, useApp, useIdentity, useUi, type ClusterIdentity, type OpenOptions } from '../../store'
 import { openTool } from '../workspace/tools'
@@ -59,7 +59,7 @@ function HotCard({ c, top, left }: { c: ClusterInfo; top: number; left: number }
         <ClusterAvatar c={c} size={36} />
         <div className="cl-main">
           <b className="ellipsis">{id.name}</b>
-          <span className="muted small ellipsis">{c.name}</span>
+          {id.name !== c.name && <span className="muted small ellipsis">{c.name}</span>}
         </div>
       </div>
       <div className="hot-card-rows">
@@ -68,7 +68,7 @@ function HotCard({ c, top, left }: { c: ClusterInfo; top: number; left: number }
         <span><i>tipo</i>{providerLabel(c.provider)}{id.env !== 'none' ? ` · ${ENV_LABEL[id.env]}` : ''}{c.prod ? ' · PRODUÇÃO' : ''}</span>
         <span><i>estado</i>{st ? `conectado · ${st.version} · ${st.readOnly ? 'somente leitura' : 'leitura e escrita'}` : err ? 'falhou ao conectar' : 'desconectado'}</span>
       </div>
-      <div className="muted small">Clique: abrir · botão direito: ações · arraste para reordenar</div>
+      <div className="muted small">Clique abre · botão direito: ações · arraste p/ reordenar</div>
     </div>
   )
 }
@@ -186,6 +186,7 @@ export function ClusterList({ compact }: { compact?: boolean }) {
   const clusters = useApp((s) => s.clusters)
   const connected = useApp((s) => s.connected)
   const pinned = useUi((s) => s.pinned)
+  const active = useApp((s) => s.activeCluster)
   const [q, setQ] = useState('')
   const f = q.toLowerCase()
   const shown = clusters.filter((c) => !f || c.name.toLowerCase().includes(f) || clusterName(c.id).toLowerCase().includes(f) || c.server.toLowerCase().includes(f))
@@ -196,13 +197,15 @@ export function ClusterList({ compact }: { compact?: boolean }) {
   ]
   return (
     <div className={`cluster-list ${compact ? 'compact' : ''}`}>
-      <label className="search-box">
-        <Search size={14} />
-        <input placeholder={`Buscar em ${clusters.length} contextos…`} value={q} onChange={(e) => setQ(e.target.value)} />
-      </label>
+      {active && (
+        <label className="search-box">
+          <Search size={14} />
+          <input placeholder={`Buscar em ${clusters.length} contextos…`} value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+      )}
       {groups.filter(([, l]) => l.length).map(([title, list]) => (
         <div key={title} className="cl-group">
-          <div className="cl-title">{title} <span className="muted">{list.length}</span></div>
+          <div className="cl-title">{title} <span className="badge badge-ro">{list.length}</span></div>
           {list.map((c) => <ClusterRow key={c.id} c={c} />)}
         </div>
       ))}
@@ -263,7 +266,7 @@ function ClusterCard({ c }: { c: ClusterInfo }) {
         <ClusterAvatar c={c} size={38} />
         <div className="cl-main">
           <span className="cc-name" title={c.name}>{id.name}</span>
-          <span className="cc-server">{id.host ? `${id.host} · ` : ''}{c.server.replace(/^https?:\/\//, '')}</span>
+          <span className="cc-server">{id.host && <><span className="cc-host">{id.host}</span>{' · '}</>}<span className="cc-ep">{c.server.replace(/^https?:\/\//, '')}</span></span>
         </div>
         <button className="icon-btn" title="Personalizar" onClick={(e) => (e.stopPropagation(), openProfile(c))}><Pencil size={14} /></button>
         <button className="icon-btn" title="Ações" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={16} /></button>
@@ -288,7 +291,7 @@ function ClusterCard({ c }: { c: ClusterInfo }) {
         )}
         <span className="spacer" />
         {st ? (
-          <button onClick={(e) => { e.stopPropagation(); useApp.getState().setActiveCluster(c.id) }}>Abrir</button>
+          <button className="primary" onClick={(e) => { e.stopPropagation(); useApp.getState().setActiveCluster(c.id) }}><ArrowRight size={13} /> Abrir</button>
         ) : (
           <button className="primary" disabled={connecting} onClick={(e) => { e.stopPropagation(); open() }}><Plug size={13} /> Conectar</button>
         )}
@@ -302,6 +305,8 @@ function ClusterRow({ c }: { c: ClusterInfo }) {
   const st = useApp((s) => s.connected[c.id])
   const connecting = useApp((s) => s.connecting[c.id])
   const err = useApp((s) => s.connectError[c.id])
+  // Same twin rule as HotItem: contexts with the same readable name on different clusters show the cluster tag.
+  const twin = useApp((s) => id.name === contextParts(c.name).base && !!id.host && s.clusters.some((o) => o.id !== c.id && contextParts(o.name).base === contextParts(c.name).base))
   const open = async () => {
     const app = useApp.getState()
     if (st) return app.setActiveCluster(c.id)
@@ -312,11 +317,11 @@ function ClusterRow({ c }: { c: ClusterInfo }) {
       <div className={`cluster-row ${st ? 'is-connected' : ''}`} onClick={open} onContextMenu={(e) => openMenu(e, clusterMenu(c))} title={`${c.server}\n${c.source}`} data-testid={`cluster-row-${c.name}`}>
         <ClusterAvatar c={c} size={28} />
         <span className="cl-main">
-          <span className="cluster-name">{id.name}</span>
+          <span className="cluster-name">{twin ? `${id.name} · ${hostTag(id.host)}` : id.name}</span>
           <span className="cl-sub">{id.host ?? c.server.replace(/^https?:\/\//, '')}</span>
         </span>
         <span className={`prov prov-${c.provider}`}>{providerLabel(c.provider)}</span>
-        {c.prod && <span className="badge badge-prod" title="Servidor de produção: a escrita só é liberada digitando o nome do contexto">PROD</span>}
+        {c.prod && <span className="badge badge-prod" title="Servidor de produção: a escrita só é liberada digitando o nome do contexto">{id.env === 'prod' || id.env === 'none' ? 'PROD' : 'CLUSTER PROD'}</span>}
         {st?.readOnly && <span className="badge badge-ro" title="Somente leitura">RO</span>}
         {connecting && <span className="spinner" />}
         <button className="icon-btn" title="Ações" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={14} /></button>

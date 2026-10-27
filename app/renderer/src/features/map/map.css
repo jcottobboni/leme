@@ -1,10 +1,11 @@
 /* Mapa do cluster. Everything scoped under .map-panel; tokens come from styles.css. */
 .map-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
-.map-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.map-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: nowrap; }
 .map-bar .spacer { flex: 1; }
-.map-search { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; height: 28px; min-width: 200px; }
+.map-bar > button, .map-bar > .grid-title { flex: none; white-space: nowrap; }
+.map-search { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; height: 28px; flex: 0 1 260px; min-width: 140px; }
 .map-search:focus-within { border-color: var(--accent); }
-.map-search input { background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; width: 230px; }
+.map-search input { background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; width: 100%; min-width: 0; }
 .map-search svg { color: var(--muted); flex: none; }
 .map-toggle { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; font: inherit; }
 .map-toggle:hover { background: var(--hover); }
@@ -48,7 +49,7 @@ html[data-theme='light'] .map-island { --tint: hsl(var(--h) 66% 46%); --label: h
 .map-island .blob { fill: color-mix(in srgb, var(--tint) 17%, transparent); stroke: color-mix(in srgb, var(--tint) 70%, transparent); stroke-width: 1.6; vector-effect: non-scaling-stroke; transition: fill .15s; }
 .map-island .hexfill { fill: url(#map-hex); pointer-events: none; }
 .map-island.hot .blob { fill: color-mix(in srgb, var(--tint) 26%, transparent); stroke-width: 2.4; }
-.map-island .nslabel { fill: var(--label); font-weight: 700; letter-spacing: .04em; text-anchor: middle; pointer-events: none; text-transform: uppercase; }
+.map-island .nslabel { fill: var(--label); font-weight: 700; letter-spacing: .04em; text-anchor: middle; pointer-events: none; text-transform: uppercase; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
 .map-island .nsmeta { fill: var(--label); opacity: .75; text-anchor: middle; pointer-events: none; }
 .map-island .app { fill: color-mix(in srgb, var(--tint) 12%, transparent); stroke: color-mix(in srgb, var(--tint) 55%, transparent); stroke-width: 1; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .map-island .app.hot { fill: color-mix(in srgb, var(--tint) 22%, transparent); }

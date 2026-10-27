@@ -6,7 +6,9 @@
 .an-evidence summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .an-evidence pre { margin: 4px 0 0; padding: 6px 8px; background: var(--chip-bg); border-radius: 4px; font-family: var(--mono, monospace); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
 .an-suggestion { font-size: 13px; }
-.an-empty { padding: 24px; text-align: center; color: var(--muted); }
+.an-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 40px 24px; color: var(--muted); text-align: center; }
+.an-empty svg { color: var(--ok); }
+.an-empty b { color: var(--text-strong); }
 .an-group { display: flex; flex-direction: column; gap: 8px; }
 .an-group-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .an-counts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }

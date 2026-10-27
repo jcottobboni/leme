@@ -28,8 +28,8 @@ export function bytes(n?: number): string {
 }
 
 export function healthOfStatus(s: string): 'ok' | 'warn' | 'error' | 'neutral' {
-  if (/^(Running|Ready|Active|Bound|Healthy|Complete|Succeeded|True|Normal|Admitted)$/.test(s)) return 'ok'
-  if (/^(Completed|Scaled to 0|Available)$/.test(s)) return 'neutral'
+  if (/^(Running|Ready|Active|Bound|Healthy|Complete|Succeeded|True|Admitted)$/.test(s)) return 'ok'
+  if (/^(Completed|Scaled to 0|Available|Normal)$/.test(s)) return 'neutral'
   if (/(BackOff|Err|Fail|Unknown|NotReady|Lost|Degraded|Blocked|OOM|Evicted|Warning|Rejected)/.test(s)) return 'error'
   if (s === 'Cancelled') return 'neutral'
   if (!s) return 'neutral'

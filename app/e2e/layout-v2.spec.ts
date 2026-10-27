@@ -88,12 +88,12 @@ test('CA-V3: menu da linha conforme o tipo', async ({ page }) => {
   await page.locator('[data-testid^="row-web-"]').first().click({ button: 'right' })
   await expect(page.getByRole('menuitem', { name: 'Logs' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Shell' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: 'Scale…' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Escalar…' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByTestId('nav-kind-Deployment').click()
   await page.getByTestId('row-web').getByRole('button', { name: 'Ações de web' }).click()
-  await expect(page.getByRole('menuitem', { name: 'Scale…' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: 'Restart…' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Escalar…' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Reiniciar…' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Logs' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   // Containers column (squares) on pods.
@@ -133,7 +133,7 @@ test('CA-V6: duplo clique abre em aba, lista vazia mostra estado vazio e a topol
   expect(await page.evaluate(() => String(getSelection()).trim())).toBe('')
   // An empty list arrives without rows: it must render the empty state, not a skeleton forever.
   await page.getByTestId('nav-kind-DaemonSet').click()
-  await expect(page.locator('.empty', { hasText: 'Nenhum DaemonSet em demo' })).toBeVisible()
+  await expect(page.locator('.empty', { hasText: 'Nenhum recurso do tipo DaemonSets em demo' })).toBeVisible()
   // Topology styles must not leak into grid rows.
   await page.getByTestId('tool-topology').click()
   await expect(page.getByTestId('topo-region').first()).toBeVisible({ timeout: 20_000 })

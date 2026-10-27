@@ -95,7 +95,7 @@ function Overview({ clusterId }: { clusterId: string }) {
           </div>
           {Object.entries(o.workloads).filter(([, h]) => h.total > 0).map(([k, h]) => {
             const slices = [
-              { label: 'saudáveis', value: h.ok, color: HEALTH_COLORS.ok },
+              { label: h.ok === 1 ? 'saudável' : 'saudáveis', value: h.ok, color: HEALTH_COLORS.ok },
               { label: 'atenção', value: h.warn, color: HEALTH_COLORS.warn },
               { label: 'com erro', value: h.error, color: HEALTH_COLORS.error },
               { label: 'outros', value: Math.max(0, h.total - h.ok - h.warn - h.error), color: HEALTH_COLORS.neutral },

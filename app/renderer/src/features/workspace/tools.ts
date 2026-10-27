@@ -26,7 +26,7 @@ export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?
   { id: 'charts', label: 'Helm charts', open: (id, o) => openCharts(id, o) },
   { id: 'rbac', label: 'RBAC e permissões', open: (id, o) => openRbac(id, o) },
   { id: 'security', label: 'Segurança', open: (id, o) => openSecurity(id, o) },
-  { id: 'netpol', label: 'NetworkPolicy', open: (id, o) => openNetpol(id, o) },
+  { id: 'netpol', label: 'Políticas de rede', open: (id, o) => openNetpol(id, o) },
   { id: 'create', label: 'Novo recurso (YAML)', open: (id) => openCreate(id, 'blank', useApp.getState().namespace[id] || 'default') },
 ]
 

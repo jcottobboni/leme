@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 
 /** Runs an async loader when deps change; optionally re-runs every `every` ms. */
@@ -43,6 +44,25 @@ export function Partial({ errors }: { errors?: Record<string, string> | null }) 
   return (
     <div className="banner warn" title={list.map(([k, v]) => `${k}: ${v}`).join('\n')}>
       Resultado parcial: sem acesso a {list.map(([k]) => k.replace(/^\//, '')).join(', ')}.
+    </div>
+  )
+}
+
+/** Standard refresh action for tool-panel toolbars; place it after the `.spacer`. */
+export function RefreshButton({ onClick, loading }: { onClick: () => void; loading?: boolean }) {
+  return (
+    <button onClick={onClick}>
+      <RefreshCw size={14} className={loading ? 'spin-icon' : ''} /> Recarregar
+    </button>
+  )
+}
+
+/** Standard tool-panel header: icon + title, followed by the panel's own controls. */
+export function PanelHeader({ icon, title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
+  return (
+    <div className="toolbar">
+      <span className="grid-title">{icon}{title}</span>
+      {children}
     </div>
   )
 }

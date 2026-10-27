@@ -1,7 +1,7 @@
 import {
-  Activity, AppWindow, Boxes, Box, Briefcase, Clock, Cloud, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
-  Hammer, Image, Key, Layers, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, Network, Package, Plus, Route, ScrollText, Server, Settings2,
-  Shield, ShieldCheck, Share2, SlidersHorizontal, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Workflow,
+  Activity, AppWindow, ArrowUpWideNarrow, Boxes, Box, Briefcase, Clock, Cloud, Cog, Copy, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
+  Hammer, Image, Key, Layers, Layers2, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, MoveHorizontal, Network, Package, Plus, Route, Ruler, ScrollText, Server, Settings2,
+  Shield, ShieldCheck, Share2, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Webhook, Workflow, Wrench,
 } from 'lucide-react'
 import type { Resource } from '../../api'
 
@@ -15,12 +15,14 @@ export function plural(kind: string) {
 }
 
 const KIND_ICONS: Record<string, LucideIcon> = {
-  Pod: Box, Deployment: Layers, StatefulSet: Database, DaemonSet: Server, ReplicaSet: Boxes, ReplicationController: Boxes, Job: Briefcase,
-  CronJob: Clock, DeploymentConfig: Layers, BuildConfig: Hammer, Build: Hammer, ImageStream: Image, HorizontalPodAutoscaler: SlidersHorizontal,
+  Pod: Box, Deployment: Layers, StatefulSet: Database, DaemonSet: Server, ReplicaSet: Boxes, ReplicationController: Copy, Job: Briefcase,
+  CronJob: Clock, DeploymentConfig: Layers2, BuildConfig: Wrench, Build: Hammer, ImageStream: Image, HorizontalPodAutoscaler: MoveHorizontal,
   PodDisruptionBudget: Shield, Service: Share2, Ingress: Globe, Route: Route, Endpoints: Link, EndpointSlice: Link, IngressClass: Globe,
-  NetworkPolicy: Network, ConfigMap: FileText, Secret: FileKey, ResourceQuota: Gauge, LimitRange: SlidersHorizontal, PersistentVolumeClaim: HardDrive,
+  NetworkPolicy: Network, ConfigMap: FileText, Secret: FileKey, ResourceQuota: Gauge, LimitRange: Ruler, PersistentVolumeClaim: HardDrive,
   PersistentVolume: HardDrive, StorageClass: Database, ServiceAccount: Users, Role: Key, ClusterRole: Key, RoleBinding: Lock, ClusterRoleBinding: Lock,
   Node: Cpu, Namespace: Folder, Project: Folder, Event: Activity, CustomResourceDefinition: FileCode,
+  Lease: Timer, PriorityClass: ArrowUpWideNarrow, RuntimeClass: Cog, MutatingWebhookConfiguration: Webhook, ValidatingWebhookConfiguration: Webhook,
+  CSIDriver: HardDrive, CSINode: HardDrive, VolumeAttachment: Link,
 }
 
 export function kindIcon(kind?: string): LucideIcon {
@@ -102,10 +104,10 @@ export function buildSections(resources: Resource[], filter: string): NavSection
       { id: 'timeline', label: 'Timeline de eventos', icon: Timer },
     ]), kinds: kindsOf('Cluster').filter((r) => CLUSTER_MAIN.has(r.kind)) },
     { id: 'Workloads', label: 'Workloads', icon: Layers, kinds: kindsOf('Workloads') },
-    { id: 'Config', label: 'Config', icon: Settings2, kinds: kindsOf('Config') },
-    { id: 'Network', label: 'Network', icon: Network, kinds: kindsOf('Network') },
-    { id: 'Storage', label: 'Storage', icon: HardDrive, kinds: kindsOf('Storage') },
-    { id: 'Access', label: 'Access Control', icon: Key, tools: tools([{ id: 'rbac', label: 'Permissões (RBAC)', icon: Key }]), kinds: kindsOf('Access') },
+    { id: 'Config', label: 'Configuração', icon: Settings2, kinds: kindsOf('Config') },
+    { id: 'Network', label: 'Rede', icon: Network, kinds: kindsOf('Network') },
+    { id: 'Storage', label: 'Armazenamento', icon: HardDrive, kinds: kindsOf('Storage') },
+    { id: 'Access', label: 'Controle de acesso', icon: Key, tools: tools([{ id: 'rbac', label: 'Permissões (RBAC)', icon: Key }]), kinds: kindsOf('Access') },
     { id: 'Security', label: 'Segurança', icon: ShieldCheck, tools: tools([
       { id: 'security', label: 'Relatório de segurança', icon: ShieldCheck },
       { id: 'netpol', label: 'Análise de NetworkPolicy', icon: Network },

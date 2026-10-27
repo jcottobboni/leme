@@ -22,6 +22,25 @@ while in 0.x, minor versions may change behavior.
 - **MCP server (`leme mcp`):** lets agents such as Claude Code read clusters through Leme. Writes
   are off by default, enabled per context in the app (production needs the typed context name),
   always propose → apply with a short-lived token, and audited. See docs/mcp.md.
+- New icon: a ship's helm wheel.
+
+### Changed
+- UI review of every screen in both themes: visible selected segments in dark mode, grid headers
+  that no longer collide and columns that keep ages and IPs readable, Events sorted by last seen,
+  responsive Overview, chart axes not clipped, HPA metrics as "cpu: 35%/80%", Portuguese labels
+  for OpenShift columns and actions (Escalar, Reiniciar), icons for every resource kind, clearer
+  empty states, and twins in the cluster list told apart by host.
+
+### Security (internal review before release)
+- Redaction goes deeper: credential-named fields at any depth, private keys (Route TLS),
+  password arguments, OpenShift Template parameters and Secret annotations.
+- Proposals that resend masked values are refused; privilege or exposure escalations are flagged,
+  need an explicit ack in the app and can never be applied by MCP agents.
+- Anonymization aliases persist per conversation; referenced names and the kubeconfig user are
+  anonymized too.
+- Agent write permission is bound to the context's server, cluster and user.
+- CI downloads are pinned by SHA-256, release builds do not restore caches, and the README checks
+  the APT key fingerprint before trusting it.
 
 
 ### Security (contributed in #1)

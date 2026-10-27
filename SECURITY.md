@@ -68,11 +68,14 @@ It does not protect against an attacker who already controls your user account o
 - **Off by default.** Nothing is sent to an AI provider until you enable the Copilot, and each
   cloud endpoint asks for consent once. Local endpoints (Ollama, localhost) never leave the machine.
 - **What leaves:** sanitized YAML of the object in focus (no Secret values, no ConfigMap values,
-  no env values, no managedFields), recent events with credentials masked, and Leme's own
-  diagnosis. Logs only when you tick "Permitir logs", with obvious credentials masked. The
+  no env values, no managedFields; fields named like credentials, private keys such as a Route's
+  TLS key, `--password=` arguments, tokens and annotations of Secrets are masked at any depth),
+  recent events with credentials masked, and Leme's own diagnosis. Logs only when you tick "Permitir logs", with obvious credentials masked. The
   "see what will be sent" button shows the exact text.
 - **Anonymization** (default on for cloud providers) replaces namespaces, object names (and names
-  derived from them), private hosts, IPs and e-mails with aliases, restored only on your screen.
+  derived from them or referenced by them: nodes, service accounts, claims, config maps, secrets),
+  the context, cluster and user names, private hosts, IPs and e-mails with aliases, restored only
+  on your screen. Aliases are kept per conversation, so later turns stay anonymized.
 - **API keys** are stored by the desktop shell with the OS keychain (session-only when no keychain
   exists), handed to the engine in memory, never returned to the UI, and bound to the endpoint
   they were entered for: changing the endpoint does not send an existing key elsewhere.
@@ -80,11 +83,15 @@ It does not protect against an attacker who already controls your user account o
   fix is a merge patch to one existing object of an allowed kind (no delete, Secrets, RBAC,
   ServiceAccounts, Namespaces, CRDs, webhooks or ConfigMap contents), validated by the engine,
   dry-run on the server and shown as a diff; applying needs your click, the cluster's write unlock
-  and an unchanged resourceVersion.
+  and an unchanged resourceVersion. Patches that would write a masked placeholder back are refused,
+  and changes that widen privileges or exposure (privileged, host namespaces or paths, another
+  ServiceAccount, new Secret references, Service exposure) are listed and need an explicit ack.
 - **MCP (`leme mcp`):** reads are sanitized the same way. Writes are disabled per context until
   you enable them in the app (production also needs the typed context name), always go through
   propose → apply with a 10-minute single-use token, and are re-checked against the settings on
-  every call.
+  every call. The permission is bound to the server, cluster and user the context pointed to when
+  granted. Agents can never apply changes that widen privileges or exposure, or that touch values
+  hidden from them.
 - **Audit:** every question, proposal and apply (Copilot and MCP) is recorded locally in
   `audit.jsonl` (0600) without prompts, answers or object contents.
 

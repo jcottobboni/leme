@@ -124,7 +124,7 @@ export function Home() {
         <Logo />
         <div>
           <h2>Clusters</h2>
-          <p>{n} contextos no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · nada conecta sozinho</p>
+          <p>{n} contextos no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · conexão sempre manual</p>
         </div>
       </div>
       <ClusterCards />

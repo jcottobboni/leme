@@ -166,7 +166,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
             </div>
             <div className="obj-name">
               {namespace && <span className="muted">{namespace}:</span>}
-              <b>{name}</b>
+              <b title={name}>{name}</b>
             </div>
           </div>
         </div>
@@ -179,8 +179,8 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
             </>
           )}
           {(kind === 'Pod' || kind === 'Service') && <ForwardButton compact={compact} clusterId={clusterId} kind={kind} namespace={namespace!} name={name} obj={obj} disabled={readOnly} />}
-          {SCALABLE.includes(kind) && <Act compact={compact} icon={Scaling} label="Scale" disabled={readOnly} onClick={() => setConfirm('scale')} />}
-          {RESTARTABLE.includes(kind) && <Act compact={compact} icon={RotateCw} label="Restart" disabled={readOnly} onClick={() => setConfirm('restart')} />}
+          {SCALABLE.includes(kind) && <Act compact={compact} icon={Scaling} label="Escalar" disabled={readOnly} onClick={() => setConfirm('scale')} />}
+          {RESTARTABLE.includes(kind) && <Act compact={compact} icon={RotateCw} label="Reiniciar" disabled={readOnly} onClick={() => setConfirm('restart')} />}
           {kind === 'DeploymentConfig' && <Act compact={compact} icon={Rocket} label="Rollout latest" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc rollout latest'} onClick={() => setConfirm('rollout-latest')} />}
           {kind === 'BuildConfig' && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
           {kind === 'Build' && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
@@ -263,7 +263,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         <ConfirmDialog title="Aplicar alterações" confirmLabel="Aplicar" body={<p>Aplicar o YAML revisado em <b>{name}</b>?</p>} onCancel={() => setConfirm(undefined)} onConfirm={doApply} />
       )}
       {confirm === 'scale' && (
-        <PromptDialog title={`Scale ${name}`} label="Réplicas" type="number" initial={String(replicas)} onCancel={() => setConfirm(undefined)}
+        <PromptDialog confirmLabel="Aplicar" title={`Escalar ${name}`} label={`Réplicas (atual: ${replicas})`} type="number" initial={String(replicas)} onCancel={() => setConfirm(undefined)}
           onConfirm={(v) => {
             const n = Number(v)
             if (!Number.isInteger(n) || n < 0) return toast('error', 'Número de réplicas inválido')
@@ -342,8 +342,8 @@ function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: strin
                 ))}
               </td></tr>
             )}
-            <tr><td>Labels</td><td><Chips m={md.labels} /></td></tr>
-            <tr><td>Annotations</td><td><Chips m={md.annotations} /></td></tr>
+            <tr><td>Rótulos</td><td><Chips m={md.labels} /></td></tr>
+            <tr><td>Anotações</td><td><Chips m={md.annotations} /></td></tr>
           </tbody>
         </table>
       </Section>
@@ -353,7 +353,7 @@ function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: strin
       {kind === 'Service' && <ServiceDetails clusterId={clusterId} obj={obj} />}
       {(kind === 'ConfigMap' || kind === 'Secret') && <DataDetails obj={obj} secret={kind === 'Secret'} masked={masked} onReveal={onReveal} />}
       {conditions.length > 0 && (
-        <Section title="Conditions">
+        <Section title="Condições">
           <table className="table">
             <thead><tr><th>Tipo</th><th>Status</th><th>Motivo</th><th>Mensagem</th><th>Última transição</th></tr></thead>
             <tbody>
@@ -407,7 +407,7 @@ function PodDetails({ clusterId, obj }: { clusterId: string; obj: Record<string,
         <table className="kv">
           <tbody>
             <tr><td>Fase</td><td><span className={`status s-${healthOfStatus(obj.status?.phase ?? '')}`}>{obj.status?.phase}</span></td></tr>
-            <tr><td>Node</td><td>{obj.spec?.nodeName ? <button className="link" onClick={() => openObject(clusterId, '', 'Node', obj.spec.nodeName)}>{obj.spec.nodeName}</button> : '—'}</td></tr>
+            <tr><td>Nó</td><td>{obj.spec?.nodeName ? <button className="link" onClick={() => openObject(clusterId, '', 'Node', obj.spec.nodeName)}>{obj.spec.nodeName}</button> : '—'}</td></tr>
             <tr><td>IP</td><td className="mono">{obj.status?.podIP ?? '—'}</td></tr>
             <tr><td>QoS</td><td>{obj.status?.qosClass}</td></tr>
             <tr><td>Service account</td><td>{obj.spec?.serviceAccountName}</td></tr>
@@ -426,7 +426,7 @@ function PodDetails({ clusterId, obj }: { clusterId: string; obj: Record<string,
                   <b>{c.name}</b>
                   {c.init && <span className="chip">init</span>}
                   <span className={`status s-${healthOfStatus(state)}`}>{state}</span>
-                  <span className="muted">restarts: {st?.restartCount ?? 0}</span>
+                  <span className="muted">reinícios: {st?.restartCount ?? 0}</span>
                 </div>
                 <div className="mono small">{c.image}</div>
                 {c.ports?.length > 0 && <div className="small">Portas: {c.ports.map((p: any) => `${p.containerPort}/${p.protocol ?? 'TCP'}${p.name ? ` (${p.name})` : ''}`).join(', ')}</div>}
@@ -457,7 +457,7 @@ function PodsFor({ clusterId, namespace, selector }: { clusterId: string; namesp
   const pods = rows.filter((r) => selectorMatches(selector, r.labels)).sort((a, b) => a.name.localeCompare(b.name))
   return (
     <table className="table">
-      <thead><tr><th>Pod</th><th>Ready</th><th>Status</th><th>Restarts</th><th>Node</th><th>Idade</th></tr></thead>
+      <thead><tr><th>Pod</th><th>Prontos</th><th>Status</th><th>Reinícios</th><th>Nó</th><th>Idade</th></tr></thead>
       <tbody>
         {pods.map((p) => (
           <tr key={p.uid} className="clickable" onClick={() => openObject(clusterId, '', 'Pod', p.name, namespace)}>
@@ -599,21 +599,23 @@ function EventsList({ clusterId, namespace, uid }: { clusterId: string; namespac
   if (!events) return <div className="pad"><span className="spinner" /></div>
   const sorted = events.slice().sort((a, b) => (b.lastTimestamp ?? b.eventTime ?? '').localeCompare(a.lastTimestamp ?? a.eventTime ?? ''))
   return (
-    <table className="table">
-      <thead><tr><th>Tipo</th><th>Motivo</th><th>Mensagem</th><th>Qtd</th><th>Origem</th><th>Última vez</th></tr></thead>
-      <tbody>
-        {sorted.map((e) => (
-          <tr key={e.metadata.uid}>
-            <td><span className={`status s-${e.type === 'Warning' ? 'error' : 'ok'}`}>{e.type}</span></td>
-            <td>{e.reason}</td>
-            <td className="wrap">{e.message}</td>
-            <td>{e.count ?? 1}</td>
-            <td>{e.source?.component}</td>
-            <td>{age(e.lastTimestamp ?? e.eventTime ?? e.metadata.creationTimestamp)}</td>
-          </tr>
-        ))}
-        {!sorted.length && <tr><td colSpan={6} className="muted">Nenhum evento recente.</td></tr>}
-      </tbody>
-    </table>
+    <div className="pad-panel">
+      <table className="table">
+        <thead><tr><th>Tipo</th><th>Motivo</th><th>Mensagem</th><th>Qtd</th><th>Origem</th><th>Última vez</th></tr></thead>
+        <tbody>
+          {sorted.map((e) => (
+            <tr key={e.metadata.uid}>
+              <td><span className={`status s-${e.type === 'Warning' ? 'error' : 'ok'}`}>{e.type}</span></td>
+              <td>{e.reason}</td>
+              <td className="wrap">{e.message}</td>
+              <td>{e.count ?? 1}</td>
+              <td>{e.source?.component}</td>
+              <td>{age(e.lastTimestamp ?? e.eventTime ?? e.metadata.creationTimestamp)}</td>
+            </tr>
+          ))}
+          {!sorted.length && <tr><td colSpan={6} className="muted">Nenhum evento recente.</td></tr>}
+        </tbody>
+      </table>
+    </div>
   )
 }

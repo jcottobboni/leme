@@ -41,7 +41,10 @@ export function FindingsTable({ clusterId, findings, showObject = true }: { clus
   const [open, setOpen] = useState<number>()
   const cats = useMemo(() => [...new Set(findings.map((f) => f.category).filter(Boolean))].sort(), [findings])
   const shown = useMemo(
-    () => findings.filter((f) => (!sev || f.severity === sev) && (!cat || f.category === cat) && (!q || `${f.title} ${f.name} ${f.namespace} ${f.container} ${f.id}`.toLowerCase().includes(q.toLowerCase()))),
+    () =>
+      findings
+        .filter((f) => (!sev || f.severity === sev) && (!cat || f.category === cat) && (!q || `${f.title} ${f.name} ${f.namespace} ${f.container} ${f.id}`.toLowerCase().includes(q.toLowerCase())))
+        .sort((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) || (a.category ?? '').localeCompare(b.category ?? '') || (a.title ?? '').localeCompare(b.title ?? '')),
     [findings, sev, cat, q],
   )
   return (

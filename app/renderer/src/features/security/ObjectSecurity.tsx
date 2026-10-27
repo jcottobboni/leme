@@ -47,8 +47,8 @@ function Images({ clusterId, group, kind, namespace, name }: { clusterId: string
       <h4>Vulnerabilidades das imagens</h4>
       <ErrorBanner error={error ?? err} />
       {data && (
-        <div className="row">
-          <span className="muted small">{data.images.map((i) => i.image).join(', ')}</span>
+        <div className="row img-row">
+          <span className="mono">{data.images.map((i) => i.image).join(', ')}</span>
           {data.operator && <span className="chip">relatórios do trivy-operator</span>}
           <button disabled={busy} onClick={() => scan(false)} data-testid="trivy-scan">{busy ? 'Escaneando…' : 'Escanear com Trivy'}</button>
           {reports && <button disabled={busy} onClick={() => scan(true)}>Escanear de novo</button>}

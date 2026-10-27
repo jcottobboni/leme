@@ -1,3 +1,4 @@
+import { CheckCircle2 } from 'lucide-react'
 import { ErrorBanner, useAsync } from '../common'
 import { analyzeApi } from './api'
 import { FindingCard } from './Finding'
@@ -13,7 +14,7 @@ export function DiagnosisTab({ clusterId, group, kind, namespace, name }: { clus
         {loading && <span className="spinner" />}
       </div>
       <ErrorBanner error={error} />
-      {data && data.length === 0 && <div className="an-empty">Nenhum problema encontrado</div>}
+      {data && data.length === 0 && <div className="an-empty"><CheckCircle2 size={28} /><b>Tudo certo com este objeto</b><span>Nenhum problema encontrado nas verificações de status, eventos e configuração.</span></div>}
       {data && data.length > 0 && (
         <div className="an-list">
           {data.map((f, i) => <FindingCard key={`${f.id}-${f.object.kind}-${f.object.name}-${i}`} clusterId={clusterId} f={f} showObject={f.object.name !== name || f.object.kind !== kind} />)}

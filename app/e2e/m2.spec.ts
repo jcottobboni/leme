@@ -319,7 +319,9 @@ test('CA12: dois clusters lado a lado com cores distintas e layout restaurado', 
   if (colors[0] === colors[1]) {
     // Same hash bucket: change one color like a user would.
     await page.getByTestId(`hotbar-${ALIAS_CONTEXT}`).click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Trocar cor' }).click()
+    await page.getByRole('menuitem', { name: /Personalizar/ }).click()
+    await page.getByTestId('cluster-profile').locator('button.cp-swatch:not(.on)').first().click()
+    await page.getByTestId('cp-save').click()
     colors = await tabs.evaluateAll((els) => els.map((e) => getComputedStyle(e).getPropertyValue('--cc').trim()))
   }
   expect(colors[0]).not.toBe(colors[1])

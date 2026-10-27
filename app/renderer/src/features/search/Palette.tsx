@@ -71,7 +71,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
       for (const t of TOOLS) if (t.id !== 'create') out.push({ id: `tool:${home}:${t.id}`, clusterId: home, title: t.label, detail: clusterName(home), kind: 'tool', icon: COMPONENT_ICONS[TOOL_ICON[t.id] ?? t.id] ?? kindIcon(), run: () => t.open(home) })
       for (const k of SUGGESTED) {
         const r = connected[home].resources.find((x) => x.kind === k)
-        if (r) out.push({ id: `type:${home}:${r.group}/${r.resource}`, clusterId: home, title: r.kind, detail: `tipo · ${clusterName(home)}`, kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(home, r) })
+        if (r) out.push({ id: `type:${home}:${r.group}/${r.resource}`, clusterId: home, title: r.kind, detail: clusterName(home), kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(home, r) })
       }
       return out
     }
@@ -82,7 +82,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
       if (f.length >= 2) {
         for (const r of st.resources) {
           if (r.kind.toLowerCase().startsWith(f) || r.resource.startsWith(f) || r.shortNames?.includes(f)) {
-            out.push({ id: `type:${id}:${r.group}/${r.resource}`, clusterId: id, title: r.kind, detail: `tipo · ${clusterName(id)}`, kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(id, r) })
+            out.push({ id: `type:${id}:${r.group}/${r.resource}`, clusterId: id, title: r.kind, detail: clusterName(id), kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(id, r) })
           }
         }
       }

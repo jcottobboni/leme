@@ -44,7 +44,7 @@ export function ConfirmDialog({ title, body, confirmLabel, danger, onConfirm, on
   )
 }
 
-export function PromptDialog({ title, label, initial, onConfirm, onCancel, type = 'text' }: { title: string; label: string; initial: string; type?: string; onConfirm: (v: string) => void; onCancel: () => void }) {
+export function PromptDialog({ title, label, initial, onConfirm, onCancel, type = 'text', confirmLabel = 'OK' }: { title: string; label: string; initial: string; type?: string; confirmLabel?: string; onConfirm: (v: string) => void; onCancel: () => void }) {
   const [v, setV] = useState(initial)
   return (
     <Modal title={title} onClose={onCancel}>
@@ -55,7 +55,7 @@ export function PromptDialog({ title, label, initial, onConfirm, onCancel, type 
       <div className="modal-actions">
         <button onClick={onCancel}>Cancelar</button>
         <button className="primary" onClick={() => onConfirm(v)}>
-          OK
+          {confirmLabel}
         </button>
       </div>
     </Modal>
