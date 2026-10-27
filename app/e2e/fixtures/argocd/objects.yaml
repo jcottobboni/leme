@@ -1,0 +1,55 @@
+# Long-lived objects of the M5 argocd e2e: only m5-argocd-* names. Applied with kubectl apply.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-argocd-system
+  labels: {leme.dev/fixture: m5-argocd}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-argocd-guestbook
+  labels: {leme.dev/fixture: m5-argocd}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: m5-argocd-default
+  namespace: m5-argocd-system
+spec:
+  description: Projeto do fixture do Leme (M5)
+  sourceRepos: ['https://github.com/argoproj/argocd-example-apps.git']
+  destinations:
+    - {server: 'https://kubernetes.default.svc', namespace: m5-argocd-guestbook}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-argocd-guestbook-ui
+  namespace: m5-argocd-guestbook
+  labels: {app.kubernetes.io/instance: m5-argocd-guestbook}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: m5-argocd-guestbook-ui}
+  template:
+    metadata:
+      labels: {app: m5-argocd-guestbook-ui}
+    spec:
+      containers:
+        - name: guestbook-ui
+          image: nginx:1.27-alpine
+          ports: [{containerPort: 80}]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-argocd-guestbook-ui
+  namespace: m5-argocd-guestbook
+  labels: {app.kubernetes.io/instance: m5-argocd-guestbook}
+spec:
+  selector: {app: m5-argocd-guestbook-ui}
+  ports: [{port: 80, targetPort: 80}]

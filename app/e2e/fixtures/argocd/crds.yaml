@@ -1,0 +1,35 @@
+# Minimal Argo CD CRDs for the M5 argocd e2e (no controller). Schemaless on purpose
+# (x-kubernetes-preserve-unknown-fields) and without the status subresource, like the upstream
+# Application CRD. Created only when absent (kubectl create; AlreadyExists is ignored) and NEVER
+# deleted: other agents and specs may share the kind cluster.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: applications.argoproj.io
+  labels: {leme.dev/fixture: m5-argocd}
+spec:
+  group: argoproj.io
+  scope: Namespaced
+  names: {kind: Application, listKind: ApplicationList, plural: applications, singular: application}
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema: {type: object, x-kubernetes-preserve-unknown-fields: true}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: appprojects.argoproj.io
+  labels: {leme.dev/fixture: m5-argocd}
+spec:
+  group: argoproj.io
+  scope: Namespaced
+  names: {kind: AppProject, listKind: AppProjectList, plural: appprojects, singular: appproject}
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema: {type: object, x-kubernetes-preserve-unknown-fields: true}

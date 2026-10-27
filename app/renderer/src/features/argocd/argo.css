@@ -1,0 +1,36 @@
+/* Argo CD (features/argocd). Every class is prefixed with argo- so nothing leaks into other screens.
+   Colors come from the theme tokens only, so both themes work. */
+.argo-absent { max-width: 620px; margin: 0 auto; line-height: 1.5; }
+.argo-absent b { color: var(--text-strong); }
+
+.argo-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.argo-body.with-detail { grid-template-columns: minmax(340px, 42%) minmax(0, 1fr); }
+.argo-list { border-right: 1px solid var(--line); }
+.argo-body:not(.with-detail) .argo-list { border-right: none; }
+.argo-active td { background: var(--select); }
+.argo-ellipsis { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.argo-running { display: inline-flex; margin-left: 6px; color: var(--warn-text); vertical-align: middle; }
+
+.argo-detail { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); }
+.argo-detail-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.argo-title { color: var(--text-strong); }
+.argo-detail-body { flex: 1; overflow: auto; min-height: 0; padding: 10px 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+.argo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.argo-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.argo-note { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--warn-text); background: color-mix(in srgb, var(--warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line)); border-radius: 8px; padding: 6px 10px; }
+
+.argo-section h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 650; }
+.argo-section code { font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+.argo-kind { border: 1px solid var(--line-soft); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+.argo-kind-head { display: flex; align-items: center; gap: 6px; width: 100%; background: var(--panel-2); border: none; border-radius: 0; padding: 5px 8px; font-weight: 600; color: var(--text); text-align: left; height: auto; }
+.argo-res { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 24px; border-top: 1px solid var(--line-soft); font-size: 12.5px; }
+.argo-res.missing button.link { color: var(--error-text); }
+.argo-conditions { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+
+.argo-review { display: grid; gap: 10px; min-width: 0; }
+.argo-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.argo-notes { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; display: grid; gap: 2px; }
+.argo-risks { border: 1px solid color-mix(in srgb, var(--error) 40%, var(--line)); background: color-mix(in srgb, var(--error) 8%, transparent); border-radius: 8px; padding: 8px 12px; color: var(--error-text); }
+.argo-risks ul { margin: 4px 0; padding-left: 18px; }
+.argo-diff { height: 46vh; min-height: 280px; display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.argo-blocked { margin-right: auto; align-self: center; }
