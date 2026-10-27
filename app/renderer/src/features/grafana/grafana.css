@@ -1,0 +1,18 @@
+/* M5 feature grafana: every selector is scoped with the gfn- prefix; colors come from theme tokens. */
+.gfn-note { padding: 10px 14px 0; font-size: 12px; }
+.gfn-ro { margin-top: 10px; border-top: 1px solid var(--line); }
+.gfn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; padding: 12px 14px; }
+.gfn-card { border: 1px solid var(--line); border-radius: 6px; background: var(--raised); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gfn-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gfn-name { font-weight: 600; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gfn-kind { flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--chip-bg); color: var(--chip-text); }
+.gfn-kind-grafana { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-text); }
+.gfn-kind-prometheus { background: color-mix(in srgb, var(--error) 16%, transparent); color: var(--error-text); }
+.gfn-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.gfn-live { color: var(--ok-text); }
+.gfn-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.gfn-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.gfn-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 36px 24px; color: var(--muted); text-align: center; max-width: 680px; margin: 0 auto; }
+.gfn-empty b { color: var(--text-strong); }
+.gfn-empty p { margin: 2px 0; font-size: 13px; }
+.gfn-empty code { background: var(--chip-bg); color: var(--chip-text); padding: 0 4px; border-radius: 3px; font-size: 12px; }
