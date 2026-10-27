@@ -60,7 +60,7 @@ func (s *Server) setAgentAccess(w http.ResponseWriter, r *http.Request) {
 		}
 		// Same rule as unlocking production writes in the app: type the exact context name.
 		if body.Write && c.Prod && body.ConfirmName != c.Name {
-			_ = s.audit.Add(audit.Entry{Source: "app", Action: "agent-access", Context: c.Name, Result: "denied", Detail: "production confirmation missing"})
+			s.auditAdd(audit.Entry{Source: "app", Action: "agent-access", Context: c.Name, Result: "denied", Detail: "production confirmation missing"})
 			httpError(w, http.StatusForbidden, "para produção, digite o nome exato do contexto")
 			return
 		}
@@ -73,7 +73,7 @@ func (s *Server) setAgentAccess(w http.ResponseWriter, r *http.Request) {
 		if body.Write {
 			detail = "agent writes enabled"
 		}
-		_ = s.audit.Add(audit.Entry{Source: "app", Action: "agent-access", Context: c.Name, Result: "ok", Detail: detail})
+		s.auditAdd(audit.Entry{Source: "app", Action: "agent-access", Context: c.Name, Result: "ok", Detail: detail})
 		writeJSON(w, agentAccessView{ID: c.ID, Name: c.Name, Prod: c.Prod, Write: a.Write, ProdConfirmed: a.ProdConfirmed})
 		return
 	}

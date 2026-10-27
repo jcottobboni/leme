@@ -183,6 +183,39 @@ func TestAggregate(t *testing.T) {
 	}
 }
 
+// Pods of a controller from a CRD (Kruise CloneSet) aggregate under it, the aggregate names its owner
+// by group and kind, and a CRD named like a built-in kind is a different node.
+func TestCRDOwnerAndHomonymNodes(t *testing.T) {
+	var docs []string
+	for i := 0; i < AggregateAbove+2; i++ {
+		docs = append(docs, fmt.Sprintf(`apiVersion: v1
+kind: Pod
+metadata: {name: cs-%d, namespace: demo, ownerReferences: [{apiVersion: apps.kruise.io/v1alpha1, kind: CloneSet, name: cs, uid: cs, controller: true}]}
+status: {phase: Running, containerStatuses: [{name: c, ready: true, state: {running: {}}}]}`, i))
+	}
+	in := Input{Namespace: "demo", Objects: map[string][]*unstructured.Unstructured{
+		"/pods": objs(t, docs...),
+		"apps/deployments": objs(t, `apiVersion: apps/v1
+kind: Deployment
+metadata: {name: cs, namespace: demo}`),
+	}}
+	g := Build(in)
+	root := gid("apps.kruise.io", "CloneSet", "demo", "cs")
+	if root != "CloneSet.apps.kruise.io/demo/cs" || node(g, root) == nil || !has(g, root, "Pod/demo/cs-0", "owns") {
+		t.Fatalf("CRD owner missing: %s %+v", root, g.Edges)
+	}
+	if has(g, "Deployment/demo/cs", "Pod/demo/cs-0", "owns") {
+		t.Error("the built-in Deployment with the same name must not own the CRD's pods")
+	}
+	agg := node(Aggregate(Neighborhood(g, root, 8), root), "Pods/"+root)
+	if agg == nil || agg.Owner == nil || *agg.Owner != (Owner{Group: "apps.kruise.io", Kind: "CloneSet", Name: "cs"}) {
+		t.Fatalf("aggregate owner: %+v", agg)
+	}
+	if gid("", "Deployment", "demo", "cs") != "Deployment/demo/cs" || gid("apps", "Deployment", "demo", "cs") != "Deployment/demo/cs" {
+		t.Error("built-in ids must keep the Kind/namespace/name format")
+	}
+}
+
 func TestAppOnNodes(t *testing.T) {
 	g := Build(fixture(t, 3))
 	if p := node(g, "Pod/demo/web-abc-0"); p == nil || p.App != "web" {

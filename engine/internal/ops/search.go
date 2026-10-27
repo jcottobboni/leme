@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 // Hit is one global-search result.
@@ -38,28 +39,23 @@ type searchIndex struct {
 	errs    map[string]string
 }
 
-// Searcher keeps a short-lived metadata index per session.
-type Searcher struct {
-	mu  sync.Mutex
-	idx map[*cluster.Session]*searchIndex
-}
+// Searcher searches a short-lived metadata index kept in the session cache.
+type Searcher struct{}
 
 // NewSearcher creates a searcher.
-func NewSearcher() *Searcher { return &Searcher{idx: map[*cluster.Session]*searchIndex{}} }
+func NewSearcher() *Searcher { return &Searcher{} }
 
+type searchIndexKey struct{}
+
+// index returns the session's index, rebuilt after 30s; concurrent searches share one build.
 func (s *Searcher) index(ctx context.Context, sess *cluster.Session) *searchIndex {
-	s.mu.Lock()
-	for k := range s.idx {
-		if k.Life().Err() != nil {
-			delete(s.idx, k)
-		}
-	}
-	if i, ok := s.idx[sess]; ok && time.Since(i.at) < 30*time.Second {
-		s.mu.Unlock()
-		return i
-	}
-	s.mu.Unlock()
+	idx, _ := cluster.Cached(sess, searchIndexKey{}, 30*time.Second, false, func() (*searchIndex, error) {
+		return buildIndex(ctx, sess), nil
+	})
+	return idx
+}
 
+func buildIndex(ctx context.Context, sess *cluster.Session) *searchIndex {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	idx := &searchIndex{at: time.Now(), images: map[string][]metaEntry{}, errs: map[string]string{}}
@@ -103,10 +99,7 @@ func (s *Searcher) index(ctx context.Context, sess *cluster.Session) *searchInde
 			mu.Lock()
 			defer mu.Unlock()
 			for _, u := range objs {
-				path := []string{"spec", "template", "spec"}
-				if res.Kind == "CronJob" {
-					path = []string{"spec", "jobTemplate", "spec", "template", "spec"}
-				}
+				path := kinds.PodTemplatePath(res.Group, res.Kind)
 				for _, field := range []string{"containers", "initContainers"} {
 					cs, _, _ := unstructured.NestedSlice(u.Object, append(path, field)...)
 					for _, c := range cs {
@@ -121,9 +114,6 @@ func (s *Searcher) index(ctx context.Context, sess *cluster.Session) *searchInde
 		}()
 	}
 	wg.Wait()
-	s.mu.Lock()
-	s.idx[sess] = idx
-	s.mu.Unlock()
 	return idx
 }
 

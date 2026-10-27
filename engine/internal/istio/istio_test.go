@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/redact"
 )
 
 func obj(t *testing.T, y string) *unstructured.Unstructured {
@@ -307,7 +308,7 @@ status: {replicas: 1}
 		if strings.Contains(s, "kind: Secret") || strings.Contains(s, "kind: ConfigMap") || strings.Contains(s, "hunter2") || strings.Contains(s, "managedFields") || strings.Contains(s, "status:") {
 			t.Fatalf("%s leaks: %s", f.Name(), s)
 		}
-		if strings.Contains(f.Name(), "deployment") && (!strings.Contains(s, "DB_PASSWORD") || !strings.Contains(s, "<redacted>") || !strings.Contains(s, "keep:")) {
+		if strings.Contains(f.Name(), "deployment") && (!strings.Contains(s, "DB_PASSWORD") || !strings.Contains(s, redact.Mask) || !strings.Contains(s, "keep:")) {
 			t.Fatalf("deployment export: %s", s)
 		}
 		if st, _ := f.Info(); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {

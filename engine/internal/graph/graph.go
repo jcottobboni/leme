@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
@@ -29,6 +30,15 @@ type Node struct {
 	Missing bool `json:"missing,omitempty"`
 	// App is the application the object belongs to (labels / Helm release); empty when unknown.
 	App string `json:"app,omitempty"`
+	// Owner is the controller of an aggregate's pods (Count > 0), so the UI can open it by group and kind.
+	Owner *Owner `json:"owner,omitempty"`
+}
+
+// Owner identifies the controller behind an aggregate node.
+type Owner struct {
+	Group string `json:"group"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
 }
 
 // Edge is a directed relationship.
@@ -64,7 +74,18 @@ const AggregateAbove = 6
 // MaxNodes caps the graph sent to the UI.
 const MaxNodes = 2000
 
+// id is the node id "Kind/namespace/name" of a built-in kind.
 func id(kind, ns, name string) string { return kind + "/" + ns + "/" + name }
+
+// gid is the node id of an object of any group: built-in kinds keep "Kind/namespace/name"; other
+// groups use "Kind.group/namespace/name", so a CRD named like a built-in kind (Istio's Gateway, an
+// operator's Deployment) is a different node.
+func gid(group, kind, ns, name string) string {
+	if !kinds.Builtin(group) {
+		kind += "." + group
+	}
+	return id(kind, ns, name)
+}
 
 type builder struct {
 	in    Input
@@ -88,13 +109,14 @@ func (b *builder) obj(u *unstructured.Unstructured) *Node {
 	gv, _ := schema.ParseGroupVersion(u.GetAPIVersion())
 	row := project.Project(u)
 	status, _ := row.Cells["status"].(string)
-	b.src[id(u.GetKind(), u.GetNamespace(), u.GetName())] = u
-	return b.add(Node{ID: id(u.GetKind(), u.GetNamespace(), u.GetName()), Group: gv.Group, Kind: u.GetKind(), Name: u.GetName(), Namespace: u.GetNamespace(), Health: row.Health, Status: status, App: project.AppOf(u.GetLabels(), u.GetAnnotations())})
+	nid := gid(gv.Group, u.GetKind(), u.GetNamespace(), u.GetName())
+	b.src[nid] = u
+	return b.add(Node{ID: nid, Group: gv.Group, Kind: u.GetKind(), Name: u.GetName(), Namespace: u.GetNamespace(), Health: row.Health, Status: status, App: project.AppOf(u.GetLabels(), u.GetAnnotations())})
 }
 
 // ref adds a node for something referenced by name; known reports whether it exists (nil = unknown).
 func (b *builder) ref(group, kind, ns, name string, known map[string]bool) string {
-	n := Node{ID: id(kind, ns, name), Group: group, Kind: kind, Name: name, Namespace: ns, Health: "neutral", Ref: true}
+	n := Node{ID: gid(group, kind, ns, name), Group: group, Kind: kind, Name: name, Namespace: ns, Health: "neutral", Ref: true}
 	if known != nil && !known[name] {
 		n.Missing, n.Health, n.Status = true, "error", "Missing"
 	}
@@ -125,12 +147,8 @@ func labelsMatch(sel map[string]any, labels map[string]string) bool {
 func Build(in Input) *Graph {
 	b := &builder{in: in, nodes: map[string]*Node{}, src: map[string]*unstructured.Unstructured{}, edges: map[Edge]bool{}}
 	ns := in.Namespace
-	all := []string{"/pods", "apps/replicasets", "apps/deployments", "apps/statefulsets", "apps/daemonsets", "batch/jobs", "batch/cronjobs",
-		"/services", "networking.k8s.io/ingresses", "gateway.networking.k8s.io/httproutes", "route.openshift.io/routes",
-		"/replicationcontrollers", "apps.openshift.io/deploymentconfigs", "build.openshift.io/buildconfigs", "build.openshift.io/builds", "image.openshift.io/imagestreams",
-		"/persistentvolumeclaims", "autoscaling/horizontalpodautoscalers", "/serviceaccounts", "rbac.authorization.k8s.io/rolebindings"}
 	recentBuilds := latestBuilds(b.list("build.openshift.io/builds"), 2)
-	for _, key := range all {
+	for _, key := range namespacedKeys {
 		for _, u := range b.list(key) {
 			if (key == "apps/replicasets" || key == "/replicationcontrollers") && isIdleReplicaSet(u) {
 				continue
@@ -155,9 +173,14 @@ func Build(in Input) *Graph {
 			continue
 		}
 		for _, o := range u.GetOwnerReferences() {
-			oid := id(o.Kind, ns, o.Name)
+			og := kinds.GroupOf(o.APIVersion)
+			oid := gid(og, o.Kind, ns, o.Name)
 			if _, ok := b.nodes[oid]; ok {
 				b.edge(oid, n.ID, "owns")
+			} else if o.Controller != nil && *o.Controller && !kinds.Builtin(og) {
+				// A controller the topology does not list (Argo Rollout, Kruise CloneSet…): show it as a
+				// reference so its pods group under it and the UI can open it by group and kind.
+				b.edge(b.ref(og, o.Kind, ns, o.Name, nil), n.ID, "owns")
 			}
 		}
 	}
@@ -289,9 +312,10 @@ func Build(in Input) *Graph {
 	}
 	// HPA → target.
 	for _, h := range b.list("autoscaling/horizontalpodautoscalers") {
+		av, _, _ := unstructured.NestedString(h.Object, "spec", "scaleTargetRef", "apiVersion")
 		kind, _, _ := unstructured.NestedString(h.Object, "spec", "scaleTargetRef", "kind")
 		name, _, _ := unstructured.NestedString(h.Object, "spec", "scaleTargetRef", "name")
-		target := id(kind, ns, name)
+		target := gid(kinds.GroupOf(av), kind, ns, name)
 		if _, ok := b.nodes[target]; ok {
 			b.edge(id("HorizontalPodAutoscaler", ns, h.GetName()), target, "scales")
 		}
@@ -484,9 +508,9 @@ func Neighborhood(g *Graph, root string, depth int) *Graph {
 		out[e.From] = append(out[e.From], e.To)
 		in[e.To] = append(in[e.To], e.From)
 	}
-	kind := map[string]string{}
+	dep := map[string]bool{}
 	for _, n := range g.Nodes {
-		kind[n.ID] = n.Kind
+		dep[n.ID] = dependencies[n.Kind] && kinds.Builtin(n.Group)
 	}
 	keep := map[string]bool{root: true}
 	frontier := []string{root}
@@ -494,7 +518,7 @@ func Neighborhood(g *Graph, root string, depth int) *Graph {
 		var next []string
 		for _, n := range frontier {
 			targets := out[n]
-			if n == root || !dependencies[kind[n]] {
+			if n == root || !dep[n] {
 				targets = append(append([]string(nil), targets...), in[n]...)
 			}
 			for _, m := range targets {
@@ -547,6 +571,7 @@ func Aggregate(g *Graph, keep string) *Graph {
 			a = &Node{ID: aid, Kind: "Pod", Name: fmt.Sprintf("%s pods", parts[len(parts)-1]), Namespace: parts[1], Health: "ok", Pods: map[string]int{}}
 			if o := byID[oid]; o != nil {
 				a.App = o.App
+				a.Owner = &Owner{Group: o.Group, Kind: o.Kind, Name: o.Name}
 			}
 			aggs[aid] = a
 		}

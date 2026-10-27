@@ -94,12 +94,6 @@ func nested(u *unstructured.Unstructured, path ...string) any {
 func deploymentConfig(u *unstructured.Unstructured, r *Row) {
 	workload(u, r)
 	r.Cells["revision"] = num(u, "status", "latestVersion")
-	for _, c := range slice(u, "status", "conditions") {
-		cm, _ := c.(map[string]any)
-		if cm["type"] == "Progressing" && cm["status"] == "False" {
-			r.Cells["status"], r.Health = "Failed", "error"
-		}
-	}
 }
 
 func buildConfig(u *unstructured.Unstructured, r *Row) {

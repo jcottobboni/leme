@@ -1,6 +1,7 @@
 package security
 
 import (
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -90,6 +91,13 @@ func TestHardenedWorkload(t *testing.T) {
 	spec, _ := PodSpec(u)
 	if fs := CheckPodSpec(RefOf(u), spec, false); len(fs) != 0 {
 		t.Fatalf("hardened workload must be clean, got %+v", fs)
+	}
+}
+
+func TestCRDHomonymHasNoPodSpec(t *testing.T) {
+	u := obj(t, strings.Replace(insecure, "apiVersion: apps/v1", "apiVersion: example.io/v1", 1))
+	if _, ok := PodSpec(u); ok {
+		t.Fatal("a CRD named Deployment must not be read as a workload")
 	}
 }
 

@@ -13,7 +13,8 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 )
 
-var namespaced = []string{"/pods", "apps/replicasets", "apps/deployments", "apps/statefulsets", "apps/daemonsets", "batch/jobs", "batch/cronjobs",
+// namespacedKeys are the namespaced resources ("group/resource") the topology is built from.
+var namespacedKeys = []string{"/pods", "apps/replicasets", "apps/deployments", "apps/statefulsets", "apps/daemonsets", "batch/jobs", "batch/cronjobs",
 	"/services", "networking.k8s.io/ingresses", "gateway.networking.k8s.io/httproutes", "route.openshift.io/routes",
 	"/replicationcontrollers", "apps.openshift.io/deploymentconfigs", "build.openshift.io/buildconfigs", "build.openshift.io/builds", "image.openshift.io/imagestreams",
 	"/persistentvolumeclaims", "autoscaling/horizontalpodautoscalers", "/serviceaccounts", "rbac.authorization.k8s.io/rolebindings"}
@@ -46,7 +47,7 @@ func Collect(ctx context.Context, sess *cluster.Session, ns string) (Input, map[
 			set(objs)
 		}()
 	}
-	for _, key := range namespaced {
+	for _, key := range namespacedKeys {
 		list(key, ns, func(o []*unstructured.Unstructured) { in.Objects[key] = o })
 	}
 	list("/nodes", "", func(o []*unstructured.Unstructured) { in.Nodes = o })
@@ -74,13 +75,11 @@ func Collect(ctx context.Context, sess *cluster.Session, ns string) (Input, map[
 	return in, errs
 }
 
-// ForObject builds the topology around one object of the namespace.
-func ForObject(ctx context.Context, sess *cluster.Session, kind, ns, name string) *Graph {
+// ForObject builds the topology around one object of the namespace. group "" with a built-in kind
+// name means the built-in kind (clients that predate the group parameter).
+func ForObject(ctx context.Context, sess *cluster.Session, group, kind, ns, name string) *Graph {
 	in, errs := Collect(ctx, sess, ns)
-	root := id(kind, ns, name)
-	if ns == "" {
-		root = id(kind, "", name)
-	}
+	root := gid(group, kind, ns, name)
 	g := Aggregate(Neighborhood(Build(in), root, 8), root)
 	g.Root = root
 	if len(errs) > 0 {

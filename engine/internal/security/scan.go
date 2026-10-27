@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 // Input is what Scan needs, already listed (keys are "group/resource").
@@ -41,8 +42,13 @@ type Report struct {
 
 var workloadKeys = []string{"/pods", "apps/deployments", "apps/statefulsets", "apps/daemonsets", "apps/replicasets", "batch/jobs", "batch/cronjobs", "/replicationcontrollers", "apps.openshift.io/deploymentconfigs"}
 
-// ownerKey identifies a controller as "Kind/ns/name".
-func ownerKey(kind, ns, name string) string { return kind + "/" + ns + "/" + name }
+// ownerKey identifies a controller as "group/Kind/ns/name": a CRD named like a built-in kind is
+// another controller.
+func ownerKey(group, kind, ns, name string) string { return group + "/" + kind + "/" + ns + "/" + name }
+
+func keyOf(u *unstructured.Unstructured) string {
+	return ownerKey(kinds.GroupOf(u.GetAPIVersion()), u.GetKind(), u.GetNamespace(), u.GetName())
+}
 
 // topOwners maps each pod to its top-level controller (Deployment, CronJob, DeploymentConfig…).
 func topOwners(in Input) map[string]string {
@@ -51,7 +57,7 @@ func topOwners(in Input) map[string]string {
 		for _, u := range in.Objects[key] {
 			for _, o := range u.GetOwnerReferences() {
 				if o.Controller != nil && *o.Controller {
-					parent[ownerKey(u.GetKind(), u.GetNamespace(), u.GetName())] = ownerKey(o.Kind, u.GetNamespace(), o.Name)
+					parent[keyOf(u)] = ownerKey(kinds.GroupOf(o.APIVersion), o.Kind, u.GetNamespace(), o.Name)
 				}
 			}
 		}
@@ -62,7 +68,7 @@ func topOwners(in Input) map[string]string {
 			if o.Controller == nil || !*o.Controller {
 				continue
 			}
-			k := ownerKey(o.Kind, p.GetNamespace(), o.Name)
+			k := ownerKey(kinds.GroupOf(o.APIVersion), o.Kind, p.GetNamespace(), o.Name)
 			for i := 0; i < 3; i++ {
 				up, ok := parent[k]
 				if !ok {
@@ -71,7 +77,7 @@ func topOwners(in Input) map[string]string {
 				k = up
 			}
 			if _, seen := out[k]; !seen && p.GetDeletionTimestamp() == nil {
-				out[k] = ownerKey("Pod", p.GetNamespace(), p.GetName())
+				out[k] = keyOf(p)
 			}
 		}
 	}
@@ -93,7 +99,7 @@ func Scan(in Input, scope string) *Report {
 	r := &Report{Scope: scope, Counts: map[string]int{}, ByCategory: map[string]int{}, Findings: []Finding{}, Workloads: []WorkloadScore{}, NamespacesWithoutNetpol: []string{}}
 	pods := map[string]*unstructured.Unstructured{}
 	for _, p := range in.Objects["/pods"] {
-		pods[ownerKey("Pod", p.GetNamespace(), p.GetName())] = p
+		pods[keyOf(p)] = p
 	}
 	live := topOwners(in)
 	for _, key := range workloadKeys {
@@ -106,7 +112,7 @@ func Scan(in Input, scope string) *Report {
 			ref := RefOf(u)
 			spec, ok := PodSpec(u)
 			effective := false
-			if pk, ok2 := live[ownerKey(u.GetKind(), u.GetNamespace(), u.GetName())]; ok2 && u.GetKind() != "Pod" {
+			if pk, ok2 := live[keyOf(u)]; ok2 && u.GetKind() != "Pod" {
 				if p := pods[pk]; p != nil {
 					if ps, ok3 := PodSpec(p); ok3 {
 						spec, ok, effective = ps, true, true

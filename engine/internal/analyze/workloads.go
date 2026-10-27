@@ -6,47 +6,40 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
-// workloadFindings covers Deployment, StatefulSet, DaemonSet and DeploymentConfig through their status fields.
+// workloadFindings covers Deployment, StatefulSet, DaemonSet and DeploymentConfig through the same
+// WorkloadState the grid shows, so a "Travado" row always has a "Rollout travado" finding.
 func workloadFindings(u *unstructured.Unstructured) []Finding {
-	o := u.Object
-	kind := u.GetKind()
-	var desired, ready, available int64
-	switch kind {
-	case "DaemonSet":
-		desired, ready, available = num(o, "status", "desiredNumberScheduled"), num(o, "status", "numberReady"), num(o, "status", "numberAvailable")
-	default:
-		desired = 1
-		if has(o, "spec", "replicas") {
-			desired = num(o, "spec", "replicas")
-		}
-		ready, available = num(o, "status", "readyReplicas"), num(o, "status", "availableReplicas")
-		if kind == "StatefulSet" {
-			available = ready
-		}
+	st, ok := project.StateOf(u)
+	if !ok {
+		return nil
 	}
 	ref := refOf(u)
-	var out []Finding
-	stuck := false
-	if c, ok := cond(o, "Progressing"); ok && (condStr(c, "reason") == "ProgressDeadlineExceeded" || (kind == "DeploymentConfig" && condStr(c, "status") == "False")) {
-		stuck = true
-		out = append(out, Finding{ID: "rollout-stuck", Severity: High, Object: ref, Title: "Rollout travado (ProgressDeadlineExceeded)",
+	replicas := fmt.Sprintf("desejadas=%d prontas=%d disponíveis=%d", st.Desired, st.Ready, st.Available)
+	switch st.State {
+	case project.StateStuck:
+		return []Finding{{ID: "rollout-stuck", Severity: High, Object: ref, Title: "Rollout travado",
 			Explanation: "A atualização não progrediu dentro do prazo (progressDeadlineSeconds); as novas réplicas não ficaram disponíveis.",
-			Evidence:    []string{fmt.Sprintf("condição Progressing=%s reason=%s%s", condStr(c, "status"), condStr(c, "reason"), msgSuffix(condStr(c, "message"))), fmt.Sprintf("réplicas disponíveis %d/%d", available, desired)},
-			Suggestion:  "Veja os problemas dos pods deste workload (imagem, probes, recursos). Corrija a causa ou reverta com rollout undo."})
-	}
-	if desired > 0 && available < desired && !stuck {
+			Evidence:    []string{st.Condition.String(), replicas},
+			Suggestion:  "Veja os problemas dos pods deste workload (imagem, probes, recursos). Corrija a causa ou reverta com rollout undo."}}
+	case project.StateDegraded:
 		sev := Medium
-		if available == 0 {
+		if st.Available == 0 || st.Condition != nil {
 			sev = High
 		}
-		out = append(out, Finding{ID: "replicas-unavailable", Severity: sev, Object: ref, Title: "Réplicas indisponíveis",
-			Explanation: "Há menos réplicas disponíveis do que o desejado.",
-			Evidence:    []string{fmt.Sprintf("desejadas=%d prontas=%d disponíveis=%d", desired, ready, available)},
-			Suggestion:  "Veja os problemas dos pods deste workload: costumam indicar imagem inexistente, falha de probe, falta de recursos ou crash."})
+		ev := []string{replicas}
+		if st.Condition != nil {
+			ev = append(ev, st.Condition.String())
+		}
+		return []Finding{{ID: "replicas-unavailable", Severity: sev, Object: ref, Title: "Réplicas indisponíveis",
+			Explanation: "Há menos réplicas disponíveis do que o desejado e nenhum rollout em andamento.",
+			Evidence:    ev,
+			Suggestion:  "Veja os problemas dos pods deste workload: costumam indicar imagem inexistente, falha de probe, falta de recursos ou crash."}}
 	}
-	return out
+	return nil
 }
 
 func jobFindings(u *unstructured.Unstructured) []Finding {

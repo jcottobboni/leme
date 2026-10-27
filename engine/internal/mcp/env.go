@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -114,8 +115,11 @@ func (e *Env) writesAllowed(kc kube.Context) (bool, string) {
 }
 
 func (e *Env) audit(en audit.Entry) {
-	en.Source = "mcp"
-	_ = e.Audit.Add(en)
+	en.Source = audit.SourceMCP
+	if err := e.Audit.Add(en); err != nil {
+		// stdout carries the protocol; the default logger writes to stderr.
+		slog.Error("audit write failed", "action", en.Action, "object", en.Object, "err", err)
+	}
 }
 
 func serverHost(raw string) string {

@@ -13,14 +13,14 @@ import (
 )
 
 // errMasked refuses patches that would write a masked placeholder over a real value: the model and
-// agents only ever see "<redacted>", so sending it back would replace a password with that text.
+// agents only ever see redact.Mask, so sending it back would replace a password with that text.
 var errMasked = errors.New(`the patch contains "` + redact.Mask + `": masked values are placeholders, not the real ones; ` +
 	"leave those fields out of the patch (for containers, do not resend env or the fields you did not change)")
 
 func containsMask(v any) bool {
 	switch t := v.(type) {
 	case string:
-		return t == redact.Mask
+		return redact.IsMask(t)
 	case map[string]any:
 		for _, x := range t {
 			if containsMask(x) {

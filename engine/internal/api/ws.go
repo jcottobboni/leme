@@ -50,10 +50,20 @@ type gridSub struct {
 	deletes map[string]struct{}
 	errMsg  string
 	wake    chan struct{}
+	printer *project.Printer // CRD printer columns; nil for built-in kinds
 }
 
-func newGridSub() *gridSub {
-	return &gridSub{sent: map[string]string{}, upserts: map[string]project.Row{}, deletes: map[string]struct{}{}, wake: make(chan struct{}, 1)}
+func newGridSub(p *project.Printer) *gridSub {
+	return &gridSub{sent: map[string]string{}, upserts: map[string]project.Row{}, deletes: map[string]struct{}{}, wake: make(chan struct{}, 1), printer: p}
+}
+
+// row projects an object, with the CRD printer columns when there are any.
+func (g *gridSub) row(u *unstructured.Unstructured) project.Row {
+	r := project.Project(u)
+	if g.printer != nil {
+		g.printer.Apply(u, &r)
+	}
+	return r
 }
 
 func (g *gridSub) OnUpsert(u *unstructured.Unstructured) {
@@ -65,7 +75,7 @@ func (g *gridSub) OnUpsert(u *unstructured.Unstructured) {
 	if rv != "" && g.sent[uid] == rv {
 		return
 	}
-	row := project.Project(u)
+	row := g.row(u)
 	delete(g.deletes, row.UID)
 	g.upserts[row.UID] = row
 	g.sent[uid] = rv
@@ -148,7 +158,8 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	defer done()
 
 	key := cluster.Key{GVR: res.GVR(), Namespace: ns}
-	sub := newGridSub()
+	printer := printerFor(ctx, sess, res)
+	sub := newGridSub(printer)
 	snapCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	objs, err := sess.Informers.Subscribe(snapCtx, key, sub)
 	cancel()
@@ -161,10 +172,14 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 
 	rows := make([]project.Row, 0, len(objs))
 	for _, o := range objs {
-		rows = append(rows, project.Project(o))
+		rows = append(rows, sub.row(o))
 	}
 	sub.markSent(objs)
-	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: project.Columns(res.Group, res.Kind, res.Namespaced), Rows: rows}); err != nil {
+	cols := project.Columns(res.Group, res.Kind, res.Namespaced)
+	if printer != nil {
+		cols = printer.Columns()
+	}
+	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: cols, Rows: rows}); err != nil {
 		return
 	}
 	tick := time.NewTicker(flushInterval)

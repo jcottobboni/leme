@@ -6,9 +6,11 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,10 +19,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 // MaxEvents bounds the retention per collector.
 const MaxEvents = 50000
+
+// ClusterScope is the first path element of events about cluster-scoped objects (nodes, PVs…).
+const ClusterScope = "(cluster)"
 
 // Event is the timeline view of a Kubernetes event.
 type Event struct {
@@ -29,14 +35,14 @@ type Event struct {
 	Reason    string   `json:"reason"`
 	Message   string   `json:"message"`
 	Count     int32    `json:"count"`
-	First     int64    `json:"first"` // unix ms
-	Last      int64    `json:"last"`  // unix ms
-	Namespace string   `json:"namespace"`
+	First     int64    `json:"first"`     // unix ms
+	Last      int64    `json:"last"`      // unix ms
+	Namespace string   `json:"namespace"` // "" for cluster-scoped objects
 	Group     string   `json:"group,omitempty"`
 	Kind      string   `json:"kind"`
 	Name      string   `json:"name"`
 	Source    string   `json:"source,omitempty"`
-	Path      []string `json:"path"` // hierarchy, e.g. [demo, Deployment/web, Pod/web-1]
+	Path      []string `json:"path"` // hierarchy, e.g. [demo, Deployment/web, Pod/web-1] or [(cluster), Node/n1]
 	Inferred  bool     `json:"inferred,omitempty"`
 	uid       string
 }
@@ -46,6 +52,14 @@ func ms(t metav1.Time) int64 {
 		return 0
 	}
 	return t.UnixMilli()
+}
+
+// clusterScopedKinds are the built-in cluster-scoped kinds, used when discovery cannot tell.
+var clusterScopedKinds = map[string]bool{
+	"Node": true, "Namespace": true, "PersistentVolume": true, "StorageClass": true, "ClusterRole": true,
+	"ClusterRoleBinding": true, "CustomResourceDefinition": true, "APIService": true, "PriorityClass": true,
+	"RuntimeClass": true, "IngressClass": true, "CSIDriver": true, "CSINode": true, "VolumeAttachment": true,
+	"MutatingWebhookConfiguration": true, "ValidatingWebhookConfiguration": true, "CertificateSigningRequest": true,
 }
 
 // FromCore converts a core/v1 Event (old and new style timestamps).
@@ -79,7 +93,9 @@ func FromCore(e *corev1.Event) *Event {
 		src = e.ReportingController
 	}
 	ns := e.InvolvedObject.Namespace
-	if ns == "" {
+	// Events about cluster-scoped objects are stored in some namespace ("default" for nodes); they
+	// belong to the cluster, not to it.
+	if ns == "" && !(kinds.Builtin(gv.Group) && clusterScopedKinds[e.InvolvedObject.Kind]) {
 		ns = e.Namespace
 	}
 	return &Event{ID: string(e.UID), Type: e.Type, Reason: e.Reason, Message: e.Message, Count: count, First: first, Last: last,
@@ -87,130 +103,146 @@ func FromCore(e *corev1.Event) *Event {
 }
 
 var (
-	// CronJob jobs are named <cronjob>-<scheduled minute> (all digits); ReplicaSet hashes contain letters.
+	// CronJob jobs are named <cronjob>-<scheduled minute> (all digits).
 	podOfCronJob = regexp.MustCompile(`^((.+)-[0-9]{8,})-[a-z0-9]{5}$`)
 	jobOfCronJob = regexp.MustCompile(`^(.+)-[0-9]{8,}$`)
-	podOfRS      = regexp.MustCompile(`^(.+)-[a-z0-9]*[a-z][a-z0-9]*-[a-z0-9]{5}$`)
-	rsOfDep      = regexp.MustCompile(`^(.+)-[a-z0-9]*[a-z][a-z0-9]{5,9}$`)
-	podOfJob     = regexp.MustCompile(`^(.+)-[a-z0-9]{5}$`)
+	// ReplicaSet pod-template-hashes and pod suffixes use the "safe" alphabet of k8s rand (no vowels,
+	// no 0/1/3), which keeps "kube-proxy-x7k2p" or "etcd-<node>-control-plane" from looking like a
+	// Deployment pod.
+	podOfRS = regexp.MustCompile(`^(.+)-[bcdfghjklmnpqrstvwxz2456789]{6,10}-[bcdfghjklmnpqrstvwxz2456789]{5}$`)
+	rsOfDep = regexp.MustCompile(`^(.+)-[bcdfghjklmnpqrstvwxz2456789]{6,10}$`)
 	// OpenShift DeploymentConfig pods are <dc>-<revision>-<suffix>; their RC is <dc>-<revision>.
 	podOfRC = regexp.MustCompile(`^((.+)-[0-9]{1,6})-[a-z0-9]{5}$`)
 	rcOfDC  = regexp.MustCompile(`^(.+)-[0-9]{1,6}$`)
 )
 
-// owners resolves controller chains from metadata-only caches of pods, replicasets and jobs.
+// ownerStore is a metadata-only cache of one resource used for owner resolution.
+type ownerStore struct {
+	store  cache.Store
+	synced func() bool
+	failed atomic.Bool // RBAC or a missing API: the cache will never fill
+}
+
+// owners resolves controller chains from metadata-only caches (ownerReferences only).
 type owners struct {
-	stores map[string]cache.Store // kind -> store keyed by ns/name
+	stores map[string]*ownerStore // "group/Kind" -> store keyed by ns/name
 	stop   func()
 }
 
-func (o *owners) controller(kind, ns, name string) (string, string, bool) {
-	st, ok := o.stores[kind]
-	if !ok {
-		return "", "", false
+func storeKey(group, kind string) string { return group + "/" + kind }
+
+// ownerResources are the controllers whose owner references are followed.
+var ownerResources = map[string]schema.GroupVersionResource{
+	storeKey("", "Pod"):                   {Version: "v1", Resource: "pods"},
+	storeKey("", "ReplicationController"): {Version: "v1", Resource: "replicationcontrollers"},
+	storeKey("apps", "ReplicaSet"):        {Group: "apps", Version: "v1", Resource: "replicasets"},
+	storeKey("apps", "Deployment"):        {Group: "apps", Version: "v1", Resource: "deployments"},
+	storeKey("apps", "StatefulSet"):       {Group: "apps", Version: "v1", Resource: "statefulsets"},
+	storeKey("apps", "DaemonSet"):         {Group: "apps", Version: "v1", Resource: "daemonsets"},
+	storeKey("batch", "Job"):              {Group: "batch", Version: "v1", Resource: "jobs"},
+}
+
+type ref struct{ group, kind, name string }
+
+// controller looks the object up. known is false when the cache cannot answer yet (not synced, or
+// the object is gone); then c is empty. Kinds without a cache (top-level controllers, CRDs) are
+// known to have no followed owner.
+func (o *owners) controller(group, kind, ns, name string) (c ref, known bool) {
+	if o == nil {
+		return ref{}, false
 	}
-	obj, exists, _ := st.GetByKey(ns + "/" + name)
+	st, ok := o.stores[storeKey(group, kind)]
+	if !ok {
+		_, followed := ownerResources[storeKey(group, kind)]
+		return ref{}, !followed
+	}
+	if st.synced != nil && !st.synced() {
+		return ref{}, false
+	}
+	obj, exists, _ := st.store.GetByKey(ns + "/" + name)
 	if !exists {
-		return "", "", false
+		return ref{}, false
 	}
 	m, ok := obj.(*metav1.PartialObjectMetadata)
 	if !ok {
-		return "", "", false
+		return ref{}, false
 	}
-	if c := metav1.GetControllerOfNoCopy(m); c != nil {
-		return c.Kind, c.Name, true
+	if oc := metav1.GetControllerOfNoCopy(m); oc != nil {
+		return ref{kinds.GroupOf(oc.APIVersion), oc.Kind, oc.Name}, true
 	}
-	return "", "", true
+	return ref{}, true
 }
 
-// path builds [namespace, top owner, …, object]. Deleted pods fall back to name heuristics (Inferred).
-func (o *owners) path(e *Event) ([]string, bool) {
-	chain := []string{e.Kind + "/" + e.Name}
-	kind, name := e.Kind, e.Name
-	inferred := false
-	for range 3 {
-		ok, found := "", false
-		var okName string
-		if o != nil {
-			ok, okName, found = o.controller(kind, e.Namespace, name)
+// guess infers the controller of an object that is already gone from its generated name.
+func guess(r ref) ref {
+	switch storeKey(r.group, r.kind) {
+	case storeKey("", "Pod"):
+		if m := podOfCronJob.FindStringSubmatch(r.name); m != nil {
+			return ref{"batch", "Job", m[1]}
+		} else if m := podOfRS.FindStringSubmatch(r.name); m != nil {
+			return ref{"apps", "Deployment", m[1]}
+		} else if m := podOfRC.FindStringSubmatch(r.name); m != nil {
+			return ref{"", "ReplicationController", m[1]}
 		}
-		if !found {
-			// Object already gone: guess the controller from generated names.
-			switch kind {
-			case "Pod":
-				if m := podOfCronJob.FindStringSubmatch(name); m != nil {
-					ok, okName = "Job", m[1]
-				} else if m := podOfRS.FindStringSubmatch(name); m != nil {
-					ok, okName = "Deployment", m[1]
-				} else if m := podOfRC.FindStringSubmatch(name); m != nil {
-					ok, okName = "ReplicationController", m[1]
-				} else if m := podOfJob.FindStringSubmatch(name); m != nil {
-					ok, okName = "Job", m[1]
-				}
-			case "Job":
-				if m := jobOfCronJob.FindStringSubmatch(name); m != nil {
-					ok, okName = "CronJob", m[1]
-				}
-			case "ReplicationController":
-				if m := rcOfDC.FindStringSubmatch(name); m != nil {
-					ok, okName = "DeploymentConfig", m[1]
-				}
-			case "ReplicaSet":
-				if m := rsOfDep.FindStringSubmatch(name); m != nil {
-					ok, okName = "Deployment", m[1]
-				}
-			}
-			if ok != "" {
+	case storeKey("batch", "Job"):
+		if m := jobOfCronJob.FindStringSubmatch(r.name); m != nil {
+			return ref{"batch", "CronJob", m[1]}
+		}
+	case storeKey("", "ReplicationController"):
+		if m := rcOfDC.FindStringSubmatch(r.name); m != nil {
+			return ref{"apps.openshift.io", "DeploymentConfig", m[1]}
+		}
+	case storeKey("apps", "ReplicaSet"):
+		if m := rsOfDep.FindStringSubmatch(r.name); m != nil {
+			return ref{"apps", "Deployment", m[1]}
+		}
+	}
+	return ref{}
+}
+
+// path builds [namespace, top owner, …, object] from the event's involvedObject and the owner
+// references in the caches. Objects already gone fall back to name heuristics (inferred). certain
+// reports that every step was answered by a synced cache, so the path can be kept for the object.
+func (o *owners) path(e *Event) (chain []string, inferred, certain bool) {
+	chain = []string{e.Kind + "/" + e.Name}
+	cur := ref{e.Group, e.Kind, e.Name}
+	certain = true
+	for range 3 {
+		next, known := o.controller(cur.group, cur.kind, e.Namespace, cur.name)
+		if !known {
+			certain = false
+			next = guess(cur)
+			if next.kind != "" {
 				inferred = true
 			}
 		}
-		if ok == "" {
+		// Static pods are "owned" by their Node: that is not a workload.
+		if next.kind == "" || next.group == "" && next.kind == "Node" {
 			break
 		}
 		// Skip the ReplicaSet/ReplicationController level: users think in Deployment(Config) → Pod.
-		if ok == "ReplicationController" {
-			if dk, dn, f := o.controllerOrGuessRC(e.Namespace, okName); f {
-				ok, okName = dk, dn
+		if next.group == "apps" && next.kind == "ReplicaSet" || next.group == "" && next.kind == "ReplicationController" {
+			up, ok := o.controller(next.group, next.kind, e.Namespace, next.name)
+			if !ok {
+				certain = false
+				up = guess(next)
+				if up.kind != "" {
+					inferred = true
+				}
+			}
+			if up.kind != "" {
+				next = up
 			}
 		}
-		if ok == "ReplicaSet" {
-			if dk, dn, f := o.controllerOrGuess(e.Namespace, okName); f {
-				ok, okName = dk, dn
-			}
-		}
-		chain = append([]string{ok + "/" + okName}, chain...)
-		kind, name = ok, okName
+		chain = append([]string{next.kind + "/" + next.name}, chain...)
+		cur = next
 	}
 	if e.Namespace != "" {
 		chain = append([]string{e.Namespace}, chain...)
 	} else {
-		chain = append([]string{"(cluster)"}, chain...)
+		chain = append([]string{ClusterScope}, chain...)
 	}
-	return chain, inferred
-}
-
-func (o *owners) controllerOrGuessRC(ns, rc string) (string, string, bool) {
-	if o != nil {
-		if k, n, found := o.controller("ReplicationController", ns, rc); found {
-			return k, n, k != ""
-		}
-	}
-	if m := rcOfDC.FindStringSubmatch(rc); m != nil {
-		return "DeploymentConfig", m[1], true
-	}
-	return "", "", false
-}
-
-func (o *owners) controllerOrGuess(ns, rs string) (string, string, bool) {
-	if o != nil {
-		if k, n, found := o.controller("ReplicaSet", ns, rs); found && k != "" {
-			return k, n, true
-		}
-	}
-	if m := rsOfDep.FindStringSubmatch(rs); m != nil {
-		return "Deployment", m[1], true
-	}
-	return "", "", false
+	return chain, inferred, certain
 }
 
 type subscriber struct {
@@ -228,10 +260,15 @@ type Collector struct {
 
 	mu     sync.Mutex
 	events map[string]*Event
+	paths  map[string][]string // resolved (not inferred) paths by involvedObject uid: they outlive the object
 	subs   map[*subscriber]struct{}
 	owners *owners
 	errMsg string
 	idle   *time.Timer
+	// idleGen invalidates an idle timer that fired after a viewer came back.
+	idleGen uint64
+	// closed is set (under mu) once the collector was released; Manager.Get never returns it again.
+	closed bool
 }
 
 // IdleTTL is how long a collector keeps retaining events after its last viewer closes the timeline.
@@ -243,6 +280,12 @@ func (c *Collector) OnUpsert(u *unstructured.Unstructured) {
 		return
 	}
 	ev := FromCore(&e)
+	if e.InvolvedObject.Namespace == "" && ev.Namespace != "" && c.sess != nil {
+		// Discovery knows custom cluster-scoped kinds too.
+		if res, ok := c.sess.LookupKind(ev.Group, ev.Kind); ok && !res.Namespaced {
+			ev.Namespace = ""
+		}
+	}
 	c.mu.Lock()
 	c.events[ev.ID] = ev
 	if len(c.events) > MaxEvents {
@@ -283,11 +326,23 @@ func (c *Collector) evict() {
 	for _, e := range all[:len(all)/10] {
 		delete(c.events, e.ID)
 	}
+	if len(c.paths) > MaxEvents {
+		c.paths = map[string][]string{}
+	}
 }
 
+// view resolves the path of an event. Caller holds c.mu.
 func (c *Collector) view(e *Event) Event {
 	out := *e
-	out.Path, out.Inferred = c.owners.path(e)
+	if p, ok := c.paths[e.uid]; ok && e.uid != "" {
+		out.Path = p
+		return out
+	}
+	var certain bool
+	out.Path, out.Inferred, certain = c.owners.path(e)
+	if certain && e.uid != "" && c.paths != nil {
+		c.paths[e.uid] = out.Path
+	}
 	return out
 }
 
@@ -307,10 +362,7 @@ func (c *Collector) Subscribe() (drain func() []Event, wake <-chan struct{}, can
 	s := &subscriber{pending: map[string]struct{}{}, wake: make(chan struct{}, 1)}
 	c.mu.Lock()
 	c.subs[s] = struct{}{}
-	if c.idle != nil {
-		c.idle.Stop()
-		c.idle = nil
-	}
+	c.disarm()
 	c.mu.Unlock()
 	drain = func() []Event {
 		s.mu.Lock()
@@ -332,22 +384,44 @@ func (c *Collector) Subscribe() (drain func() []Event, wake <-chan struct{}, can
 		defer c.mu.Unlock()
 		delete(c.subs, s)
 		if len(c.subs) == 0 && c.idle == nil {
-			c.idle = time.AfterFunc(IdleTTL, c.expire)
+			c.arm()
 		}
 	}
 	return drain, s.wake, cancel
 }
 
-// expire releases an unwatched collector: events informer subscription, owner informers and retention.
-func (c *Collector) expire() {
-	c.mu.Lock()
-	if len(c.subs) > 0 {
+// arm starts the idle timer. Caller holds c.mu.
+func (c *Collector) arm() {
+	c.idleGen++
+	gen := c.idleGen
+	c.idle = time.AfterFunc(IdleTTL, func() { c.expire(gen) })
+}
+
+// disarm cancels a pending idle timer, including one that already fired but has not run yet. Caller holds c.mu.
+func (c *Collector) disarm() {
+	if c.idle != nil {
+		c.idle.Stop()
 		c.idle = nil
+	}
+	c.idleGen++
+}
+
+// expire releases an unwatched collector: events informer subscription, owner informers and retention.
+func (c *Collector) expire(gen uint64) {
+	m := c.manager
+	m.mu.Lock()
+	c.mu.Lock()
+	if c.closed || gen != c.idleGen || len(c.subs) > 0 {
 		c.mu.Unlock()
+		m.mu.Unlock()
 		return
 	}
+	c.closed, c.idle = true, nil
 	c.mu.Unlock()
-	c.manager.remove(c)
+	if m.m[c.sess][c.ns] == c {
+		delete(m.m[c.sess], c.ns)
+	}
+	m.mu.Unlock()
 	c.close()
 }
 
@@ -358,7 +432,7 @@ func (c *Collector) close() {
 	}
 }
 
-// Manager owns collectors; each lives until its session disconnects.
+// Manager owns collectors; each lives until its session disconnects or it idles out.
 type Manager struct {
 	mu sync.Mutex
 	m  map[*cluster.Session]map[string]*Collector
@@ -367,10 +441,33 @@ type Manager struct {
 // NewManager creates a manager.
 func NewManager() *Manager { return &Manager{m: map[*cluster.Session]map[string]*Collector{}} }
 
+// lookup returns a live registered collector and keeps it alive for the caller: a pending idle
+// timer is re-armed so it cannot release the collector between Get and Subscribe. Caller holds m.mu.
+func (m *Manager) lookup(sess *cluster.Session, ns string) (*Collector, bool) {
+	c, ok := m.m[sess][ns]
+	if !ok {
+		return nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		delete(m.m[sess], ns)
+		return nil, false
+	}
+	if len(c.subs) == 0 {
+		c.disarm()
+		c.arm()
+	}
+	return c, true
+}
+
+// ownersSyncWait bounds how long the first snapshot waits for the owner caches.
+var ownersSyncWait = 5 * time.Second
+
 // Get returns (starting if needed) the collector for a namespace ("" = cluster-wide).
 func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*Collector, error) {
 	m.mu.Lock()
-	if c, ok := m.m[sess][ns]; ok {
+	if c, ok := m.lookup(sess, ns); ok {
 		m.mu.Unlock()
 		return c, nil
 	}
@@ -381,7 +478,7 @@ func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*C
 		return nil, errNoEvents
 	}
 	key := cluster.Key{GVR: res.GVR(), Namespace: ns}
-	c := &Collector{sess: sess, ns: ns, key: key, manager: m, events: map[string]*Event{}, subs: map[*subscriber]struct{}{}}
+	c := &Collector{sess: sess, ns: ns, key: key, manager: m, events: map[string]*Event{}, paths: map[string][]string{}, subs: map[*subscriber]struct{}{}}
 	snapCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	objs, err := sess.Informers.Subscribe(snapCtx, key, c)
@@ -389,24 +486,27 @@ func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*C
 		return nil, err
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if existing, ok := m.m[sess][ns]; ok {
+	if existing, ok := m.lookup(sess, ns); ok {
+		m.mu.Unlock()
 		// Lost a race with another viewer: drop our subscription, use theirs.
 		sess.Informers.Unsubscribe(key, c)
 		return existing, nil
 	}
 	if m.m[sess] == nil {
 		m.m[sess] = map[string]*Collector{}
-		go func() {
-			<-sess.Life().Done()
+		sess.OnClose(func() {
 			m.mu.Lock()
 			cols := m.m[sess]
 			delete(m.m, sess)
 			m.mu.Unlock()
 			for _, col := range cols {
+				col.mu.Lock()
+				col.closed = true
+				col.disarm()
+				col.mu.Unlock()
 				col.close()
 			}
-		}()
+		})
 	}
 	// Owner informers only start once this collector is the registered one.
 	own := startOwners(sess, ns)
@@ -417,15 +517,12 @@ func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*C
 		c.OnUpsert(o)
 	}
 	m.m[sess][ns] = c
+	m.mu.Unlock()
+	// Paths resolved before the owner caches fill would fall back to name guesses.
+	waitCtx, wcancel := context.WithTimeout(ctx, ownersSyncWait)
+	defer wcancel()
+	own.wait(waitCtx)
 	return c, nil
-}
-
-func (m *Manager) remove(c *Collector) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.m[c.sess][c.ns] == c {
-		delete(m.m[c.sess], c.ns)
-	}
 }
 
 type timelineError string
@@ -435,23 +532,52 @@ func (e timelineError) Error() string { return string(e) }
 const errNoEvents = timelineError("events API not available")
 
 // startOwners runs metadata informers (no spec, just ownerReferences) for owner resolution. They stop
-// with the session; failures (RBAC) just leave resolution to the name heuristics.
+// with the collector; failures (RBAC) just leave resolution to the name heuristics.
 func startOwners(sess *cluster.Session, ns string) *owners {
-	o := &owners{stores: map[string]cache.Store{}}
+	o := &owners{stores: map[string]*ownerStore{}}
+	if sess.Meta == nil {
+		return o
+	}
 	f := metadatainformer.NewFilteredSharedInformerFactory(sess.Meta, 0, ns, nil)
-	for kind, gvr := range map[string]schema.GroupVersionResource{
-		"Pod":                   {Version: "v1", Resource: "pods"},
-		"ReplicaSet":            {Group: "apps", Version: "v1", Resource: "replicasets"},
-		"Job":                   {Group: "batch", Version: "v1", Resource: "jobs"},
-		"ReplicationController": {Version: "v1", Resource: "replicationcontrollers"},
-	} {
+	for k, gvr := range ownerResources {
+		if _, ok := sess.Lookup(gvr.Group, gvr.Resource); !ok {
+			continue
+		}
 		inf := f.ForResource(gvr).Informer()
-		_ = inf.SetWatchErrorHandler(func(*cache.Reflector, error) {})
-		o.stores[kind] = inf.GetStore()
+		st := &ownerStore{store: inf.GetStore(), synced: inf.HasSynced}
+		_ = inf.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
+			if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || apierrors.IsNotFound(err) {
+				st.failed.Store(true)
+			}
+		})
+		o.stores[k] = st
 	}
 	stop := make(chan struct{})
 	var once sync.Once
 	o.stop = func() { once.Do(func() { close(stop) }) }
 	f.Start(stop)
 	return o
+}
+
+// wait blocks until every owner cache synced or failed, or ctx ends.
+func (o *owners) wait(ctx context.Context) {
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		ready := true
+		for _, st := range o.stores {
+			if !st.failed.Load() && st.synced != nil && !st.synced() {
+				ready = false
+				break
+			}
+		}
+		if ready {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
 }
