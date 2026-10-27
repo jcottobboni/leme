@@ -6,6 +6,7 @@
 import type { Application, BitmapText, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import type { Health, MapWorkload } from '../../api'
 import { BLOB_AMP, blobPolygon, dotRadius, islandSeed, appSeed, lodOf, TILE_R, type IslandL, type Layout, type Match, type TileL } from '../map/layout'
+import { seen, trunc } from '../map/geometry'
 import { arrowOf, type EdgeL } from './edges'
 
 type Pixi = typeof import('pixi.js')
@@ -63,8 +64,6 @@ const HEX_PTS = Array.from({ length: 6 }, (_, i) => {
   return [TILE_R * Math.cos(a), TILE_R * Math.sin(a)]
 }).flat()
 
-const trunc = (s: string, n: number) => (s.length <= n ? s : n <= 1 ? '' : s.slice(0, n - 1) + '…')
-const seen = (vp: { x0: number; y0: number; x1: number; y1: number }, x: number, y: number, r: number) => x + r >= vp.x0 && x - r <= vp.x1 && y + r >= vp.y0 && y - r <= vp.y1
 
 /** A grow-only pool of display objects, reset on every sync. */
 class Pool<T extends Container> {
