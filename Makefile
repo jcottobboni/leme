@@ -3,6 +3,8 @@
 SHELL := /bin/bash
 GO ?= go
 DEV_KUBECONFIG ?= $(HOME)/.kube/leme-dev/kubeconfig
+# The engine reports the app version, so both always ship the same number.
+VERSION ?= $(shell node -p "require('./app/package.json').version")
 
 .PHONY: deps engine ui licenses run run-dev serve-dev test test-go test-e2e perf scale-lab dist dev-cluster kind-up kind-down sweep
 
@@ -10,7 +12,7 @@ deps:
 	cd app && npm ci
 
 engine:
-	cd engine && $(GO) build -trimpath -ldflags "-s -w" -o bin/leme ./cmd/leme
+	cd engine && $(GO) build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o bin/leme ./cmd/leme
 
 ui:
 	cd app && npx vite build
