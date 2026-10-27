@@ -71,7 +71,7 @@ func Get(ctx context.Context, s *cluster.Session, ref Ref, reveal bool) (*Object
 	return &ObjectView{Object: u.Object, YAML: string(y), Masked: masked}, nil
 }
 
-// MaskSecret replaces Secret values (and the last-applied copy) with redact.Mask; it reports whether anything was hidden.
+// MaskSecret replaces Secret values (and annotations that may embed them) with redact.Mask; it reports whether anything was hidden.
 func MaskSecret(u *unstructured.Unstructured) bool {
 	masked := false
 	for _, field := range []string{"data", "stringData"} {
@@ -85,11 +85,16 @@ func MaskSecret(u *unstructured.Unstructured) bool {
 		}
 		_ = unstructured.SetNestedMap(u.Object, m, field)
 	}
-	ann := u.GetAnnotations()
-	if _, ok := ann["kubectl.kubernetes.io/last-applied-configuration"]; ok {
-		ann["kubectl.kubernetes.io/last-applied-configuration"] = redact.Mask
+	// Annotations can carry the same material (last-applied, kapp's original manifest, legacy
+	// service account tokens): only descriptive ones stay visible.
+	if ann := u.GetAnnotations(); len(ann) > 0 {
+		for k := range ann {
+			if !redact.SecretAnnotationVisible(k) {
+				ann[k] = redact.Mask
+				masked = true
+			}
+		}
 		u.SetAnnotations(ann)
-		masked = true
 	}
 	return masked
 }
@@ -177,8 +182,10 @@ func Apply(ctx context.Context, s *cluster.Session, yamlText string, dryRun bool
 var multiDoc = regexp.MustCompile(`(?m)^---\s*\n\s*\S`)
 
 func containsHidden(u *unstructured.Unstructured) bool {
-	if redact.IsMask(u.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"]) {
-		return true
+	for _, v := range u.GetAnnotations() {
+		if redact.IsMask(v) {
+			return true
+		}
 	}
 	for _, field := range []string{"data", "stringData"} {
 		m, _, _ := unstructured.NestedMap(u.Object, field)

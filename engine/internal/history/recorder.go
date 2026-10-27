@@ -50,9 +50,13 @@ func ignored(gvr schema.GroupVersionResource) bool {
 	return false
 }
 
-// keysOnly reports the built-in kinds whose values are never stored.
+// keysOnly reports the built-in kinds whose values are never stored: Secrets, ConfigMaps and
+// OpenShift Templates (their parameters hold generated passwords and their objects embed Secrets).
 func keysOnly(gvr schema.GroupVersionResource) bool {
-	return gvr.Group == "" && (gvr.Resource == "secrets" || gvr.Resource == "configmaps")
+	if gvr.Group == "" && (gvr.Resource == "secrets" || gvr.Resource == "configmaps") {
+		return true
+	}
+	return gvr.Group == "template.openshift.io" && (gvr.Resource == "templates" || gvr.Resource == "processedtemplates")
 }
 
 // noisyAnnotations change without a user action (controllers bookkeeping).
@@ -194,16 +198,17 @@ func (r *Recorder) ObserveUpdate(gvr schema.GroupVersionResource, old, u *unstru
 			e.Ops = append(e.Ops, Op{Op: op.Op, Path: op.Path})
 		}
 	} else {
-		// Values come from redacted copies of both versions: the structure is the same, credential
-		// values are masked. A path the redaction dropped is shown as masked.
-		ra, rb := redact.Object(&unstructured.Unstructured{Object: map[string]any{"x": a}}), redact.Object(&unstructured.Unstructured{Object: map[string]any{"x": b}})
+		// Values come from redacted copies of the whole objects (kind and annotations included, so the
+		// kind-specific and embedded-manifest rules apply), cut to the same tracked part. A path the
+		// redaction dropped is shown as masked.
+		ra, rb := tracked(gvr, redact.Object(old)), tracked(gvr, redact.Object(u))
 		for _, op := range ops {
 			o := Op{Op: op.Op, Path: op.Path}
 			if op.Op != "remove" {
-				o.Value = valueAt(rb.Object["x"], op.Path)
+				o.Value = valueAt(rb, op.Path)
 			}
 			if op.Op != "add" {
-				o.Old = valueAt(ra.Object["x"], op.Path)
+				o.Old = valueAt(ra, op.Path)
 			}
 			e.Ops = append(e.Ops, o)
 		}

@@ -190,3 +190,21 @@ func TestWithJPColumnsBeforeAge(t *testing.T) {
 		t.Fatal("input must not be modified")
 	}
 }
+
+// Chained recursive descents grow exponentially and cannot be interrupted: refused up front.
+func TestJSONPathRecursionLimited(t *testing.T) {
+	j, err := parseJPCols(`["{..c..c..c..c}", "{..metadata.name}", "{..items[?(@.x)]}"]`, false)
+	if err != nil || j == nil {
+		t.Fatal(err)
+	}
+	errs := j.Errors()
+	if _, bad := errs["jp:{..c..c..c..c}"]; !bad {
+		t.Fatalf("chained recursion accepted: %v", errs)
+	}
+	if _, bad := errs["jp:{..items[?(@.x)]}"]; !bad {
+		t.Fatalf("recursion with filter accepted: %v", errs)
+	}
+	if len(j.Columns()) != 1 {
+		t.Fatalf("a single recursion must still work: %+v", j.Columns())
+	}
+}

@@ -260,3 +260,33 @@ func TestInvalidKeyAndDisabled(t *testing.T) {
 		t.Fatal("disabled store answered")
 	}
 }
+
+// Kind- and annotation-dependent redaction must apply: an annotation embedding a manifest (kapp,
+// last-applied of a Secret) and Template parameters never reach the file.
+func TestEmbeddedManifestsAndTemplatesAreNotStored(t *testing.T) {
+	s, r, dir := open(t)
+	withAnn := func(rv, v string) *unstructured.Unstructured {
+		d := deploy(rv, "app:1", "")
+		d.SetAnnotations(map[string]string{"kapp.k14s.io/original": `{"apiVersion":"v1","kind":"Secret","data":{"pw":"` + v + `"}}`})
+		return d
+	}
+	r.ObserveUpdate(deployments, withAnn("1", "b2xkU0VDUkVU"), withAnn("2", "bmV3U0VDUkVU"))
+	templates := schema.GroupVersionResource{Group: "template.openshift.io", Version: "v1", Resource: "templates"}
+	tpl := func(rv, pw string) *unstructured.Unstructured {
+		return &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "template.openshift.io/v1", "kind": "Template",
+			"metadata":   map[string]any{"name": "db", "namespace": "demo", "uid": "t1", "resourceVersion": rv},
+			"parameters": []any{map[string]any{"name": "DB_PASSWORD", "value": pw}},
+		}}
+	}
+	r.ObserveUpdate(templates, tpl("1", "old-S3CRET"), tpl("2", "new-S3CRET"))
+	if got := all(t, s, Query{}); len(got) != 2 {
+		t.Fatalf("entries = %+v", got)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "history", key+".jsonl"))
+	for _, leak := range []string{"b2xkU0VDUkVU", "bmV3U0VDUkVU", "old-S3CRET", "new-S3CRET"} {
+		if strings.Contains(string(raw), leak) {
+			t.Fatalf("%s on disk: %s", leak, raw)
+		}
+	}
+}

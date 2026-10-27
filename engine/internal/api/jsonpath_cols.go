@@ -89,6 +89,12 @@ func parseJPCols(raw string, secret bool) (*jpCols, error) {
 			j.errs[key] = fmt.Sprintf("expressão longa demais (máximo %d caracteres)", jpMaxExpr)
 			continue
 		}
+		// Each recursive descent multiplies the cost (4 of them already take seconds and hundreds of MB
+		// on a deep object, and FindResults cannot be interrupted): one at most, and no filter with it.
+		if n := strings.Count(e, ".."); n > 1 || (n == 1 && strings.Contains(e, "?(")) {
+			j.errs[key] = "use no máximo uma recursão (..) por expressão, e sem filtro ?() junto"
+			continue
+		}
 		p := jsonpath.New(key).AllowMissingKeys(true)
 		if err := p.Parse(e); err != nil {
 			j.errs[key] = "expressão JSONPath inválida: " + err.Error()
@@ -143,7 +149,12 @@ func (j *jpCols) Apply(u *unstructured.Unstructured, r *project.Row) {
 			continue
 		}
 		t0 := time.Now()
-		v, ok := evalJP(c.path, obj)
+		v, ok, failed := safeEvalJP(c.path, obj)
+		if failed {
+			c.slow = true
+			j.errs[c.key] = "a expressão falhou ao ser avaliada: desligada nesta lista"
+			continue
+		}
 		if time.Since(t0) > jpSlowSingle {
 			c.slow = true
 			j.errs[c.key] = "expressão lenta demais: desligada nesta lista"
@@ -152,6 +163,18 @@ func (j *jpCols) Apply(u *unstructured.Unstructured, r *project.Row) {
 			r.Cells[c.key] = v
 		}
 	}
+}
+
+// safeEvalJP keeps a panic of the JSONPath evaluator (it runs inside the informer handlers) from
+// taking the engine down.
+func safeEvalJP(p *jsonpath.JSONPath, obj map[string]any) (v any, ok bool, failed bool) {
+	defer func() {
+		if recover() != nil {
+			v, ok, failed = nil, false, true
+		}
+	}()
+	v, ok = evalJP(p, obj)
+	return v, ok, false
 }
 
 // isSecret: a core Secret (a CRD named Secret in another group is not masked by this rule).

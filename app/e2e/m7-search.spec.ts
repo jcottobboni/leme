@@ -48,14 +48,14 @@ test('CA05: -l app=web filtra no engine, !web e /regex/ filtram a grade, regex i
   await openApp(page)
   await page.getByTestId('nav-kind-Deployment').click()
   const g = grid(page)
-  await expect(g.getByTestId('row-web')).toBeVisible()
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toBeVisible()
   await expect(g.getByTestId('row-broken')).toBeVisible()
   const search = g.getByTestId('grid-search')
 
   // Label selector: applied server-side, so the list itself has one item ("1 item", not "1 de N").
   await search.fill('-l app=web')
   await expect(g.getByTestId('row-broken')).toHaveCount(0)
-  await expect(g.getByTestId('row-web')).toBeVisible()
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toBeVisible()
   // (Other suites may add their own app=web copies in other namespaces: count them, never assume.)
   const n = kubectl('get', 'deploy', '-A', '-l', 'app=web', '-o', 'name').trim().split('\n').filter(Boolean).length
   await expect(g.locator('.count-pill')).toHaveText(`${n} ${n === 1 ? 'item' : 'itens'}`)
@@ -75,7 +75,7 @@ test('CA05: -l app=web filtra no engine, !web e /regex/ filtram a grade, regex i
 
   // Selector + negation together; a chip removes its term.
   await search.fill('-l app!=broken !coredns ns:demo')
-  await expect(g.getByTestId('row-web')).toBeVisible()
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toBeVisible()
   await expect(g.getByTestId('row-broken')).toHaveCount(0)
   await g.getByRole('button', { name: 'Remover o filtro -l app!=broken' }).click()
   await expect(search).toHaveValue('!coredns ns:demo')
@@ -84,7 +84,7 @@ test('CA05: -l app=web filtra no engine, !web e /regex/ filtram a grade, regex i
   // Invalid regex: inline error, the grid keeps working.
   await search.fill('/[/ web')
   await expect(g.getByTestId('filter-error')).toContainText('regex inválida')
-  await expect(g.getByTestId('row-web')).toBeVisible()
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toBeVisible()
 
   // Invalid selector: the engine says so, no crash.
   await search.fill('-l "app in (web"')
@@ -97,7 +97,7 @@ test('CA05: coluna JSONPath por tipo, persiste ao recarregar; expressão inváli
   await openApp(page)
   await page.getByTestId('nav-kind-Deployment').click()
   let g = grid(page)
-  await expect(g.getByTestId('row-web')).toBeVisible()
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toBeVisible()
   await g.getByTestId('grid-columns').click()
   await page.getByRole('menuitem', { name: 'Adicionar coluna JSONPath…' }).click()
   const dlg = page.getByTestId('jp-dialog')
@@ -113,7 +113,7 @@ test('CA05: coluna JSONPath por tipo, persiste ao recarregar; expressão inváli
   await expect(dlg).toHaveCount(0)
 
   await expect(g.locator('.th-label', { hasText: 'Estratégia' })).toBeVisible()
-  await expect(g.getByTestId('row-web')).toContainText('RollingUpdate')
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toContainText('RollingUpdate')
   await expect(g.getByTestId('jp-banner')).toContainText('inválida')
   // The error also shows in the columns menu.
   await g.getByTestId('grid-columns').click()
@@ -126,7 +126,7 @@ test('CA05: coluna JSONPath por tipo, persiste ao recarregar; expressão inváli
   await page.getByTestId('nav-kind-Deployment').click()
   g = grid(page)
   await expect(g.locator('.th-label', { hasText: 'Estratégia' })).toBeVisible()
-  await expect(g.getByTestId('row-web')).toContainText('RollingUpdate')
+  await expect(g.getByTestId('row-web').filter({ hasText: 'demo' }).first()).toContainText('RollingUpdate')
 
   // Secrets: values never reach the grid, even through a JSONPath column.
   const value = JSON.parse(kubectl('-n', 'demo', 'get', 'secret', 'app-secret', '-o', 'jsonpath={.data}')).password as string
