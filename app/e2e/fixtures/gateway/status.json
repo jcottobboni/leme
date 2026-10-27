@@ -1,0 +1,153 @@
+{
+  "_comment": "Status written by the e2e test (no controller): one merge patch per object, applied with kubectl patch --subresource=status. Keys are resource/namespace/name (empty namespace = cluster scope).",
+  "gatewayclasses.gateway.networking.k8s.io//m7-gateway-class": {
+    "status": {
+      "conditions": [
+        {
+          "type": "Accepted",
+          "status": "True",
+          "reason": "Accepted",
+          "message": "",
+          "lastTransitionTime": "2026-10-27T10:00:00Z",
+          "observedGeneration": 1
+        }
+      ]
+    }
+  },
+  "gateways.gateway.networking.k8s.io/m7-gateway/m7-gw": {
+    "status": {
+      "addresses": [
+        {
+          "type": "IPAddress",
+          "value": "172.18.0.50"
+        }
+      ],
+      "conditions": [
+        {
+          "type": "Accepted",
+          "status": "True",
+          "reason": "Accepted",
+          "message": "",
+          "lastTransitionTime": "2026-10-27T10:00:00Z",
+          "observedGeneration": 1
+        },
+        {
+          "type": "Programmed",
+          "status": "True",
+          "reason": "Programmed",
+          "message": "",
+          "lastTransitionTime": "2026-10-27T10:00:00Z",
+          "observedGeneration": 1
+        }
+      ],
+      "listeners": [
+        {
+          "name": "http",
+          "attachedRoutes": 2,
+          "supportedKinds": [
+            {
+              "group": "gateway.networking.k8s.io",
+              "kind": "HTTPRoute"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "Programmed",
+              "status": "True",
+              "reason": "Programmed",
+              "message": "",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            }
+          ]
+        },
+        {
+          "name": "tcp",
+          "attachedRoutes": 1,
+          "supportedKinds": [
+            {
+              "group": "gateway.networking.k8s.io",
+              "kind": "TCPRoute"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "Programmed",
+              "status": "True",
+              "reason": "Programmed",
+              "message": "",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "httproutes.gateway.networking.k8s.io/m7-gateway/m7-web": {
+    "status": {
+      "parents": [
+        {
+          "parentRef": {
+            "group": "gateway.networking.k8s.io",
+            "kind": "Gateway",
+            "name": "m7-gw",
+            "sectionName": "http"
+          },
+          "controllerName": "example.com/m7-gateway-controller",
+          "conditions": [
+            {
+              "type": "Accepted",
+              "status": "True",
+              "reason": "Accepted",
+              "message": "",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            },
+            {
+              "type": "ResolvedRefs",
+              "status": "True",
+              "reason": "ResolvedRefs",
+              "message": "",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "httproutes.gateway.networking.k8s.io/m7-gateway/m7-broken": {
+    "status": {
+      "parents": [
+        {
+          "parentRef": {
+            "group": "gateway.networking.k8s.io",
+            "kind": "Gateway",
+            "name": "m7-gw",
+            "sectionName": "http"
+          },
+          "controllerName": "example.com/m7-gateway-controller",
+          "conditions": [
+            {
+              "type": "Accepted",
+              "status": "True",
+              "reason": "Accepted",
+              "message": "",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            },
+            {
+              "type": "ResolvedRefs",
+              "status": "False",
+              "reason": "BackendNotFound",
+              "message": "service m7-gateway/m7-missing not found",
+              "lastTransitionTime": "2026-10-27T10:00:00Z",
+              "observedGeneration": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

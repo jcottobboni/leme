@@ -1,0 +1,61 @@
+# M7 Flux CD fixtures (CA04). Only for the isolated kind cluster. The CRDs come from
+# scripts/gitops-crds.sh (SHA-256 pinned); there is no Flux controller, so nothing is fetched or
+# applied and the e2e test writes the status with kubectl patch --subresource=status.
+# Every object is named m7-flux-* in the m7-flux namespace.
+apiVersion: v1
+kind: Namespace
+metadata: {name: m7-flux}
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata: {name: m7-flux-repo, namespace: m7-flux}
+spec:
+  interval: 5m
+  url: https://example.com/m7/fleet.git
+  ref: {branch: main}
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: {name: m7-flux-charts, namespace: m7-flux}
+spec:
+  interval: 1h
+  url: https://example.com/m7/charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata: {name: m7-flux-oci, namespace: m7-flux}
+spec:
+  interval: 10m
+  url: oci://example.com/m7/manifests
+  ref: {tag: latest}
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: {name: m7-flux-apps, namespace: m7-flux}
+spec:
+  interval: 10m
+  path: ./apps
+  prune: true
+  targetNamespace: m7-flux
+  sourceRef: {kind: GitRepository, name: m7-flux-repo}
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: {name: m7-flux-broken, namespace: m7-flux}
+spec:
+  interval: 10m
+  path: ./does-not-exist
+  prune: false
+  sourceRef: {kind: GitRepository, name: m7-flux-repo}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: {name: m7-flux-podinfo, namespace: m7-flux}
+spec:
+  interval: 30m
+  suspend: true
+  chart:
+    spec:
+      chart: podinfo
+      version: "6.x"
+      sourceRef: {kind: HelmRepository, name: m7-flux-charts}

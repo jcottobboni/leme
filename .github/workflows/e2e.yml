@@ -42,6 +42,8 @@ jobs:
           tar -xzf trivy_0.70.0_Linux-64bit.tar.gz trivy && install -m 755 trivy "$bin/trivy"
           echo "$bin" >> "$GITHUB_PATH"
       - run: make dev-cluster
+      - name: Gateway API and Flux CRDs for the M7 specs (CRDs only, SHA-256 pinned in the script)
+        run: bash scripts/gitops-crds.sh
       - name: Let Prometheus collect samples for the metric charts
         run: sleep 90
       - run: cd app && xvfb-run -a npx playwright test
