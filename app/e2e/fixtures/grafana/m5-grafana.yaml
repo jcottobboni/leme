@@ -1,0 +1,98 @@
+# M5 feature grafana — test fixture for the Leme kind cluster ONLY (context kind-leme-dev).
+# A stand-in "Grafana": nginx serving a static page on port 3000 behind a Service with Grafana labels,
+# and an admin Secret holding a marker password that must never show up in the app.
+# Apply:  kubectl --kubeconfig ~/.kube/leme-dev/kubeconfig --context kind-leme-dev apply -f m5-grafana.yaml
+# Remove: kubectl --kubeconfig ~/.kube/leme-dev/kubeconfig --context kind-leme-dev delete namespace m5-grafana
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-grafana
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: m5-grafana-admin
+  namespace: m5-grafana
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: m5-grafana
+type: Opaque
+stringData:
+  admin-user: admin
+  # Marker checked by the e2e specs: it must not appear in any window nor in /grafana/targets.
+  admin-password: m5-grafana-marker-Qx7Zk2pW
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: m5-grafana-site
+  namespace: m5-grafana
+data:
+  default.conf: |
+    server {
+      listen 3000;
+      root /usr/share/nginx/html;
+      location / { try_files $uri $uri/ /index.html; }
+    }
+  index.html: |
+    <!doctype html>
+    <html><head><meta charset="utf-8"><title>m5 grafana</title></head>
+    <body>
+      <h1 id="m5-title">m5 grafana</h1>
+      <p><a id="m5-external" href="https://example.com/">link externo</a></p>
+    </body></html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-grafana
+  namespace: m5-grafana
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: m5-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: m5-grafana
+  template:
+    metadata:
+      labels:
+        app: m5-grafana
+        app.kubernetes.io/name: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            periodSeconds: 2
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+          volumeMounts:
+            - { name: site, mountPath: /etc/nginx/conf.d/default.conf, subPath: default.conf }
+            - { name: site, mountPath: /usr/share/nginx/html/index.html, subPath: index.html }
+      volumes:
+        - name: site
+          configMap:
+            name: m5-grafana-site
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-grafana
+  namespace: m5-grafana
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: m5-grafana
+spec:
+  selector:
+    app: m5-grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
