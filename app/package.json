@@ -1,6 +1,6 @@
 {
   "name": "leme",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Agentless desktop client for Kubernetes and OpenShift",
   "main": "main/main.cjs",
