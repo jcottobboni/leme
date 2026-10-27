@@ -370,3 +370,26 @@ func TestGrantDoesNotFollowAnotherClusterWithTheSameName(t *testing.T) {
 		t.Fatalf("a grant made for another cluster must not apply: %v %s", ok, why)
 	}
 }
+
+// A proposal made by an engine feature with its own kind policy (Argo CD) must not be applied by
+// an agent, even with write access: the agent kind list stays the AI/agent one.
+func TestApplyRefusesProposalsOutsideAgentKinds(t *testing.T) {
+	h := newHarness(t, false)
+	h.enable(t, settings.AgentAccess{Write: true})
+	sess, err := h.env.Connect(context.Background(), kube.Context{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowAll := func(string, string) error { return nil }
+	p, err := h.env.Changes.ProposeWith(context.Background(), sess, change.Ref{Group: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "admin-ish"}, labelPatch, "feature change", "argocd", false, allowAll) // no dry-run: the fake client would persist it
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := h.tool(t, "apply_change", map[string]any{"token": p.Token}); !isErr {
+		t.Fatalf("agent applied a feature proposal: %s", text)
+	}
+	got, _ := sess.Dynamic.Resource(crRes.GVR()).Get(context.Background(), "admin-ish", metav1.GetOptions{})
+	if got.GetLabels()["reviewed"] != "" {
+		t.Fatalf("object changed: %v", got.GetLabels())
+	}
+}

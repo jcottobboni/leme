@@ -111,6 +111,12 @@ func (e *Env) applyChange(ctx context.Context, args json.RawMessage) (string, er
 	obj := ""
 	if pending, err := e.Changes.Get(s.Context.ID, a.Token); err == nil {
 		obj = pending.Ref.String()
+		// Proposals of engine features with their own kind policy (Argo CD Applications) are
+		// applied from their screen only: agents keep the AI/agent kind list.
+		if err := change.Allowed(pending.Ref.Group, pending.Ref.Kind); err != nil {
+			e.audit(audit.Entry{Action: "apply", Context: s.Context.Name, Object: obj, Result: "denied", Detail: err.Error()})
+			return "", err
+		}
 	}
 	var denied error
 	p, err := e.Changes.Apply(ctx, s, a.Token, func() error {
