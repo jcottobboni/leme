@@ -50,6 +50,9 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 | RBAC | Matriz das minhas permissões, "posso…?", "quem pode…?", subjects e bindings, modelos de Role/Binding |
 | Segurança | Regras próprias, riscos de RBAC, análise e simulador de NetworkPolicy, scanners externos opcionais |
 | OpenShift | Routes, DeploymentConfigs, Builds, ImageStreams, Projects, login OAuth |
+| Diagnóstico | Analisador offline: evidência e sugestão para problemas comuns, por objeto e por cluster |
+| Copilot (opcional) | Claude, qualquer API compatível com OpenAI ou Ollama local; lê, explica e propõe correções como diff revisado; com anonimização, consentimento e auditoria |
+| Servidor MCP | `leme mcp` deixa agentes como o Claude Code lerem clusters pelo Leme; escrita só onde você permitir, em dois passos, auditada ([docs/mcp.md](docs/mcp.md)) |
 
 ## Instalação
 

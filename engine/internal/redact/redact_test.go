@@ -71,13 +71,13 @@ func TestSecretAndConfigMap(t *testing.T) {
 
 func TestText(t *testing.T) {
 	cases := map[string]string{
-		"Authorization: Bearer abcdefghijklmnop":                         "abcdefghijklmnop",
-		"connecting with password=hunter2&user=x":                         "hunter2",
-		`{"api_key": "sk-123456789"}`:                                      "sk-123456789",
+		"Authorization: Bearer abcdefghijklmnop":                             "abcdefghijklmnop",
+		"connecting with password=hunter2&user=x":                            "hunter2",
+		`{"api_key": "sk-123456789"}`:                                        "sk-123456789",
 		"token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk": "eyJhbGciOiJIUzI1NiJ9",
-		"key AKIAABCDEFGHIJKLMNOP used":                                    "AKIAABCDEFGHIJKLMNOP",
-		"dsn postgres://app:hunter2@db:5432/x":                             "hunter2",
-		"oc token sha256~abcdefghijklmnopqrstuvwxyz":                        "sha256~abcdef",
+		"key AKIAABCDEFGHIJKLMNOP used":                                      "AKIAABCDEFGHIJKLMNOP",
+		"dsn postgres://app:hunter2@db:5432/x":                               "hunter2",
+		"oc token sha256~abcdefghijklmnopqrstuvwxyz":                         "sha256~abcdef",
 	}
 	for in, secret := range cases {
 		if out := Text(in); strings.Contains(out, secret) {

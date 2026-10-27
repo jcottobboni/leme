@@ -1,5 +1,5 @@
 // Electron shell: starts the Go engine on loopback and opens the UI it serves.
-const { app, BrowserWindow, shell, Menu, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, shell, Menu, dialog, ipcMain, safeStorage } = require('electron')
 const { spawn } = require('node:child_process')
 const crypto = require('node:crypto')
 const path = require('node:path')
@@ -46,11 +46,63 @@ function flushUiState() {
   }
 }
 
+// AI provider API keys. Encrypted with the OS keychain (safeStorage) in userData/ai-keys.json;
+// without a keychain they live only for the session and are never written in clear text. The
+// renderer can set a key but never read one back; the engine receives keys over its local API.
+const AI_KEYS_FILE = () => path.join(app.getPath('userData'), 'ai-keys.json')
+const aiKeys = new Map() // provider|baseURL -> { provider, baseURL, key }
+
+function keychainAvailable() {
+  if (!safeStorage.isEncryptionAvailable()) return false
+  return process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'
+}
+
+function loadAiKeys() {
+  // Only touch the keychain when there is something to decrypt: querying it can block on an
+  // unlock prompt, and most users never configure AI.
+  if (!fs.existsSync(AI_KEYS_FILE()) || !keychainAvailable()) return
+  try {
+    for (const e of JSON.parse(fs.readFileSync(AI_KEYS_FILE(), 'utf8'))) {
+      aiKeys.set(`${e.provider}|${e.baseURL}`, { provider: e.provider, baseURL: e.baseURL, key: safeStorage.decryptString(Buffer.from(e.enc, 'base64')) })
+    }
+  } catch {
+    /* unreadable: no keys */
+  }
+}
+
+function saveAiKeys() {
+  if (!keychainAvailable()) return
+  const out = [...aiKeys.values()].map((e) => ({ provider: e.provider, baseURL: e.baseURL, enc: safeStorage.encryptString(e.key).toString('base64') }))
+  fs.mkdirSync(path.dirname(AI_KEYS_FILE()), { recursive: true, mode: 0o700 })
+  fs.writeFileSync(AI_KEYS_FILE(), JSON.stringify(out), { mode: 0o600 })
+}
+
+async function pushAiKey(e) {
+  if (!engineURL) return
+  await fetch(`${engineURL}/api/ai/keys`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${engineToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: e.provider, baseURL: e.baseURL, key: e.key }),
+  }).catch((err) => process.stderr.write(`[shell] cannot hand the AI key to the engine: ${err}\n`))
+}
+
 // Only the app's own page may read or write it.
 const fromApp = (e) => !!appOrigin && !!e.senderFrame && e.senderFrame.url.startsWith(appOrigin + '/')
 ipcMain.on('ui-state:load', (e) => {
   e.returnValue = fromApp(e) ? loadUiState() : {}
 })
+ipcMain.handle('ai-key:set', async (e, provider, baseURL, key) => {
+  if (!fromApp(e) || !['anthropic', 'openai', 'ollama'].includes(provider) || typeof key !== 'string' || key.length > 4096) return { ok: false }
+  const base = String(baseURL || '').replace(/\/+$/, '')
+  const entry = { provider, baseURL: base, key: key.trim() }
+  if (entry.key) aiKeys.set(`${provider}|${base}`, entry)
+  else aiKeys.delete(`${provider}|${base}`)
+  saveAiKeys()
+  await pushAiKey(entry)
+  return { ok: true, stored: keychainAvailable() ? 'keychain' : 'session' }
+})
+ipcMain.handle('ai-key:status', (e) => (fromApp(e) ? { keychain: keychainAvailable() } : {}))
+
 ipcMain.on('ui-state:set', (e, key, value) => {
   if (!fromApp(e) || !UI_KEYS.has(key)) return
   const state = loadUiState()
@@ -72,6 +124,7 @@ function staticDir() {
 
 let engine
 let engineURL
+let engineToken
 let mainWindow
 
 function startEngine() {
@@ -94,6 +147,7 @@ function startEngine() {
         if (msg.event === 'ready') {
           clearTimeout(timer)
           engineURL = `http://127.0.0.1:${msg.port}`
+          engineToken = token
           resolve({ port: msg.port, token })
         }
       } catch {
@@ -112,6 +166,8 @@ function startEngine() {
 
 async function createWindow() {
   const { port, token } = await startEngine()
+  loadAiKeys()
+  for (const e of aiKeys.values()) await pushAiKey(e)
   const win = new BrowserWindow({
     width: 1500,
     height: 920,

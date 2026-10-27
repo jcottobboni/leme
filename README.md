@@ -49,6 +49,9 @@ and need to be sure they are not about to break production.
 | RBAC | My permissions matrix, "can I…?", "who can…?", subjects and bindings, Role/Binding templates |
 | Security | Built-in rules, RBAC risks, NetworkPolicy analysis and simulator, optional external scanners |
 | OpenShift | Routes, DeploymentConfigs, Builds, ImageStreams, Projects, OAuth login |
+| Diagnosis | Offline analyzer: evidence and suggestion for common problems, per object and per cluster |
+| Copilot (opt-in) | Claude, any OpenAI-compatible API or local Ollama; reads, explains and proposes fixes as reviewed diffs; anonymized, consented, audited |
+| MCP server | `leme mcp` lets agents like Claude Code read clusters through Leme; writes only where you allow them, two steps, audited ([docs/mcp.md](docs/mcp.md)) |
 
 | Topology | Cluster map |
 |---|---|

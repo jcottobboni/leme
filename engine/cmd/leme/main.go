@@ -21,6 +21,7 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/api"
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/kube"
+	"github.com/jcottobboni/leme/engine/internal/mcp"
 	"github.com/jcottobboni/leme/engine/internal/security"
 	"github.com/jcottobboni/leme/engine/internal/settings"
 )
@@ -35,6 +36,9 @@ func (l *listFlag) String() string     { return strings.Join(*l, ",") }
 func (l *listFlag) Set(v string) error { *l = append(*l, v); return nil }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		os.Exit(mcp.Main(os.Args[2:], version))
+	}
 	if len(os.Args) < 2 || os.Args[1] != "serve" {
 		fmt.Fprintf(os.Stderr, "Leme %s\n\nusage: leme serve [--addr 127.0.0.1:0] [--static DIR] [--kubeconfig FILE]...\n", version)
 		os.Exit(2)

@@ -3,9 +3,28 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
-## [Unreleased]
+## [0.4.0] - 2026-10-27
 
-### Security
+### Added
+- **Diagnosis without AI:** an analyzer that explains common problems with evidence and a
+  suggestion (image pull, crash loops and OOM, scheduling, probes, stuck rollouts, Services
+  without endpoints, broken Ingress/Route backends, pending PVCs, node pressure, HPA, Jobs and
+  CronJobs). "Diagnóstico" tab on every object and a "Problemas" panel per cluster. Offline.
+- **Copilot (opt-in):** chat about the selected object or the cluster with Claude (Anthropic API),
+  any OpenAI-compatible API, or a local Ollama model. It reads through read-only tools and can
+  propose a fix as a reviewed diff; applying always needs your approval, server dry-run and the
+  cluster's write unlock. It cannot delete or touch Secrets, RBAC, Namespaces, CRDs or ConfigMap
+  contents.
+- **Privacy:** off by default; consent per cloud provider; Secret and env values never leave the
+  machine; names, hosts, IPs and e-mails are anonymized (including derived names such as
+  ReplicaSets and Pods) and restored in the answer; "see what will be sent" preview; local audit
+  log. API keys stay in the OS keychain and are bound to the endpoint they were entered for.
+- **MCP server (`leme mcp`):** lets agents such as Claude Code read clusters through Leme. Writes
+  are off by default, enabled per context in the app (production needs the typed context name),
+  always propose → apply with a short-lived token, and audited. See docs/mcp.md.
+
+
+### Security (contributed in #1)
 - A loopback API server no longer makes a cluster local on its own: SSH tunnels and
   `kubectl proxy` to remote clusters now open read-only. Local detection also requires a context
   name from a local tool and only accepts 172.16.0.0/12 and 192.168.0.0/16 as container networks.

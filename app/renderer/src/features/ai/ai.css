@@ -1,0 +1,57 @@
+/* Copilot (features/ai). Every class is prefixed with ai- so nothing leaks into other screens. */
+.ai-settings { display: grid; gap: 12px; }
+.ai-settings .row { display: flex; gap: 10px; align-items: flex-end; }
+.ai-settings .grow { flex: 1; min-width: 0; }
+.ai-enable { font-weight: 600; color: var(--text-strong); }
+.ai-providers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.ai-providers button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; height: auto; border-radius: 8px; }
+.ai-providers button.on { border-color: var(--accent); background: var(--accent-soft); }
+.ai-note { margin: 0; line-height: 1.5; }
+.ai-audit summary { cursor: pointer; color: var(--muted); }
+.ai-audit .table { margin-top: 6px; }
+
+.ai-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ai-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ai-head .ai-title { font-weight: 650; color: var(--text-strong); display: inline-flex; gap: 6px; align-items: center; }
+.ai-ref { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; background: var(--panel-2); max-width: 340px; }
+.ai-ref span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-ref button { border: 0; background: none; padding: 0 2px; height: auto; color: var(--muted); }
+.ai-meta { font-size: 11px; color: var(--muted); }
+.ai-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.ai-empty { margin: auto; max-width: 520px; text-align: center; color: var(--muted); display: grid; gap: 10px; justify-items: center; }
+.ai-empty .ai-suggestions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.ai-msg { max-width: 860px; line-height: 1.55; }
+.ai-msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); padding: 8px 12px; border-radius: 12px 12px 2px 12px; white-space: pre-wrap; }
+.ai-msg.assistant { align-self: flex-start; width: 100%; }
+.ai-msg.assistant p { margin: 0 0 8px; }
+.ai-msg.assistant ul, .ai-msg.assistant ol { margin: 0 0 8px; padding-left: 20px; }
+.ai-msg.assistant h3, .ai-msg.assistant h4 { margin: 10px 0 6px; font-size: 13px; color: var(--text-strong); }
+.ai-msg code { font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
+.ai-msg pre { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; margin: 0 0 8px; }
+.ai-msg pre code { background: none; padding: 0; }
+.ai-tool { align-self: flex-start; display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 2px 10px; max-width: 100%; }
+.ai-tool code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; display: inline-block; vertical-align: bottom; }
+.ai-alert { align-self: stretch; border-radius: 8px; padding: 10px 12px; border: 1px solid var(--line); background: var(--panel-2); }
+.ai-alert.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+.ai-alert.error { border-color: color-mix(in srgb, var(--error) 50%, var(--line)); }
+.ai-alert .row { display: flex; gap: 8px; margin-top: 8px; }
+
+.ai-proposal { align-self: stretch; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 10px; overflow: hidden; background: var(--raised); }
+.ai-proposal-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.ai-proposal-head b { color: var(--text-strong); }
+.ai-proposal-diff { height: 300px; }
+.ai-proposal-foot { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.ai-pill { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.ai-pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.ai-pill.bad { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--line)); }
+.ai-pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+
+.ai-input { border-top: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 6px; }
+.ai-input textarea { width: 100%; resize: none; min-height: 58px; max-height: 200px; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
+.ai-input textarea:focus { outline: none; border-color: var(--accent); }
+.ai-input-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.ai-input-bar .spacer { flex: 1; }
+.ai-input-bar input[type='number'] { width: 64px; }
+.ai-preview pre { max-height: 50vh; overflow: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 0; }
+.ai-settings .banner { border: 1px solid var(--line); border-radius: 8px; }
+.ai-settings .ai-ok { color: var(--ok); }

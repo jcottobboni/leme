@@ -97,7 +97,7 @@ var (
 		regexp.MustCompile(`(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]{12,}`),
 		regexp.MustCompile(`(?i)((?:password|passwd|pwd|secret|token|api[-_]?key|access[-_]?key|client[-_]?secret)["']?\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;&"']+)`),
 		regexp.MustCompile(`eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`), // JWT
-		regexp.MustCompile(`\b(AKIA|ASIA)[A-Z0-9]{16}\b`),                                   // AWS access key id
+		regexp.MustCompile(`\b(AKIA|ASIA)[A-Z0-9]{16}\b`),                                // AWS access key id
 		regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----`),
 		regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s:/@]+:([^\s@/]+)@`), // credentials in URLs
 		regexp.MustCompile(`\bsha256~[A-Za-z0-9_-]{20,}`),                     // OpenShift tokens
