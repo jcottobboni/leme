@@ -296,7 +296,7 @@ function Timeline({ clusterId }: { clusterId: string }) {
       <PanelHeader icon={Timer} title="Timeline de eventos" scope={<NamespaceSelect clusterId={clusterId} />} actions={[
         { key: 'window', label: 'Janela', value: live ? String(win) : '', onSelect: (v) => { setWin(Number(v)); setLive(true) }, options: WINDOWS.map(([l, ms]) => ({ value: String(ms), label: l, title: `Últimos ${l}, ao vivo` })) },
         ...(!live ? [{ key: 'live', label: 'Ao vivo', icon: Play, keep: true, onClick: () => setLive(true) }] : []),
-        { key: 'help', label: 'Como navegar', icon: CircleHelp, iconOnly: true, keep: true, title: 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas', onClick: () => undefined },
+        { key: 'help', label: 'Como navegar', icon: CircleHelp, iconOnly: true, keep: true, title: 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas', onClick: () => useApp.getState().toast('info', 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas') },
       ]}>
         <select value={type} onChange={(e) => setType(e.target.value as Filter['type'])} aria-label="Tipo de evento">
           <option value="">Todos os tipos</option>

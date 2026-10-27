@@ -6,6 +6,7 @@ import { clusterName, useApp } from '../../store'
 import { YamlEditor } from '../../components/Monaco'
 import { ErrorBanner, Tabs, useAsync } from '../common'
 import { pressable } from '../../components/a11y'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import { Review, type ReviewState } from './Review'
 import { openRelease } from './HelmReleases'
 
@@ -150,11 +151,13 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
   const { data: hits, error, loading } = useAsync(() => api.helmSearch(q), [q, rev])
   const [sel, setSel] = useState<ChartHit>()
   return (
-    <div className="split">
+    <div className="object-panel">
+    <PanelHeader icon={Package} title="Helm charts" actions={[refreshAction(() => setRev((r) => r + 1), loading)]} />
+    <div className="split" style={{ flex: 1, minHeight: 0, height: 'auto' }}>
       <div className="split-left">
         <Repos onChanged={() => setRev((r) => r + 1)} />
         <div className="toolbar">
-          <input className="search" placeholder="Buscar charts…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="chart-search" />
+          <input className="search" placeholder="Buscar charts…" aria-label="Buscar charts" value={q} onChange={(e) => setQ(e.target.value)} data-testid="chart-search" />
           {loading && <span className="spinner" />}
         </div>
         <ErrorBanner error={error} />
@@ -169,6 +172,7 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
         </div>
       </div>
       <div className="split-right">{sel ? <ChartDetail key={sel.ref} hit={sel} clusterId={params.clusterId} /> : <div className="empty"><Package size={22} /><span>Selecione um chart à esquerda para ver detalhes.</span></div>}</div>
+    </div>
     </div>
   )
 }

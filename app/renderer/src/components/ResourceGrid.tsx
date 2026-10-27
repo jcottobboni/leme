@@ -237,9 +237,10 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       const fw = Math.max(w, labelMin(c))
       return (minWidth += fw, `${fw}px`)
     }
-    const min = Math.max(labelMin(c), c === flex ? 140 : c.key === 'name' ? Math.min(w, 160) : c.key === 'node' ? 100 : c.type === 'status' ? w : c.type === 'number' ? Math.max(w, 72) : w >= 200 ? Math.round(w * 0.6) : Math.max(56, Math.round(w * 0.75)))
+    const min = Math.max(labelMin(c), c === flex ? 140 : c.key === 'name' ? Math.max(200, Math.min(w, 260)) : c.key === 'node' ? 100 : c.type === 'status' ? w : c.type === 'number' ? Math.max(w, 72) : w >= 200 ? Math.round(w * 0.6) : Math.max(56, Math.round(w * 0.75)))
     minWidth += min
-    return `minmax(${min}px, ${w}fr)`
+    // Name gets the largest share of spare width: it is the column people read first.
+    return `minmax(${min}px, ${c.key === 'name' ? w * 2 : w}fr)`
   }).join(' ') + ` ${ACTIONS_W}px`
   const counts = useMemo(() => {
     const c = { ok: 0, warn: 0, error: 0 }
