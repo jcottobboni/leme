@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -74,7 +75,7 @@ func TestRecordsUpdateWithPatchAndPersists(t *testing.T) {
 		t.Fatalf("entry = %+v", e)
 	}
 	st, err := os.Stat(filepath.Join(dir, "history", key+".jsonl"))
-	if err != nil || st.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && st.Mode().Perm() != 0o600) { // Windows has no Unix mode bits
 		t.Fatalf("file mode: %v %v", st, err)
 	}
 	// A new process (engine restart) reads the same history.
