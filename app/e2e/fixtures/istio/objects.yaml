@@ -1,0 +1,76 @@
+# Istio fixture objects for app/e2e/istio.spec.ts. Everything lives in m5-istio-* namespaces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-istio-strict
+  labels: {istio-injection: enabled, leme.dev/fixture: m5-istio}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-istio-permissive
+  labels: {leme.dev/fixture: m5-istio}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: {name: default, namespace: m5-istio-strict}
+spec:
+  mtls: {mode: STRICT}
+---
+# Workload exception: the reviews pods also accept plaintext on 9080.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: {name: m5-istio-reviews, namespace: m5-istio-strict}
+spec:
+  selector: {matchLabels: {app: m5-istio-reviews}}
+  portLevelMtls:
+    "9080": {mode: PERMISSIVE}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: {name: default, namespace: m5-istio-permissive}
+spec:
+  mtls: {mode: PERMISSIVE}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: m5-istio-reviews, namespace: m5-istio-strict}
+spec:
+  selector: {app: m5-istio-reviews}
+  ports:
+  - {name: http, port: 9080, targetPort: 9080}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: m5-istio-reviews, namespace: m5-istio-strict}
+spec:
+  hosts: [m5-istio-reviews]
+  gateways: [m5-istio-gateway, mesh]
+  http:
+  - name: canary
+    match:
+    - uri: {prefix: /reviews}
+    route:
+    - destination: {host: m5-istio-reviews, subset: v1, port: {number: 9080}}
+      weight: 80
+    - destination: {host: m5-istio-reviews.m5-istio-strict.svc.cluster.local, subset: v2, port: {number: 9080}}
+      weight: 20
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata: {name: m5-istio-reviews, namespace: m5-istio-strict}
+spec:
+  host: m5-istio-reviews
+  trafficPolicy: {tls: {mode: ISTIO_MUTUAL}}
+  subsets:
+  - {name: v1, labels: {version: v1}}
+  - {name: v2, labels: {version: v2}}
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata: {name: m5-istio-gateway, namespace: m5-istio-strict}
+spec:
+  selector: {istio: ingressgateway}
+  servers:
+  - port: {number: 80, name: http, protocol: HTTP}
+    hosts: [reviews.m5-istio.example]
