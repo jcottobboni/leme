@@ -59,6 +59,21 @@ func TestIsLocal(t *testing.T) {
 	}
 }
 
+func TestSharedProdServer(t *testing.T) {
+	ctxs := []Context{
+		{Name: "acme/prd-portal", Server: "https://api.ocp-c01.acme:6443", Prod: true},
+		{Name: "acme/stg-portal", Server: "https://api.ocp-c01.acme:6443/"},
+		{Name: "acme/hmg-portal", Server: "https://api.ocp-hmg.acme:6443"},
+	}
+	markSharedProd(ctxs)
+	if !ctxs[1].Prod || !ctxs[1].SharedProd {
+		t.Fatalf("stg on the prod server must be production: %+v", ctxs[1])
+	}
+	if ctxs[2].Prod || ctxs[0].SharedProd {
+		t.Fatalf("other server untouched, real prod not marked shared: %+v %+v", ctxs[2], ctxs[0])
+	}
+}
+
 func TestContextIDStable(t *testing.T) {
 	if ContextID("a/b:6443/c") != ContextID("a/b:6443/c") || len(ContextID("x")) != 12 {
 		t.Fatal("unstable id")

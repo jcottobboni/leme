@@ -59,6 +59,7 @@ type Session struct {
 	loader    *kube.Loader
 	mu        sync.RWMutex
 	readOnly  bool
+	shell     bool // pod shells allowed while writes stay locked
 	resources []Resource
 	byKey     map[string]Resource
 
@@ -67,6 +68,9 @@ type Session struct {
 	endLife  context.CancelFunc
 	write    context.Context
 	endWrite context.CancelFunc
+	// shellScope ends when the shell permission is revoked (or on Disconnect).
+	shellScope context.Context
+	endShell   context.CancelFunc
 }
 
 // ClientConfig returns the kubeconfig view of this session's context with a default namespace.
@@ -101,6 +105,51 @@ func (s *Session) SetReadOnly(v bool) {
 		s.write, s.endWrite = context.WithCancel(s.life)
 	}
 	s.readOnly = v
+}
+
+// ErrNoShell is returned when a pod shell is opened on a locked session without the shell permission.
+var ErrNoShell = errors.New("cluster is read-only: allow the shell (or unlock writes) before opening a terminal")
+
+// Shell reports whether pod shells are allowed on a locked session.
+func (s *Session) Shell() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shell
+}
+
+// SetShell allows or revokes pod shells without unlocking writes. Revoking ends the open shells.
+func (s *Session) SetShell(v bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shellScope == nil {
+		s.shellScope, s.endShell = context.WithCancel(s.life)
+	}
+	if !v && s.shell {
+		s.endShell()
+		s.shellScope, s.endShell = context.WithCancel(s.life)
+	}
+	s.shell = v
+}
+
+// ShellScope is the context a pod shell runs in: with the shell permission it lasts until that is
+// revoked; otherwise it is the write scope, so locking the session ends the shell.
+func (s *Session) ShellScope() context.Context {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.shell && s.shellScope != nil {
+		return s.shellScope
+	}
+	return s.write
+}
+
+// CheckShell allows a pod shell on an unlocked session or with the shell permission.
+func (s *Session) CheckShell() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.readOnly && !s.shell {
+		return ErrNoShell
+	}
+	return nil
 }
 
 // CheckWritable returns ErrReadOnly when the guard is active.

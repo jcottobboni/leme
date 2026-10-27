@@ -30,8 +30,11 @@ type Context struct {
 	Source    string `json:"source"`
 	Current   bool   `json:"current"`
 	Prod      bool   `json:"prod"`
-	Local     bool   `json:"local"`
-	Provider  string `json:"provider"`
+	// SharedProd marks a context that is production only because a production context uses the
+	// same API server: unlocking it would unlock that cluster for the same identity.
+	SharedProd bool   `json:"sharedProd,omitempty"`
+	Local      bool   `json:"local"`
+	Provider   string `json:"provider"`
 }
 
 // Fingerprint identifies what the context points to (server, cluster and user entries), so state
@@ -106,9 +109,29 @@ func (l *Loader) Contexts() ([]Context, error) {
 			Provider:  DetectProvider(server, raw.AuthInfos[c.AuthInfo]),
 		})
 	}
+	markSharedProd(out)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
+
+// markSharedProd treats a context as production when another context on the same API server is
+// production: stg and prd namespaces often live on one cluster, and the read-only guard covers
+// the whole session, not a namespace.
+func markSharedProd(ctxs []Context) {
+	prodServers := map[string]bool{}
+	for _, c := range ctxs {
+		if c.Prod && c.Server != "" {
+			prodServers[serverKey(c.Server)] = true
+		}
+	}
+	for i := range ctxs {
+		if !ctxs[i].Prod && ctxs[i].Server != "" && prodServers[serverKey(ctxs[i].Server)] {
+			ctxs[i].Prod, ctxs[i].SharedProd = true, true
+		}
+	}
+}
+
+func serverKey(server string) string { return strings.TrimRight(strings.ToLower(server), "/") }
 
 // RESTConfig builds a client config pinned to the given context, ignoring current-context.
 func (l *Loader) RESTConfig(contextName string) (*rest.Config, string, error) {

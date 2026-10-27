@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { Bot, LogIn, LogOut, Lock, LockOpen, type LucideIcon, Pencil, Pin, PinOff, Plug, Unplug } from 'lucide-react'
+import { Bot, LogIn, LogOut, Lock, LockOpen, type LucideIcon, Pencil, Pin, PinOff, Plug, SquareTerminal, Unplug } from 'lucide-react'
 import { api3, type ClusterInfo } from '../../api'
 import { useApp, useUi } from '../../store'
 import { UnlockDialog } from '../../components/Dialogs'
@@ -79,18 +79,35 @@ export function ContextMenuHost() {
 }
 
 // Cluster dialogs live at the app root so the hotbar, the navigator and the catalog can open them.
-const useDialogs = create<{ unlock?: ClusterInfo; login?: ClusterInfo; profile?: ClusterInfo; agents?: ClusterInfo }>(() => ({}))
+const useDialogs = create<{ unlock?: ClusterInfo; unlockShell?: ClusterInfo; login?: ClusterInfo; profile?: ClusterInfo; agents?: ClusterInfo }>(() => ({}))
 
 export function DialogHost() {
-  const { unlock, login, profile, agents } = useDialogs()
+  const { unlock, unlockShell, login, profile, agents } = useDialogs()
   return (
     <>
       {profile && <ClusterProfileDialog c={profile} onClose={() => useDialogs.setState({ profile: undefined })} />}
       {agents && <AgentAccessDialog c={agents} onClose={() => useDialogs.setState({ agents: undefined })} />}
       {login && <LoginDialog clusterId={login.id} name={login.name} onClose={() => useDialogs.setState({ login: undefined })} />}
+      {unlockShell && (
+        <UnlockDialog
+          contextName={unlockShell.name}
+          shared={unlockShell.sharedProd}
+          shell
+          onCancel={() => useDialogs.setState({ unlockShell: undefined })}
+          onConfirm={async (typed) => {
+            try {
+              await useApp.getState().setShell(unlockShell.id, true, typed)
+              useDialogs.setState({ unlockShell: undefined })
+            } catch (e) {
+              useApp.getState().toast('error', (e as Error).message)
+            }
+          }}
+        />
+      )}
       {unlock && (
         <UnlockDialog
           contextName={unlock.name}
+          shared={unlock.sharedProd}
           onCancel={() => useDialogs.setState({ unlock: undefined })}
           onConfirm={async (typed) => {
             try {
@@ -116,6 +133,12 @@ export function unlockWrites(c: ClusterInfo) {
   else useApp.getState().setReadOnly(c.id, false).catch((e) => useApp.getState().toast('error', (e as Error).message))
 }
 
+/** Pod shells without unlocking writes; production asks for the context name. */
+export function allowShell(c: ClusterInfo) {
+  if (c.prod) useDialogs.setState({ unlockShell: c })
+  else useApp.getState().setShell(c.id, true).catch((e) => useApp.getState().toast('error', (e as Error).message))
+}
+
 export function togglePin(id: string) {
   const { pinned, update } = useUi.getState()
   update({ pinned: pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id] })
@@ -136,6 +159,11 @@ export function clusterMenu(c: ClusterInfo): MenuItem[] {
       st.readOnly
         ? { label: c.prod ? 'Liberar escrita (PROD)…' : 'Liberar escrita', icon: LockOpen, onClick: () => unlockWrites(c) }
         : { label: 'Voltar para somente leitura', icon: Lock, onClick: () => s.setReadOnly(c.id, true) },
+      ...(st.readOnly
+        ? [st.shell
+          ? { label: 'Revogar shell', icon: SquareTerminal, onClick: () => s.setShell(c.id, false).catch((e) => s.toast('error', (e as Error).message)) }
+          : { label: c.prod ? 'Liberar shell, sem escrita (PROD)…' : 'Liberar shell (sem escrita)', icon: SquareTerminal, onClick: () => allowShell(c) }]
+        : []),
       { label: 'Desconectar', icon: Unplug, onClick: () => s.disconnect(c.id) },
     )
   } else {

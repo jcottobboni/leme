@@ -33,8 +33,12 @@ It does not protect against an attacker who already controls your user account o
   while read-only, not only the UI.
 - **Production contexts** (markers such as `prd`, `prod`, `production`, `live` in the context,
   cluster, user, namespace or API host, also glued to a prefix as in `ocpprd` or `k8sprod01`) can
-  only be unlocked by typing the exact context name.
+  only be unlocked by typing the exact context name. A context whose API server is also used by
+  a production context counts as production too: staging and production namespaces often share
+  one cluster, and the guard covers the whole session, not a namespace.
   Switching back to read-only immediately closes that cluster's terminals and port-forwards.
+- **Pod shells can be allowed without unlocking writes** ("Liberar shell" in the cluster menu,
+  with the typed context name on production). Revoking it closes the open shells.
 - **Every change is previewed.** YAML edits go through a server-side dry-run, a diff and a
   confirmation. Updates carry the `resourceVersion` you opened, so they never overwrite someone
   else's newer change.

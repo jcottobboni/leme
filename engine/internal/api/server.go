@@ -80,6 +80,7 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/clusters/{id}/connect", s.connect)
 	m.HandleFunc("POST /api/clusters/{id}/disconnect", s.disconnect)
 	m.HandleFunc("POST /api/clusters/{id}/readonly", s.setReadOnly)
+	m.HandleFunc("POST /api/clusters/{id}/shell", s.setShell)
 	m.HandleFunc("GET /api/clusters/{id}/resources", s.withSession(s.resources))
 	m.HandleFunc("GET /api/clusters/{id}/watch", s.withSession(s.watch))
 	m.HandleFunc("GET /api/clusters/{id}/object", s.withSession(s.getObject))
@@ -240,7 +241,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 			version = v.GitVersion
 		}
 	}
-	writeJSON(w, map[string]any{"resources": sess.Resources(), "namespace": sess.Namespace, "readOnly": sess.ReadOnly(), "version": version})
+	writeJSON(w, map[string]any{"resources": sess.Resources(), "namespace": sess.Namespace, "readOnly": sess.ReadOnly(), "shell": sess.Shell(), "version": version})
 }
 
 func (s *Server) disconnect(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +249,30 @@ func (s *Server) disconnect(w http.ResponseWriter, r *http.Request) {
 	s.forwards.StopCluster(id)
 	s.mgr.Disconnect(id)
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// setShell allows pod shells without unlocking writes. Production needs the typed context name,
+// as for unlocking writes: a shell can still change what runs inside the pod.
+func (s *Server) setShell(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.mgr.Get(r.PathValue("id"))
+	if !ok {
+		httpError(w, http.StatusConflict, "cluster not connected")
+		return
+	}
+	var body struct {
+		Allow   bool   `json:"allow"`
+		Confirm string `json:"confirm"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if body.Allow && sess.Context.Prod && body.Confirm != sess.Context.Name {
+		httpError(w, http.StatusBadRequest, "type the exact context name to allow shells on a production cluster")
+		return
+	}
+	sess.SetShell(body.Allow)
+	s.log.Info("shell permission changed", "context", sess.Context.Name, "allow", body.Allow)
+	writeJSON(w, map[string]bool{"shell": sess.Shell()})
 }
 
 func (s *Server) setReadOnly(w http.ResponseWriter, r *http.Request) {

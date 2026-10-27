@@ -58,7 +58,7 @@ var DefaultShell = []string{"/bin/sh", "-c", "if command -v bash >/dev/null 2>&1
 
 // Exec runs an interactive TTY command in a container. Blocked on read-only clusters.
 func Exec(ctx context.Context, s *cluster.Session, o ExecOptions) error {
-	if err := s.CheckWritable(); err != nil {
+	if err := s.CheckShell(); err != nil {
 		return err
 	}
 	cmd := o.Command

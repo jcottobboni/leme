@@ -11,19 +11,24 @@ export function Modal({ title, children, onClose, width }: { title: string; chil
   )
 }
 
-export function UnlockDialog({ contextName, onConfirm, onCancel }: { contextName: string; onConfirm: (typed: string) => void; onCancel: () => void }) {
+export function UnlockDialog({ contextName, shared, shell, onConfirm, onCancel }: { contextName: string; shared?: boolean; shell?: boolean; onConfirm: (typed: string) => void; onCancel: () => void }) {
   const [typed, setTyped] = useState('')
   return (
-    <Modal title="Liberar escrita em cluster de PRODUÇÃO" onClose={onCancel}>
+    <Modal title={shell ? 'Liberar shell em cluster de PRODUÇÃO' : 'Liberar escrita em cluster de PRODUÇÃO'} onClose={onCancel}>
       <p>
-        Este contexto parece ser de <b>produção</b>. Para permitir edição, exclusão, scale, restart e terminal, digite o nome exato do contexto:
+        {shared ? (
+          <>Este contexto usa o <b>mesmo servidor</b> de um contexto de produção: liberar aqui vale para aquele cluster inteiro. </>
+        ) : (
+          <>Este contexto parece ser de <b>produção</b>. </>
+        )}
+        {shell ? 'Para abrir terminais nos pods (a escrita continua travada)' : 'Para permitir edição, exclusão, scale, restart e terminal'}, digite o nome exato do contexto:
       </p>
       <code className="block">{contextName}</code>
       <input autoFocus className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="nome do contexto" />
       <div className="modal-actions">
         <button onClick={onCancel}>Cancelar</button>
         <button className="danger" disabled={typed !== contextName} onClick={() => onConfirm(typed)}>
-          Liberar escrita
+          {shell ? 'Liberar shell' : 'Liberar escrita'}
         </button>
       </div>
     </Modal>

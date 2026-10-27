@@ -25,6 +25,7 @@ type Pending = { kind: 'delete' | 'restart' | 'scale'; rows: Row[] }
 /** Row actions of a grid (context menu, kebab, bulk bar) and the dialogs they open. */
 export function useRowActions(clusterId: string, res: Resource | undefined, open: { drawer: (r: Row) => void; tab: (r: Row) => void }) {
   const readOnly = useApp((s) => s.connected[clusterId]?.readOnly ?? true)
+  const shell = useApp((s) => !!s.connected[clusterId]?.shell)
   const toast = useApp((s) => s.toast)
   const [pending, setPending] = useState<Pending>()
 
@@ -39,7 +40,7 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
       items.push(
         { separator: true },
         { label: 'Logs', icon: ScrollText, onClick: () => openPanel(`logs:${clusterId}:${row.namespace}/${row.name}`, 'logs', `logs ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
-        { label: 'Shell', icon: SquareTerminal, disabled: readOnly, onClick: () => openPanel(`term:${clusterId}:${row.namespace}/${row.name}:${Date.now()}`, 'terminal', `sh ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
+        { label: 'Shell', icon: SquareTerminal, disabled: readOnly && !shell, onClick: () => openPanel(`term:${clusterId}:${row.namespace}/${row.name}:${Date.now()}`, 'terminal', `sh ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
       )
     }
     if (SCALABLE.includes(kind) || RESTARTABLE.includes(kind)) items.push({ separator: true })
