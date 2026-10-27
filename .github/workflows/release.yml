@@ -16,12 +16,12 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: engine/go.mod
           cache: false # release builds never restore caches written by other workflows
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -31,7 +31,7 @@ jobs:
         run: test "v$(node -p "require('./app/package.json').version")" = "$GITHUB_REF_NAME"
       - run: make deps engine ui licenses
       - run: cd app && npx electron-builder --linux AppImage deb --publish never
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
@@ -45,12 +45,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: engine/go.mod
           cache: false # release builds never restore caches written by other workflows
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -84,7 +84,7 @@ jobs:
           if (-not $engine) { throw 'engine did not start' }
           "engine running: $($engine.Path)"
           Stop-Process -Id $app.Id -Force
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: app/release/*.exe
@@ -99,7 +99,7 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -130,7 +130,7 @@ jobs:
           sha256sum *.deb *.AppImage *.exe > SHA256SUMS
 
       # Signed build provenance (SLSA): `gh attestation verify <file> --repo jcottobboni/leme`.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/*.deb
