@@ -4,9 +4,11 @@ import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edg
 import '@xyflow/react/dist/style.css'
 import { Network } from 'lucide-react'
 import { api3, type NetAnalysis, type NetCheck, type NetEndpoint } from '../../api'
-import { openPanel, useApp, type OpenOptions } from '../../store'
+import { openPanel, type OpenOptions } from '../../store'
 import { NamespaceSelect } from '../../components/ResourceGrid'
-import { ClusterGate, ErrorBanner, PanelHeader, Partial, RefreshButton, Tabs, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, Partial, Tabs, useAsync } from '../common'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { useWorkNamespace } from '../shell/useWorkNamespace'
 import { layout, NODE_H, NODE_W } from '../topology/layout'
 
 type Tab = 'graph' | 'pods' | 'policies' | 'simulate'
@@ -113,9 +115,12 @@ function Simulator({ clusterId, a }: { clusterId: string; a: NetAnalysis }) {
 }
 
 function Netpol({ clusterId }: { clusterId: string }) {
-  const selected = useApp((s) => s.namespace[clusterId] ?? '')
-  const fallback = useApp((s) => s.connected[clusterId]?.defaultNamespace || 'default')
-  const ns = selected || fallback
+  const ns = useWorkNamespace(clusterId)
+  if (!ns) return <div className="pad"><span className="spinner" /> Escolhendo o namespace com mais workloads…</div>
+  return <NetpolNs clusterId={clusterId} ns={ns} />
+}
+
+function NetpolNs({ clusterId, ns }: { clusterId: string; ns: string }) {
   const [tab, setTab] = useState<Tab>('graph')
   const [rev, setRev] = useState(0)
   const { data, error, loading } = useAsync(() => api3.netpol(clusterId, ns), [clusterId, ns, rev])
@@ -123,11 +128,8 @@ function Netpol({ clusterId }: { clusterId: string }) {
   const open = a?.groups.filter((g) => !g.ingressIsolated).length ?? 0
   return (
     <div className="object-panel">
-      <PanelHeader icon={<Network size={16} />} title="Análise de NetworkPolicy">
-        <NamespaceSelect clusterId={clusterId} effective={ns} />
-        {a && <span className={open ? 's-warn' : a.groups.length ? 's-ok' : 'muted'}>{a.policies.length} políticas · {open} de {a.groups.length} workloads abertos para entrada</span>}
-        <span className="spacer" />
-        <RefreshButton onClick={() => setRev((r) => r + 1)} loading={loading} />
+      <PanelHeader icon={Network} title="Análise de NetworkPolicy" scope={<NamespaceSelect clusterId={clusterId} effective={ns} />} actions={[refreshAction(() => setRev((r) => r + 1), loading)]}>
+        {a && <span className={`ph-info ${open ? 's-warn' : a.groups.length ? 's-ok' : 'muted'}`} title={`${a.policies.length} políticas · ${open} de ${a.groups.length} workloads abertos para entrada`}>{a.policies.length} {a.policies.length === 1 ? 'política' : 'políticas'} · {open} de {a.groups.length} workloads abertos para entrada</span>}
       </PanelHeader>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />

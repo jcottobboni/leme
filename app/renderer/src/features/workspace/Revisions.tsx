@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api'
 import { useApp } from '../../store'
-import { age } from '../../format'
+import { absDate, ago } from '../../format'
 import { ErrorBanner, useAsync } from '../common'
 import { Review, type ReviewState } from '../helm/Review'
 
@@ -15,16 +15,16 @@ export function Revisions({ clusterId, namespace, name, readOnly }: { clusterId:
     try {
       const r = await api.rolloutUndo(clusterId, namespace, name, revision, true)
       setReview({
-        title: `Rollback de ${name} para a revisão ${revision}`,
+        title: `Reverter ${name} para a revisão ${revision}`,
         subtitle: 'pod template atual × revisão escolhida',
         previous: r.current,
         next: r.proposed,
         confirmLabel: 'Fazer rollback',
         onConfirm: async () => {
           await api.rolloutUndo(clusterId, namespace, name, revision, false).then(() => {
-            toast('ok', `Rollback de ${name} para a revisão ${revision} disparado`)
+            toast('ok', `Reversão de ${name} para a revisão ${revision} disparada`)
             reload()
-          }, (e) => toast('error', `Rollback falhou: ${e.message}`))
+          }, (e) => toast('error', `Reversão falhou: ${e.message}`))
         },
       })
     } catch (e) {
@@ -37,7 +37,7 @@ export function Revisions({ clusterId, namespace, name, readOnly }: { clusterId:
     <div className="pad-panel">
       <ErrorBanner error={error} />
       <table className="table" data-testid="revisions">
-        <thead><tr><th>Revisão</th><th>ReplicaSet</th><th>Imagens</th><th>Pods</th><th>Criada</th><th>Causa</th><th /></tr></thead>
+        <thead><tr><th>Revisão</th><th>ReplicaSet</th><th>Imagens</th><th>Pods</th><th>Quando</th><th>Causa</th><th /></tr></thead>
         <tbody>
           {data?.map((r) => (
             <tr key={r.revision} data-testid={`rev-${r.revision}`}>
@@ -45,9 +45,9 @@ export function Revisions({ clusterId, namespace, name, readOnly }: { clusterId:
               <td>{r.replicaSet}</td>
               <td className="mono small">{r.images.join(', ')}</td>
               <td>{r.replicas}</td>
-              <td>{age(r.created)}</td>
+              <td title={absDate(r.created)}>{ago(r.created)}</td>
               <td className="wrap small">{r.changeCause}</td>
-              <td>{!r.current && <button disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : ''} onClick={() => preview(r.revision)}>Rollback</button>}</td>
+              <td>{!r.current && <button disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : ''} onClick={() => preview(r.revision)}>Reverter</button>}</td>
             </tr>
           ))}
           {data && !data.length && <tr><td colSpan={7} className="muted">Sem revisões.</td></tr>}

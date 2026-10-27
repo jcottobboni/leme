@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type Column, type Row, type Usage } from '../api'
@@ -6,10 +6,12 @@ import { findResource, openPanel, useApp, useUi } from '../store'
 import { useWatch } from '../useWatch'
 import { behaviorKind, kindIcon, plural } from '../features/shell/nav'
 import { openMenu } from '../features/shell/menu'
-import { RESTARTABLE, useRowActions } from '../features/grid/actions'
+import { useRowActions } from '../features/grid/actions'
+import { behaviorOf } from '../features/shell/kinds'
+import { PanelHeader } from './PanelHeader'
 import { ObjectDetails, type ObjectParams } from './ObjectPanel'
 import { ChevronDown, ChevronUp, Columns3, Copy, EllipsisVertical, RotateCw, Search, Square, SquareCheck, Trash2, TriangleAlert } from 'lucide-react'
-import { age, bytes, cpu, healthOfStatus } from '../format'
+import { absDate, age, bytes, cpu, healthOfStatus } from '../format'
 
 export interface GridParams {
   clusterId: string
@@ -100,7 +102,10 @@ function render(v: unknown, col: Column, max: Record<string, number>, onNamespac
   if (col.type === 'status') return <span className={`pill pill-${row.health && row.health !== 'neutral' ? row.health : healthOfStatus(String(v))}`}>{String(v)}</span>
   if (col.key === 'ready' && typeof v === 'string' && v.includes('/')) return <span className={`ready-chip ${row.health === 'neutral' ? 'neutral' : readyHealth(v)}`}>{v}</span>
   if (col.key === 'namespace') {
-    return <span className="ns-link" title={`Filtrar pelo namespace ${v}`} onClick={(e) => (e.stopPropagation(), onNamespace(String(v)))}>{String(v)}</span>
+    return (
+      <span className="ns-link" role="link" tabIndex={0} title={`Filtrar pelo namespace ${v}`} onClick={(e) => (e.stopPropagation(), onNamespace(String(v)))}
+        onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), onNamespace(String(v)))}>{String(v)}</span>
+    )
   }
   if (col.key === 'url' && /^https?:\/\//.test(String(v))) {
     return <a href={String(v)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{String(v)}</a>
@@ -110,11 +115,29 @@ function render(v: unknown, col: Column, max: Record<string, number>, onNamespac
 
 const CHECK_W = 34
 const ACTIONS_W = 40
-const SCROLLBAR_W = 10 // matches ::-webkit-scrollbar in styles.css (both head and body reserve it)
+const HEAD_H = 32
 // Short fixed-format values (addresses, versions) get a fixed track so the spare width goes to free text.
 const FIXED_KEYS = ['ip', 'internalIP', 'clusterIP', 'version']
-/** Width an uppercase header label needs (11px, letter-spacing, padding and sort chevron). */
-const labelMin = (c: Column) => Math.ceil(c.label.length * 7.5) + 24
+
+let measureCtx: CanvasRenderingContext2D | null | undefined
+/** Rendered text width with the app font (canvas), with a per-character fallback. */
+function textWidth(text: string, font: string, fallback: number) {
+  if (measureCtx === undefined) measureCtx = document.createElement('canvas').getContext('2d')
+  if (!measureCtx) return text.length * fallback
+  const fam = getComputedStyle(document.documentElement).fontFamily || 'Inter, sans-serif'
+  measureCtx.font = `${font} ${fam}`
+  return measureCtx.measureText(text).width
+}
+const labelCache = new Map<string, number>()
+/** Width an uppercase header label needs (11px, letter-spacing, padding and the sort chevron): never cut. */
+function labelMin(c: Column) {
+  let w = labelCache.get(c.label)
+  if (w === undefined) {
+    w = Math.ceil(textWidth(c.label.toUpperCase(), '600 11px', 8) + c.label.length * 0.5) + 16 + 6 + 16
+    labelCache.set(c.label, w)
+  }
+  return w
+}
 
 export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const { clusterId, group, resource } = params
@@ -136,7 +159,23 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const parentRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const tableRef = useRef<HTMLDivElement>(null)
-  const KindIcon = kindIcon(res?.kind)
+  const KindIcon = kindIcon(bkind)
+  const behavior = behaviorOf(res?.group ?? group, res?.kind)
+  // Horizontal scroll indicators: shadows beside the fixed Name and actions columns.
+  const [edges, setEdges] = useState({ left: false, right: false })
+  const updateEdges = useCallback(() => {
+    const el = parentRef.current
+    if (!el) return
+    const left = el.scrollLeft > 1
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+    el.style.setProperty('--vw', `${el.clientWidth}px`)
+    setEdges((e) => (e.left === left && e.right === right ? e : { left, right }))
+  }, [])
+  // One element scrolls both ways, so the header (sticky top) and the fixed columns (sticky left/right) line up.
+  const setScrollEl = useCallback((el: HTMLDivElement | null) => {
+    parentRef.current = el
+    tableRef.current = el
+  }, [])
 
   // Without columns that carry a sort key (e.g. Events have no Name column) rows would sort by a hidden field.
   useEffect(() => {
@@ -186,7 +225,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   }, [rows, checked])
   useEffect(() => setChecked(new Set()), [namespace])
 
-  const virt = useVirtualizer({ count: sorted.length, getScrollElement: () => parentRef.current, estimateSize: () => 32, overscan: 20 })
+  const virt = useVirtualizer({ count: sorted.length, getScrollElement: () => parentRef.current, estimateSize: () => 32, overscan: 20, scrollMargin: HEAD_H })
   // Columns share the panel width in proportion to their default size and shrink down to a floor
   // (the widest free-text column, e.g. Message, shrinks first); a width set by hand stays fixed.
   const flex = visibleCols.reduce<Column | undefined>((m, c) => (c.key !== 'name' && (c.width ?? 0) >= 280 && (c.width ?? 0) > (m?.width ?? 0) ? c : m), undefined)
@@ -198,9 +237,10 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       const fw = Math.max(w, labelMin(c))
       return (minWidth += fw, `${fw}px`)
     }
-    const min = Math.max(labelMin(c), c === flex ? 140 : c.key === 'name' ? Math.min(w, 160) : c.key === 'node' ? 100 : c.type === 'status' ? w : c.type === 'number' ? Math.max(w, 72) : w >= 200 ? Math.round(w * 0.6) : Math.max(56, Math.round(w * 0.75)))
+    const min = Math.max(labelMin(c), c === flex ? 140 : c.key === 'name' ? Math.max(200, Math.min(w, 260)) : c.key === 'node' ? 100 : c.type === 'status' ? w : c.type === 'number' ? Math.max(w, 72) : w >= 200 ? Math.round(w * 0.6) : Math.max(56, Math.round(w * 0.75)))
     minWidth += min
-    return `minmax(${min}px, ${w}fr)`
+    // Name gets the largest share of spare width: it is the column people read first.
+    return `minmax(${min}px, ${c.key === 'name' ? w * 2 : w}fr)`
   }).join(' ') + ` ${ACTIONS_W}px`
   const counts = useMemo(() => {
     const c = { ok: 0, warn: 0, error: 0 }
@@ -210,7 +250,16 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   // Kinds with no status (ConfigMaps, Secrets, RBAC…) skip the dot: a grey dot would read as "inactive".
   const hasHealth = useMemo(() => columns.some((c) => c.type === 'status') || rows.some((r) => r.health !== 'neutral'), [columns, rows])
 
-  const objParams = (r: Row): ObjectParams | undefined =>
+  useLayoutEffect(() => {
+    updateEdges()
+    const el = parentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(updateEdges)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [updateEdges, minWidth, drawer, visibleCols.length])
+
+  const objParams = (r: Pick<Row, 'name' | 'namespace'>): ObjectParams | undefined =>
     res && { clusterId, group, version: res.version, resource, kind: res.kind, namespace: r.namespace, name: r.name }
   const openDrawer = (r: Row) => {
     setSelected(r.uid)
@@ -227,7 +276,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
     if (drawer) openDrawer(r)
     else clickTimer.current = window.setTimeout(() => openDrawer(r), 230)
   }
-  const openTab = (r: Row) => {
+  const openTab = (r: Pick<Row, 'name' | 'namespace'>) => {
     const p = objParams(r)
     if (p) openPanel(`obj:${clusterId}:${group}/${resource}:${r.namespace ?? ''}/${r.name}`, 'object', r.name, { ...p }, {})
   }
@@ -289,6 +338,20 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
   }
+  /** Double click on a column edge: width of the widest value (and the label), like a spreadsheet. */
+  const autoFit = (c: Column) => {
+    let w = labelMin(c)
+    const sample = sorted.length > 3000 ? sorted.slice(0, 3000) : sorted
+    for (const r of sample) {
+      const v = cellValue(r, c, usage, bkind)
+      if (v === undefined || v === null || typeof v === 'object') continue
+      const text = c.type === 'age' ? age(String(v)) : c.key === 'cpu' ? cpu(v as number) : c.key === 'memory' ? bytes(v as number) : String(v)
+      const extra = c.key === 'name' ? 15 : c.type === 'status' ? 26 : c.key === 'cpu' || c.key === 'memory' ? 56 : 0
+      w = Math.max(w, textWidth(text, c.key === 'name' ? '500 13px' : '400 13px', 7.5) + 16 + extra + 4)
+    }
+    const all = useUi.getState().widths
+    useUi.getState().update({ widths: { ...all, [colKey]: { ...(all[colKey] ?? {}), [c.key]: Math.min(900, Math.max(50, Math.ceil(w))) } } })
+  }
   const startDrawerResize = (e: React.MouseEvent) => {
     e.preventDefault()
     const x0 = e.clientX, w0 = drawerW
@@ -305,17 +368,25 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
     window.addEventListener('mouseup', up)
   }
 
+  // Built from primitives so a watch delta (a new `res` or row object) does not refetch the drawer.
+  const drawerParams = useMemo<ObjectParams | undefined>(
+    () => (drawer && res ? { clusterId, group, version: res.version, resource, kind: res.kind, namespace: drawer.namespace, name: drawer.name } : undefined),
+    [drawer, clusterId, group, resource, res?.version, res?.kind], // eslint-disable-line react-hooks/exhaustive-deps
+  )
   if (!res) return <div className="pad muted">Recurso não disponível neste cluster.</div>
-  const drawerParams = drawer && objParams({ uid: drawer.uid, name: drawer.name, namespace: drawer.namespace, health: 'neutral', cells: {} })
+
+  const nameCol = visibleCols.find((c) => c.key === 'name')
+  const stickyCls = (c: Column) => (c === nameCol ? 'stk stk-name' : '')
+  const nameLeft = { left: CHECK_W }
+  const sortBy = (key: string) => setSort((s) => ({ key, dir: s.key === key ? ((-s.dir) as 1 | -1) : 1 }))
 
   return (
     <div className="grid-panel" onKeyDown={onKey} tabIndex={-1}>
-      <div className="toolbar">
-        <span className="grid-title"><KindIcon size={16} />{plural(res.kind)}</span>
-        {res.namespaced && <NamespaceSelect clusterId={clusterId} />}
+      <PanelHeader icon={<KindIcon size={16} />} title={plural(res.kind)} scope={res.namespaced ? <NamespaceSelect clusterId={clusterId} /> : undefined}
+        actions={[{ key: 'columns', label: 'Colunas', icon: Columns3, iconOnly: true, keep: true, testid: 'grid-columns', onClick: (e) => e && columnMenu(e) }]}>
         <label className="search-box">
           <Search size={14} />
-          <input ref={searchRef} className="search" placeholder="Buscar (/)…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input ref={searchRef} className="search" placeholder="Buscar (/)…" aria-label="Buscar na lista" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <span className="count-pill">{sorted.length === rows.length ? `${rows.length} ${rows.length === 1 ? 'item' : 'itens'}` : `${sorted.length} de ${rows.length}`}</span>
         {counts.warn + counts.error > 0 && (
@@ -326,14 +397,12 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
           </span>
         )}
         {loading && <span className="spinner" />}
-        <span className="spacer" />
-        <button className="icon-btn" title="Colunas" onClick={columnMenu} data-testid="grid-columns"><Columns3 size={16} /></button>
-      </div>
+      </PanelHeader>
       {checked.size > 0 && (
         <div className="bulkbar" data-testid="bulkbar">
           <b>{checked.size} selecionado{checked.size === 1 ? '' : 's'}</b>
           <button onClick={() => navigator.clipboard.writeText(checkedRows.map((r) => r.name).join('\n')).then(() => useApp.getState().toast('ok', 'Nomes copiados'))}><Copy size={14} /> Copiar nomes</button>
-          {RESTARTABLE.includes(bkind!) && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Reiniciar</button>}
+          {behavior.restartable && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Reiniciar</button>}
           <button className="danger" disabled={actions.readOnly} title={actions.readOnly ? 'Cluster em somente leitura' : ''} onClick={() => actions.ask('delete', checkedRows)} data-testid="bulk-delete">
             <Trash2 size={14} /> Excluir {checked.size}
           </button>
@@ -343,48 +412,57 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       )}
       {error && <div className="banner error"><TriangleAlert size={14} />{error}</div>}
       <div className="grid-main">
-        <div className="grid-table" ref={tableRef}>
-          <div className="grid-head" style={{ gridTemplateColumns: template, minWidth: minWidth + SCROLLBAR_W }}>
-            <div className="th td-check" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" aria-label="Selecionar todos" disabled={sorted.length === 0} checked={allChecked} onChange={() => setChecked(allChecked ? new Set() : new Set(sorted.map((r) => r.uid)))} />
-            </div>
-            {visibleCols.map((c) => (
-              <div key={c.key} className={`th ${sort.key === c.key ? 'sorted' : ''}`} onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? ((-s.dir) as 1 | -1) : 1 }))}>
-                <span className="th-label" title={c.label}>{c.label}</span>
-                {sort.key === c.key && sorted.length > 0 && <span className="sort">{sort.dir === 1 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>}
-                <span className="th-resize" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => startColResize(e, c)} />
+        <div ref={setScrollEl} className={`grid-scroll ${edges.left ? 'sl' : ''} ${edges.right ? 'sr' : ''}`} onScroll={updateEdges} role="grid" aria-rowcount={sorted.length} aria-label={plural(res.kind)}>
+          <div className="grid-inner" style={{ minWidth }}>
+            <div className="grid-head" role="row" style={{ gridTemplateColumns: template, height: HEAD_H }}>
+              <div className="th td-check stk" role="columnheader" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" aria-label="Selecionar todos" disabled={sorted.length === 0} checked={allChecked} onChange={() => setChecked(allChecked ? new Set() : new Set(sorted.map((r) => r.uid)))} />
               </div>
-            ))}
-            <div />
-          </div>
-          <div ref={parentRef} className="grid-body" style={{ minWidth: minWidth + SCROLLBAR_W }}>
-            <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
+              {visibleCols.map((c) => (
+                <div key={c.key} role="columnheader" aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} tabIndex={0}
+                  className={`th ${sort.key === c.key ? 'sorted' : ''} ${stickyCls(c)}`} style={c === nameCol ? nameLeft : undefined} title={c.label}
+                  onClick={() => sortBy(c.key)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), e.stopPropagation(), sortBy(c.key))}>
+                  <span className="th-label">{c.label}</span>
+                  {sort.key === c.key && sorted.length > 0 && <span className="sort">{sort.dir === 1 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>}
+                  <span className="th-resize" title="Arraste para redimensionar; duplo clique ajusta ao conteúdo" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => startColResize(e, c)}
+                    onDoubleClick={(e) => (e.stopPropagation(), autoFit(c))} />
+                </div>
+              ))}
+              <div className="th th-actions stk stk-act" role="columnheader" aria-label="Ações" />
+            </div>
+            <div className="grid-rows" style={{ height: virt.getTotalSize() }}>
               {virt.getVirtualItems().map((vi) => {
                 const r = sorted[vi.index]
                 const isChecked = checked.has(r.uid)
                 return (
                   <div
                     key={r.uid}
+                    role="row"
+                    aria-rowindex={vi.index + 1}
+                    aria-selected={selected === r.uid}
                     className={`tr h-${r.health} ${selected === r.uid ? 'selected' : ''} ${isChecked ? 'checked' : ''}`}
-                    style={{ gridTemplateColumns: template, transform: `translateY(${vi.start}px)` }}
+                    style={{ gridTemplateColumns: template, transform: `translateY(${vi.start - HEAD_H}px)` }}
                     onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
                     onClick={(e) => rowClick(e, r)}
                     onContextMenu={(e) => (setSelected(r.uid), openMenu(e, actions.menuFor(r)))}
                     data-testid={`row-${r.name}`}
                   >
-                    <div className="td td-check" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                    <div className="td td-check stk" role="gridcell" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" aria-label={`Selecionar ${r.name}`} checked={isChecked} onChange={() => toggle(r.uid)} />
                     </div>
                     {visibleCols.map((c) => {
                       const v = cellValue(r, c, usage, bkind)
                       return (
-                        <div key={c.key} className={`td ${c.key === 'name' ? 'name' : ''} ${c.type === 'number' || c.type === 'age' || c.key === 'ready' ? 'num' : ''}`} title={typeof v === 'object' ? undefined : String(v ?? '')}>
+                        <div key={c.key} role="gridcell" style={c === nameCol ? nameLeft : undefined}
+                          className={`td ${c.key === 'name' ? 'name' : ''} ${c.type === 'number' || c.type === 'age' || c.key === 'ready' ? 'num' : ''} ${stickyCls(c)}`}
+                          title={typeof v === 'object' ? undefined : c.type === 'age' && v ? absDate(String(v)) : String(v ?? '')}>
                           {c.key === 'name' && hasHealth && <span className={`dot d-${r.health}`} />}
                           {render(v, c, max, setNs, r)}
                         </div>
                       )
                     })}
-                    <div className="td td-actions">
+                    <div className="td td-actions stk stk-act" role="gridcell">
                       <button className="icon-btn row-kebab" title="Ações" aria-label={`Ações de ${r.name}`} onDoubleClick={(e) => e.stopPropagation()}
                         onClick={(e) => (setSelected(r.uid), openMenu(e, actions.menuFor(r)))}>
                         <EllipsisVertical size={15} />
@@ -395,12 +473,12 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
               })}
             </div>
             {loading && !rows.length && (
-              <div className="pad" style={{ display: 'grid', gap: 12 }}>
+              <div className="pad grid-sticky-msg" style={{ display: 'grid', gap: 12 }}>
                 {Array.from({ length: 8 }, (_, i) => <div key={i} className="skeleton" style={{ width: `${60 + ((i * 17) % 35)}%` }} />)}
               </div>
             )}
             {!loading && !error && sorted.length === 0 && (
-              <div className="empty">
+              <div className="empty grid-sticky-msg">
                 <KindIcon size={32} />
                 <div>{rows.length ? 'Nenhum item com esse filtro.' : `Nenhum recurso do tipo ${plural(res.kind)} ${namespace ? `em ${namespace}` : 'no cluster'}.`}</div>
                 {!rows.length && namespace && <div className="muted">Selecione "Todos os namespaces" para ver os demais.</div>}
@@ -414,7 +492,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
           }}>
             <div className="drawer-resizer" onMouseDown={startDrawerResize} />
             <ObjectDetails key={drawer.uid} params={drawerParams} variant="drawer" onClose={() => setDrawer(undefined)}
-              onPopOut={() => { openTab({ uid: drawer.uid, name: drawer.name, namespace: drawer.namespace, health: 'neutral', cells: {} }); setDrawer(undefined) }} />
+              onPopOut={() => { openTab(drawer); setDrawer(undefined) }} />
           </aside>
         )}
       </div>

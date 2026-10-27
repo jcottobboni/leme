@@ -189,9 +189,9 @@ test('CA03/CA01/CA02: Helm — instalar do repositório, detalhe, upgrade, rollb
   await expect(page.locator('.toast-ok', { hasText: 'revisão 2' })).toBeVisible()
   await expect.poll(() => kubectl('-n', 'demo', 'get', 'deploy', `${RELEASE}-hello`, '-o', 'jsonpath={.spec.replicas}')).toBe('2')
 
-  // Rollback to revision 1 → revision 3.
+  // Revert (helm rollback) to revision 1 → revision 3.
   await page.locator('.tab', { hasText: 'Histórico' }).click()
-  await page.getByTestId('revision-1').getByRole('button', { name: 'Rollback' }).click()
+  await page.getByTestId('revision-1').getByRole('button', { name: 'Reverter' }).click()
   await page.getByTestId('review-confirm').click()
   await expect(page.locator('.toast-ok', { hasText: 'revisão 3' })).toBeVisible()
   await expect.poll(() => kubectl('-n', 'demo', 'get', 'deploy', `${RELEASE}-hello`, '-o', 'jsonpath={.spec.replicas}')).toBe('1')
@@ -232,6 +232,9 @@ test('CA05/CA06: RBAC — matriz, posso? e quem pode', async ({ page }) => {
   const cl = await connect(page)
   await cl.getByTestId('tool-rbac').click()
   await selectDemo(page)
+  // The kind user is cluster-admin: the matrix starts collapsed under the "Acesso total" banner.
+  await expect(page.getByTestId('rbac-full').or(page.getByTestId('rbac-matrix'))).toBeVisible()
+  if (await page.getByTestId('rbac-full').isVisible()) await page.getByTestId('rbac-show-matrix').click()
   await expect(page.getByTestId('rbac-matrix')).toContainText('Pod')
   await page.locator('.tab', { hasText: 'Posso…?' }).click()
   await page.getByTestId('access-verb').selectOption('delete')
@@ -356,10 +359,10 @@ test('CA14: rollback de deploy/web restaura a imagem', async ({ page }) => {
   const table = page.getByTestId('revisions')
   await expect(table).toContainText('busybox:1.36')
   const previous = table.locator('tr', { hasText: 'nginx:1.27-alpine' }).first()
-  await previous.getByRole('button', { name: 'Rollback' }).click()
+  await previous.getByRole('button', { name: 'Reverter' }).click()
   await expect(page.getByTestId('yaml-diff')).toBeVisible()
   await page.getByTestId('review-confirm').click()
-  await expect(page.locator('.toast-ok', { hasText: 'Rollback de web' })).toBeVisible()
+  await expect(page.locator('.toast-ok', { hasText: 'Reversão de web' })).toBeVisible()
   await expect.poll(() => kubectl('-n', 'demo', 'get', 'deploy', 'web', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).toBe('nginx:1.27-alpine')
 })
 

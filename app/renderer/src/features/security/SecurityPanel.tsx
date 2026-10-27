@@ -5,6 +5,10 @@ import { openPanel, useApp, type OpenOptions } from '../../store'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { openObject } from '../../components/ObjectPanel'
 import { ClusterGate, ErrorBanner, Partial, Tabs, useAsync } from '../common'
+import { PanelHeader, RefreshBtn } from '../../components/PanelHeader'
+import { pressable } from '../../components/a11y'
+import { ShieldCheck } from 'lucide-react'
+import { SEVERITIES } from './common'
 import { Counts, FindingsTable, ScoreRing, Sev } from './common'
 import { openNetpol } from '../netpol/NetpolPanel'
 
@@ -12,6 +16,15 @@ type Tab = 'summary' | 'findings' | 'rbac' | 'scanners'
 
 export function openSecurity(clusterId: string, opts?: OpenOptions) {
   openPanel(`security:${clusterId}`, 'security', 'Segurança', { clusterId }, opts)
+}
+
+/** Most severe first: critical count, then high, medium, low; then the lowest score. */
+function bySeverity(a: { score: number; counts: Record<string, number> }, b: { score: number; counts: Record<string, number> }) {
+  for (const s of SEVERITIES) {
+    const d = (b.counts[s] ?? 0) - (a.counts[s] ?? 0)
+    if (d) return d
+  }
+  return a.score - b.score
 }
 
 function Summary({ clusterId, ns }: { clusterId: string; ns: string }) {
@@ -27,17 +40,19 @@ function Summary({ clusterId, ns }: { clusterId: string; ns: string }) {
         <div>
           <div className="sec-title">Postura de segurança {ns ? <>de <b>{ns}</b></> : 'do cluster'}</div>
           <Counts counts={r.counts} />
-          <div className="muted small">{r.workloads.length} workloads avaliados pelas regras do Leme. Nota = média por workload, menos 5 por namespace sem NetworkPolicy.</div>
+          <div className="muted small" title="Cada workload começa com 100 e perde pontos por achado (crítico pesa mais que alto, médio e baixo). A nota geral é a média dos workloads, menos 5 por namespace sem NetworkPolicy, entre 0 e 100.">
+            {r.workloads.length} workloads avaliados pelas regras do Leme. <span className="help-u">Como a nota é calculada?</span>
+          </div>
         </div>
         <span className="spacer" />
         {loading && <span className="spinner" />}
-        <button onClick={reload}>Reavaliar</button>
+        <RefreshBtn onClick={reload} loading={loading} />
       </div>
       {r.namespacesWithoutNetpol.length > 0 && (
         <section className="card">
           <h4>Namespaces sem NetworkPolicy</h4>
           <div className="chips">
-            {r.namespacesWithoutNetpol.map((n) => <button key={n} className="chip clickable" onClick={() => { useApp.getState().setNamespace(clusterId, n); openNetpol(clusterId) }}>{n}</button>)}
+            {r.namespacesWithoutNetpol.map((n) => <button key={n} className="chip clickable" title={`Analisar as NetworkPolicies de ${n}`} onClick={() => { useApp.getState().setNamespace(clusterId, n); openNetpol(clusterId) }}>{n}</button>)}
           </div>
           <p className="small muted">Pods desses namespaces aceitam conexões de qualquer pod do cluster.</p>
         </section>
@@ -48,8 +63,8 @@ function Summary({ clusterId, ns }: { clusterId: string; ns: string }) {
           <table className="table" data-testid="risky-workloads">
             <thead><tr><th>Nota</th><th>Workload</th><th>Achados</th></tr></thead>
             <tbody>
-              {r.workloads.slice(0, 15).map((w) => (
-                <tr key={w.kind + w.namespace + w.name} className="clickable" onClick={() => openObject(clusterId, w.group, w.kind, w.name, w.namespace)}>
+              {[...r.workloads].sort(bySeverity).slice(0, 15).map((w) => (
+                <tr key={w.kind + w.namespace + w.name} className="clickable" {...pressable(() => openObject(clusterId, w.group, w.kind, w.name, w.namespace), null)}>
                   <td><span className={`score-chip sc-${w.score >= 80 ? 'ok' : w.score >= 60 ? 'warn' : 'error'}`}>{w.score}</span></td>
                   <td>{w.kind} {w.namespace ? w.namespace + '/' : ''}<b>{w.name}</b></td>
                   <td><Counts counts={w.counts} /></td>
@@ -84,15 +99,14 @@ function RBACRisks({ clusterId }: { clusterId: string }) {
   const [refresh, setRefresh] = useState(0)
   const { data, error, loading } = useAsync(() => api3.securityRBAC(clusterId, refresh > 0), [clusterId, refresh])
   const [system, setSystem] = useState(false)
-  const risks = (data?.risks ?? []).filter((r) => system || !r.system)
+  const risks = (data?.risks ?? []).filter((r) => system || !r.system).sort((a, b) => SEVERITIES.indexOf(a.severity as never) - SEVERITIES.indexOf(b.severity as never))
   return (
     <div className="pad-panel">
       <div className="toolbar">
         <label className="check"><input type="checkbox" checked={system} onChange={(e) => setSystem(e.target.checked)} /> incluir bindings do sistema (system:, kubeadm:, openshift-*)</label>
-        <span className="muted">{risks.length} riscos</span>
-        {loading && <span className="spinner" />}
+        <span className="muted">{risks.length} {risks.length === 1 ? 'risco' : 'riscos'}</span>
         <span className="spacer" />
-        <button onClick={() => setRefresh((r) => r + 1)}>Recarregar</button>
+        <RefreshBtn onClick={() => setRefresh((r) => r + 1)} loading={loading} />
       </div>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />
@@ -169,10 +183,7 @@ export function SecurityPanel({ params }: IDockviewPanelProps<{ clusterId: strin
   return (
     <ClusterGate clusterId={params.clusterId}>
       <div className="object-panel">
-        <div className="toolbar">
-          <NamespaceSelect clusterId={params.clusterId} />
-          <span className="muted">escopo: {ns || 'cluster inteiro'}</span>
-        </div>
+        <PanelHeader icon={ShieldCheck} title="Relatório de segurança" scope={<NamespaceSelect clusterId={params.clusterId} />} />
         <Tabs<Tab> tabs={[['summary', 'Resumo'], ['findings', 'Todos os achados'], ['rbac', 'Riscos de RBAC'], ['scanners', 'Scanners externos']]} value={tab} onChange={setTab} />
         <div className="obj-body">
           {tab === 'summary' && <Summary clusterId={params.clusterId} ns={ns} />}

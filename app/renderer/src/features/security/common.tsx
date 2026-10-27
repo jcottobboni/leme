@@ -14,7 +14,8 @@ export function ScoreRing({ score, size = 84 }: { score: number; size?: number }
   const c = 2 * Math.PI * r
   const cls = score >= 80 ? 'ok' : score >= 60 ? 'warn' : 'error'
   return (
-    <svg width={size} height={size} className="score-ring" data-testid="score">
+    <svg width={size} height={size} className="score-ring" data-testid="score" role="img" aria-label={`Nota de segurança: ${score} de 100`}>
+      <title>{`Nota ${score} de 100: começa em 100 e perde pontos por achado (crítico pesa mais). Abaixo de 60 é ruim, de 80 em diante é bom.`}</title>
       <circle cx={size / 2} cy={size / 2} r={r} className="ring-bg" />
       <circle cx={size / 2} cy={size / 2} r={r} className={`ring-fg r-${cls}`} strokeDasharray={`${(score / 100) * c} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle">{score}</text>
@@ -78,7 +79,7 @@ export function FindingsTable({ clusterId, findings, showObject = true }: { clus
 function FindingRow({ f, open, onToggle, clusterId, showObject }: { f: Finding; i: number; open: boolean; onToggle: () => void; clusterId: string; showObject: boolean }) {
   return (
     <>
-      <tr className="clickable" onClick={onToggle}>
+      <tr className="clickable" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle())}>
         <td><Sev s={f.severity} /></td>
         <td className="wrap">{f.title}{f.effective && <span className="muted small" title="Avaliado no pod em execução (inclui o que a admissão aplicou, ex.: SCC do OpenShift)"> · efetivo</span>}</td>
         {showObject && (

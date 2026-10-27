@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import type { IDockviewHeaderActionsProps, IDockviewPanelHeaderProps, IDockviewPanel, SerializedDockview, DockviewApi, DockviewGroupPanel } from 'dockview-react'
 import { ArrowDownToLine, Columns2, ExternalLink, Maximize2, Minimize2, Pin, Rows2, X, XCircle } from 'lucide-react'
 import { clusterName, identityOf, pinTab, useApp, useClusterColor, useProfiles, useTabs } from '../../store'
-import { COMPONENT_ICONS, kindIcon } from '../shell/nav'
+import { behaviorKind, COMPONENT_ICONS, kindIcon } from '../shell/nav'
 import { openMenu, type MenuItem } from '../shell/menu'
 import { applyThemeEverywhere } from '../shell/theme'
 import { persist } from '../../persist'
 
-function iconOf(component: string, params?: { kind?: string }) {
-  if (component === 'grid' || component === 'object') return kindIcon(params?.kind)
+function iconOf(component: string, params?: { kind?: string; group?: string }) {
+  if (component === 'grid' || component === 'object') return kindIcon(params?.kind && behaviorKind(params.group ?? '', params.kind))
   return COMPONENT_ICONS[component] ?? kindIcon()
 }
 
@@ -56,7 +56,7 @@ export function ClusterTab({ api, containerApi, params }: IDockviewPanelHeaderPr
     const d = api.onDidTitleChange((e) => setTitle(e.title))
     return () => d.dispose()
   }, [api])
-  const Icon = iconOf(api.component, params as { kind?: string })
+  const Icon = iconOf(api.component, params as { kind?: string; group?: string })
   const panel = () => containerApi.getPanel(api.id)
   return (
     <div

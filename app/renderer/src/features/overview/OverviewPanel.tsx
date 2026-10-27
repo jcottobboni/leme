@@ -1,11 +1,13 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api } from '../../api'
-import { clusterName, openPanel, useApp, type OpenOptions } from '../../store'
-import { age, bytes, cpu } from '../../format'
+import { clusterName, findByKind, openPanel, useApp, type OpenOptions } from '../../store'
+import { absDate, age, bytes, cpu } from '../../format'
 import { openObject } from '../../components/ObjectPanel'
 import { openGrid } from '../shell/Sidebar'
 import { Bar, ClusterGate, ErrorBanner, Partial, pct, useAsync } from '../common'
-import { Activity, Box, Boxes, Cpu, Gauge as Gauge2, HardDrive, LayoutDashboard, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Activity, Box, Boxes, Cpu, Gauge as Gauge2, HardDrive, LayoutDashboard, TriangleAlert } from 'lucide-react'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { pressable } from '../../components/a11y'
 import { kindIcon } from '../shell/nav'
 import { Donut, Gauge } from './Donut'
 import { CommitCards, Headroom, NamespacesTable, PHASES, PhaseLegend, TopConsumers, WarnSpark } from './Widgets'
@@ -16,11 +18,30 @@ export function openOverview(clusterId: string, opts?: OpenOptions) {
   openPanel(`overview:${clusterId}`, 'overview', 'Visão geral', { clusterId }, opts)
 }
 
-const fmtCpu = (m: number) => (m >= 1000 ? `${cpu(m)} cores` : cpu(m))
+const fmtCpu = (m: number) => cpu(m)
 const fmtMem = (b: number) => bytes(b)
 
 const HEALTH_COLORS = { ok: 'var(--ok)', warn: 'var(--warn)', error: 'var(--error)', neutral: 'var(--neutral)' }
 const WORKLOAD_LABEL: Record<string, string> = { Deployment: 'Deployments', StatefulSet: 'StatefulSets', DaemonSet: 'DaemonSets', ReplicaSet: 'ReplicaSets', Job: 'Jobs', CronJob: 'CronJobs', DeploymentConfig: 'DeploymentConfigs' }
+
+/** Donut only when there is more than one state; a single state reads better as a bar and a sentence. */
+function HealthBody({ slices, extra }: { slices: { label: string; value: number; color: string }[]; extra?: string }) {
+  if (slices.length > 1) {
+    return (
+      <div className="ov-card-body">
+        <Donut slices={slices} />
+        <Legend items={slices} />
+      </div>
+    )
+  }
+  const s = slices[0]
+  return (
+    <div className="ov-single">
+      <div className="healthbar"><i style={{ width: '100%', background: s?.color ?? 'var(--neutral)' }} /></div>
+      <span className="muted small">{s ? <><b className="s-strong">{s.value}</b> {s.label}</> : 'nenhum'}{extra ? ` · ${extra}` : ''}</span>
+    </div>
+  )
+}
 
 function Legend({ items }: { items: { label: string; value: number; color: string }[] }) {
   return (
@@ -63,35 +84,31 @@ function Overview({ clusterId }: { clusterId: string }) {
   const totalPods = Object.values(o.pods).reduce((a, b) => a + b, 0)
   const podSlices = PHASES.map(([k, color]) => ({ label: k, value: o.pods[k] ?? 0, color })).filter((x) => x.value > 0)
   const readyNodes = o.nodes.filter((n) => n.health === 'ok').length
+  const nodeSlices = [
+    { label: readyNodes === 1 ? 'pronto' : 'prontos', value: readyNodes, color: HEALTH_COLORS.ok },
+    { label: 'sem condição Ready', value: o.nodes.length - readyNodes, color: HEALTH_COLORS.error },
+  ].filter((x) => x.value > 0)
+  // Built-in kinds first: a CRD named like a built-in (kind Node) must not open in its place.
   const openKind = (k: string) => {
-    const res = findResourceByKind(clusterId, k)
+    const res = findByKind(clusterId, k)
     if (res) openGrid(clusterId, res)
   }
   return (
     <div className="overview-panel">
-      <div className="toolbar">
-        <span className="grid-title"><LayoutDashboard size={16} />Visão geral</span>
-        <b>{clusterName(clusterId)}</b>
-        <span className="muted">{version}</span>
+      <PanelHeader icon={LayoutDashboard} title="Visão geral" actions={[refreshAction(reload, loading)]}
+        scope={<span className="ph-scope"><b className="s-strong">{clusterName(clusterId)}</b> {version}</span>}>
         {o.scope !== 'cluster' && <span className="badge badge-ro">escopo: {o.scope}</span>}
-        <span className="spacer" />
-        {loading && <span className="spinner" />}
-        <button onClick={reload}><RefreshCw size={14} /> Recarregar</button>
-      </div>
+      </PanelHeader>
       <Partial errors={o.errors} />
       <div className="overview">
         <div className="ov-grid">
-          <div className="ov-card clickable" onClick={() => openKind('Node')}>
+          <div className="ov-card clickable" {...pressable(() => openKind('Node'))} aria-label={`Nodes: ${o.nodes.length}`} data-testid="ov-Node">
             <div className="ov-card-head"><Cpu size={16} /> Nodes <span className="num">{o.nodes.length}</span></div>
-            <div className="healthbar"><i style={{ width: `${o.nodes.length ? (readyNodes / o.nodes.length) * 100 : 0}%`, background: 'var(--ok)' }} /><i style={{ width: `${o.nodes.length ? ((o.nodes.length - readyNodes) / o.nodes.length) * 100 : 0}%`, background: 'var(--error)' }} /></div>
-            <span className="muted small">{readyNodes} prontos · {o.namespaces} namespaces</span>
+            <HealthBody slices={nodeSlices} extra={`${o.namespaces} namespaces`} />
           </div>
-          <div className="ov-card" data-testid="ov-pods">
+          <div className="ov-card clickable" {...pressable(() => openKind('Pod'))} aria-label={`Pods: ${totalPods}`} data-testid="ov-pods">
             <div className="ov-card-head"><Box size={16} /> Pods <span className="num">{totalPods}</span></div>
-            <div className="ov-card-body">
-              <Donut slices={podSlices} />
-              <Legend items={podSlices} />
-            </div>
+            <HealthBody slices={podSlices} />
           </div>
           {Object.entries(o.workloads).filter(([, h]) => h.total > 0).map(([k, h]) => {
             const slices = [
@@ -102,12 +119,9 @@ function Overview({ clusterId }: { clusterId: string }) {
             ].filter((x) => x.value > 0)
             const Icon = kindIcon(k)
             return (
-              <div className="ov-card clickable" key={k} onClick={() => openKind(k)} data-testid={`ov-${k}`}>
+              <div className="ov-card clickable" key={k} {...pressable(() => openKind(k))} aria-label={`${WORKLOAD_LABEL[k] ?? k + 's'}: ${h.total}`} data-testid={`ov-${k}`}>
                 <div className="ov-card-head"><Icon size={16} /> {WORKLOAD_LABEL[k] ?? k + 's'} <span className="num">{h.total}</span></div>
-                <div className="ov-card-body">
-                  <Donut slices={slices} />
-                  <Legend items={slices} />
-                </div>
+                <HealthBody slices={slices} />
               </div>
             )
           })}
@@ -153,7 +167,7 @@ function Overview({ clusterId }: { clusterId: string }) {
             <thead><tr><th>Node</th><th>Status</th><th>Roles</th><th>Pods</th><th>CPU</th><th>Memória</th></tr></thead>
             <tbody>
               {o.nodes.map((n) => (
-                <tr key={n.name} className="clickable" onClick={() => openObject(clusterId, '', 'Node', n.name)}>
+                <tr key={n.name} className="clickable" {...pressable(() => openObject(clusterId, '', 'Node', n.name), null)}>
                   <td><span className={`dot d-${n.health}`} />{n.name}</td>
                   <td><span className={`pill pill-${n.health}`}>{n.status}</span></td>
                   <td>{n.roles}</td>
@@ -182,12 +196,12 @@ function Overview({ clusterId }: { clusterId: string }) {
             <thead><tr><th>Objeto</th><th>Motivo</th><th>Mensagem</th><th>Qtd</th><th>Última</th></tr></thead>
             <tbody>
               {o.warnings.map((w, i) => (
-                <tr key={i} className="clickable" onClick={() => openObject(clusterId, '', w.kind, w.name, w.namespace)}>
+                <tr key={i} className="clickable" {...pressable(() => openObject(clusterId, '', w.kind, w.name, w.namespace), null)}>
                   <td>{w.namespace ? `${w.namespace}/` : ''}{w.kind}/{w.name}</td>
                   <td><span className="pill pill-warn">{w.reason}</span></td>
                   <td className="wrap">{w.message}</td>
                   <td>{w.count}</td>
-                  <td>{age(w.last)}</td>
+                  <td title={absDate(w.last)}>{age(w.last)}</td>
                 </tr>
               ))}
               {!o.warnings.length && <tr><td colSpan={5}><div className="ov-empty"><TriangleAlert size={20} />Nenhum warning recente.</div></td></tr>}
@@ -197,10 +211,6 @@ function Overview({ clusterId }: { clusterId: string }) {
       </div>
     </div>
   )
-}
-
-function findResourceByKind(clusterId: string, kind: string) {
-  return useApp.getState().connected[clusterId]?.resources.find((r) => r.kind === kind && !(kind === 'Event' && r.group))
 }
 
 export function OverviewPanel({ params }: IDockviewPanelProps<{ clusterId: string }>) {

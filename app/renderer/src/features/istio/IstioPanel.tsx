@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { Network, Play, ShieldCheck, Waypoints } from 'lucide-react'
+import { ChevronDown, ChevronRight, Network, Play, ShieldCheck, Waypoints } from 'lucide-react'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { openObject } from '../../components/ObjectPanel'
 import { openTopology } from '../topology/Topology'
-import { ClusterGate, ErrorBanner, PanelHeader, Partial, RefreshButton, Tabs, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, Partial, Tabs, useAsync } from '../common'
 import { istioApi, type AnalyzeResult, type Destination, type IstioReport, type IstioRoute, type MTLSMode, type ServiceRef, type VirtualService } from './api'
 import './istio.css'
 
@@ -120,16 +121,35 @@ function Routes({ clusterId, rep }: { clusterId: string; rep: IstioReport }) {
   )
 }
 
+/** Namespace with nothing Istio-specific: no PeerAuthentication, no injection, no exceptions. */
+const isPlain = (n: IstioReport['namespaces'][number]) => n.source === 'default' && !n.policy && (!n.injection || n.injection === 'none' || n.injection === '') && !n.exceptions.length
+
 function MTLS({ rep, clusterId }: { rep: IstioReport; clusterId: string }) {
+  const plain = rep.namespaces.filter(isPlain)
+  const [showPlain, setShowPlain] = useState(false)
+  // Many identical "default" rows say one thing: summarize them and keep the interesting ones as rows.
+  const collapse = plain.length >= 3 && !showPlain
+  const rows = collapse ? rep.namespaces.filter((n) => !isPlain(n)) : rep.namespaces
   return (
     <div className="pad-panel">
       <p className="small muted">
         Modo efetivo por namespace: a PeerAuthentication sem selector do namespace prevalece sobre a da malha (namespace raiz <b>{rep.rootNamespace}</b>); políticas com selector viram exceções por workload ou porta.
       </p>
-      <table className="table" data-testid="ist-mtls">
+      {plain.length >= 3 && (
+        <div className="ist-summary card" data-testid="ist-plain-summary">
+          <ShieldCheck size={16} className="muted" />
+          <span>
+            <b>{plain.length} de {rep.namespaces.length} namespaces</b> sem PeerAuthentication nem injeção de sidecar: usam o padrão do Istio
+            (aceitam texto puro e mTLS). {plain.length === rep.namespaces.length && 'Para exigir mTLS, crie uma PeerAuthentication STRICT no namespace ou na raiz da malha.'}
+          </span>
+          <span className="spacer" />
+          <button onClick={() => setShowPlain((v) => !v)} aria-expanded={showPlain}>{showPlain ? <ChevronDown size={14} /> : <ChevronRight size={14} />} {showPlain ? 'Ocultar lista' : 'Ver namespaces'}</button>
+        </div>
+      )}
+      {rows.length > 0 && <table className="table" data-testid="ist-mtls">
         <thead><tr><th>Namespace</th><th>mTLS</th><th>Origem</th><th>Injeção</th><th>Exceções</th></tr></thead>
         <tbody>
-          {rep.namespaces.map((n) => (
+          {rows.map((n) => (
             <tr key={n.name} data-testid={`ist-ns-${n.name}`}>
               <td><button className="link" onClick={() => openTopology(clusterId, n.name)} title="Abrir a topologia do namespace">{n.name}</button></td>
               <td><Mode mode={n.mtls} /></td>
@@ -147,7 +167,7 @@ function MTLS({ rep, clusterId }: { rep: IstioReport; clusterId: string }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table>}
     </div>
   )
 }
@@ -206,11 +226,11 @@ function Analyze({ clusterId, ns }: { clusterId: string; ns: string }) {
     return (
       <div className="pad-panel" data-testid="ist-install">
         <h4>istioctl não encontrado</h4>
-        <p>O Analyze roda o <code>istioctl analyze</code> localmente, sobre uma exportação dos objetos (sem Secrets nem ConfigMaps, valores de env mascarados), sem acesso ao cluster.</p>
+        <p>A análise roda o <code>istioctl analyze</code> localmente, sobre uma exportação dos objetos (sem Secrets nem ConfigMaps, valores de env mascarados), sem acesso ao cluster.</p>
         <ol className="small">
           <li>Baixe o istioctl da release oficial do Istio (github.com/istio/istio/releases) e confira o SHA-256 publicado.</li>
           <li>Coloque o binário no PATH ou em <code>~/.local/bin</code>.</li>
-          <li>Volte a esta aba e clique em Recarregar.</li>
+          <li>Volte a esta aba e clique em Atualizar.</li>
         </ol>
         <p className="small muted">{tool.data.hint}</p>
       </div>
@@ -276,22 +296,19 @@ function Istio({ clusterId }: { clusterId: string }) {
   const strict = data?.namespaces.filter((n) => n.mtls === 'STRICT').length ?? 0
   return (
     <div className="object-panel" data-testid="istio-panel">
-      <PanelHeader icon={<Waypoints size={16} />} title="Istio">
-        <NamespaceSelect clusterId={clusterId} />
+      <PanelHeader icon={Waypoints} title="Istio" scope={<NamespaceSelect clusterId={clusterId} />} actions={[refreshAction(() => setRev((r) => r + 1), loading)]}>
         {data?.installed && (
-          <span className="muted" data-testid="ist-summary">
+          <span className="muted ph-info" data-testid="ist-summary" title={`${strict} de ${data.namespaces.length} namespaces em STRICT · ${data.virtualServices.length} VirtualServices · ${data.destinationRules.length} DestinationRules · ${data.gateways.length} Gateways`}>
             {strict} de {data.namespaces.length} namespaces em STRICT · {data.virtualServices.length} VirtualServices · {data.destinationRules.length} DestinationRules · {data.gateways.length} Gateways
           </span>
         )}
-        <span className="spacer" />
-        <RefreshButton onClick={() => setRev((r) => r + 1)} loading={loading} />
       </PanelHeader>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />
       {data && !data.installed && <NotInstalled />}
       {data?.installed && (
         <>
-          <Tabs<Tab> tabs={[['mtls', 'mTLS'], ['routes', 'Rotas'], ['rules', 'DestinationRules'], ['gateways', 'Gateways'], ['analyze', 'Analyze']]} value={tab} onChange={setTab} />
+          <Tabs<Tab> tabs={[['mtls', 'mTLS'], ['routes', 'Rotas'], ['rules', 'DestinationRules'], ['gateways', 'Gateways'], ['analyze', 'Análise (istioctl)']]} value={tab} onChange={setTab} />
           <div className="obj-body">
             {tab === 'mtls' && <MTLS rep={data} clusterId={clusterId} />}
             {tab === 'routes' && <Routes clusterId={clusterId} rep={data} />}

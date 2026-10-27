@@ -62,11 +62,11 @@ test('CRD com kind Node fica em Custom Resources e os Nodes nativos continuam ú
   await expect(page.locator('.nav-crd-head', { hasText: 'clash.leme.dev' })).toHaveCount(1)
   await expect(page.getByTestId('nav-kind-Node')).toHaveCount(1)
   await page.locator('.nav-crd-head', { hasText: 'clash.leme.dev' }).click()
-  await expect(page.locator('.nav-crd', { hasText: 'clash.leme.dev' }).getByTestId('nav-kind-Node')).toHaveCount(1)
-  await expect(page.getByTestId('nav-kind-Node')).toHaveCount(2)
-  const all = page.getByTestId('nav-kind-Node')
+  // CRD items carry their group in the testid, so they never collide with the built-in one.
+  await expect(page.locator('.nav-crd', { hasText: 'clash.leme.dev' }).getByTestId('nav-kind-Node.clash.leme.dev')).toHaveCount(1)
+  await expect(page.getByTestId('nav-kind-Node')).toHaveCount(1)
   // The built-in Nodes grid keeps its columns and lists the real node.
-  await all.first().click()
+  await page.getByTestId('nav-kind-Node').click()
   await expect(page.getByTestId('row-leme-dev-control-plane')).toBeVisible()
   await expect(page.locator('.grid-head, thead').first()).toContainText('Papéis')
 })

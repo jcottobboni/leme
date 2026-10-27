@@ -18,6 +18,17 @@ export function formatValue(unit: PromChart['unit'], v: number | null | undefine
   return `${bytes(v)}/s`
 }
 
+/**
+ * Y axis labels, always with the unit. CPU uses one unit for the whole axis: millicores while the
+ * scale stays under one core ("250m"), cores above it ("1.5 cores"), never a bare "1".
+ */
+export function axisValues(unit: PromChart['unit'], vals: number[]) {
+  if (unit !== 'cores') return vals.map((v) => formatValue(unit, Math.abs(v)))
+  const top = Math.max(0, ...vals.map((v) => Math.abs(v)))
+  if (top < 1) return vals.map((v) => `${+(Math.abs(v) * 1000).toFixed(top * 1000 < 10 ? 1 : 0)}m`)
+  return vals.map((v) => (v === 0 ? '0' : `${+Math.abs(v).toFixed(2)}`) + ' cores')
+}
+
 // Categorical palettes (colorblind-safe order: blue, orange, teal, violet, pink, lime, cyan, gold), one per theme.
 const SERIES_COLORS: Record<Theme, string[]> = {
   dark: ['#4aa3ff', '#ff9f43', '#2dd4bf', '#b79cff', '#ff7eb6', '#a3e635', '#38bdf8', '#facc15'],
@@ -162,15 +173,16 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
     const xs = data[0] as number[]
     const full = { min: xs[0], max: xs[xs.length - 1] }
     const hide = hiddenRef.current ?? new Set<string>()
-    // Byte units: a floor of 4 and whole-byte increments so near-zero charts never repeat rounded tick labels.
-    const floor = chart.unit === 'cores' ? 0 : 4
+    // Auto-scale with a small floor (10m of CPU, 4 bytes) so an idle series shows a flat line at the
+    // bottom of a meaningful axis instead of a fixed 0–1 core scale; byte units get whole-byte steps.
+    const floor = chart.unit === 'cores' ? 0.01 : 4
     const incrs = chart.unit === 'cores' ? undefined : [1, 2, 5, 10, 20, 50, 100, 200, 500, 1024, 2048, 5120, 10240, 51200, 102400, 1048576, 5242880, 10485760, 104857600, 1073741824, 2147483648, 5368709120, 10737418240, 21474836480, 53687091200, 107374182400, 1099511627776]
     const range = (_u: uPlot, min: number, max: number): [number, number] => {
       if (mirrored) {
         const m = Math.max(Math.abs(min), max) * 1.15 // symmetric around the axis so RX and TX read alike
-        return m > 0 ? [-Math.max(m, floor), Math.max(m, floor)] : [-(floor || 1), floor || 1]
+        return m > 0 ? [-Math.max(m, floor), Math.max(m, floor)] : [-floor, floor]
       }
-      return [0, max > 0 ? Math.max(max * 1.15, floor) : floor || 1]
+      return [0, max > 0 ? Math.max(max * 1.15, floor) : floor]
     }
     const absFmt = (v: number | null) => formatValue(chart.unit, v === null ? v : Math.abs(v))
     let syncing = false
@@ -189,7 +201,7 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
         scales: { x: { time: true }, y: { range } },
         axes: [
           { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, font: '11px Inter, sans-serif', gap: 6, size: 28, values: timeTicks },
-          { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, size: 62, incrs, font: '11px Inter, sans-serif', values: (_u, vals) => vals.map((v) => (v === 0 && mirrored ? '0' : absFmt(v))) },
+          { stroke: text, grid: { stroke: grid, width: 1 }, ticks: { show: false }, size: 62, incrs, font: '11px Inter, sans-serif', values: (_u, vals) => axisValues(chart.unit, vals) },
         ],
         series: [
           {},
@@ -317,7 +329,7 @@ export function MetricChart({ chart, height = 190, onRefresh, refreshing, expand
     <div className={`metric-chart mc-card${isExpanded ? ' expanded' : ''}`} data-testid={`chart-${chart.metric}`}>
       <div className="mc-head">
         <span className="mc-title">{TITLES[chart.metric] ?? chart.metric}</span>
-        <span className="mc-sub muted small" title={chart.queries.join('\n')}>{chart.metric === 'network' || chart.metric === 'fs' ? 'bytes/s' : chart.unit === 'cores' ? 'cores' : 'bytes'} · PromQL</span>
+        <span className="mc-sub muted small" title={chart.queries.join('\n')}>{chart.metric === 'network' ? 'bytes/s · acima recebido, abaixo enviado' : chart.metric === 'fs' ? 'bytes/s' : chart.unit === 'cores' ? 'millicores / cores' : 'bytes'} · PromQL</span>
         <span className="spacer" />
         {zoomed && <button className="icon-btn" title="Redefinir zoom" aria-label="Redefinir zoom" onClick={() => resetRef.current()}><ZoomOut size={14} /></button>}
         <button className="icon-btn" title="Atualizar" aria-label="Atualizar" onClick={onRefresh} disabled={!onRefresh}><RefreshCw size={14} className={refreshing ? 'mc-spin' : ''} /></button>
