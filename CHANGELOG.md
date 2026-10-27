@@ -3,6 +3,35 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.7.0] - 2026-10-27
+
+M7 "evolução": the most requested features of other Kubernetes desktop tools, without paywall.
+
+### Added
+- **Aggregated logs:** "Logs (todos os pods)" on Deployments, StatefulSets, DaemonSets, ReplicaSets
+  and Jobs, or by label selector: one stream with a color and prefix per pod, follow, text and regex
+  filter, pause, timestamps and download. Pods that join (a rollout) or leave are followed and
+  marked. Up to 20 pods; works in read-only mode.
+- **Compare ("Comparar com…"):** the same object in another connected cluster and/or namespace,
+  side by side, after normalizing away managed fields, status and other noise. Secret values stay
+  masked; only the keys that differ are named.
+- **Change history:** creations, spec/label/annotation changes and deletions observed by the open
+  views are kept locally for 7 days ("Histórico" tab of an object, "Mudanças" in the timeline), past
+  the TTL of Kubernetes events. Secrets and ConfigMaps record only which keys changed.
+- **Gateway API:** Gateway, GatewayClass, HTTPRoute, GRPCRoute, TCPRoute, TLSRoute and UDPRoute with
+  useful columns and health from their conditions; Gateway → Route → Service in the topology;
+  diagnosis of routes not accepted, missing backends and cross-namespace references without a
+  ReferenceGrant. Istio's Gateway is not affected. See docs/integrations/gateway-api.md.
+- **Flux CD:** Kustomizations, HelmReleases and sources with readiness, revision and suspension;
+  reconcile, suspend and resume as reviewed change proposals audited with source `flux`.
+  See docs/integrations/flux.md.
+- **k9s-style filters** in the palette and grid search: `:alias [ns]`, `-l app=web` (server-side
+  label selector), `!text`, `/regex/`, `ns:name`, shown as removable chips.
+- **JSONPath columns** per resource in the grid columns menu, evaluated by the engine (Secrets on a
+  masked copy, with limits).
+- **Local AI with Ollama:** preset provider on loopback, treated as local (no cloud consent), with
+  the installed models listed; "Exportar proposta" downloads the final YAML and the patch.
+
 ## [0.6.0] - 2026-10-27
 
 M6 "pente fino": correctness, robustness, performance and a layout pass, from a review of the
