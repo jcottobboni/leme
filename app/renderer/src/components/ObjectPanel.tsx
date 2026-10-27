@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, ApiError, type KubeEvent, type ObjectView, type Ref } from '../api'
 import { findKind, findResource, openPanel, useApp, type OpenOptions } from '../store'
-import { kindIcon } from '../features/shell/nav'
+import { kindIcon, behaviorKind } from '../features/shell/nav'
 import { age, healthOfStatus } from '../format'
 import { useWatch } from '../useWatch'
 import { YamlDiff, YamlEditor } from './Monaco'
@@ -67,7 +67,8 @@ function Act({ icon: Icon, label, title, compact, danger, disabled, onClick }: {
 
 /** Object details: used as a dock tab and as the drawer next to a grid. */
 export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { params: ObjectParams; variant?: 'tab' | 'drawer'; onClose?: () => void; onPopOut?: () => void }) {
-  const { clusterId, kind, name, namespace } = params
+  const { clusterId, name, namespace } = params
+  const kind = behaviorKind(params.group, params.kind)
   const compact = variant === 'drawer'
   const ref: Ref = useMemo(() => ({ group: params.group, version: params.version, resource: params.resource, namespace, name }), [params, namespace, name])
   const readOnly = useApp((s) => s.connected[clusterId]?.readOnly ?? true)
@@ -185,7 +186,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           {kind === 'BuildConfig' && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
           {kind === 'Build' && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
           {kind === 'Route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
-          <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind, namespace, name })} />
+          <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind: params.kind, namespace, name })} />
           <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} onClick={() => { setTab('yaml'); if (view && !view.masked) setDraft(view.yaml) }} />
           <Act compact={compact} icon={Trash2} label="Excluir" danger disabled={readOnly || gone} onClick={() => setConfirm('delete')} />
           {(onPopOut || onClose) && <span className="sep" />}
@@ -231,10 +232,10 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           </div>
         )}
         {tab === 'events' && obj && <EventsList clusterId={clusterId} namespace={namespace ?? obj.metadata?.namespace ?? ''} uid={obj.metadata?.uid} />}
-        {tab === 'diagnosis' && <DiagnosisTab clusterId={clusterId} group={params.group} kind={kind} namespace={namespace} name={name} />}
-        {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} kind={kind} name={name} />}
+        {tab === 'diagnosis' && <DiagnosisTab clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
+        {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} kind={params.kind} name={name} />}
         {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
-        {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={kind} namespace={namespace} name={name} />}
+        {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
         {tab === 'revisions' && namespace && <Revisions clusterId={clusterId} namespace={namespace} name={name} readOnly={readOnly} />}
       </div>
       {confirm === 'delete' && (

@@ -164,7 +164,7 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 		rows = append(rows, project.Project(o))
 	}
 	sub.markSent(objs)
-	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: project.Columns(res.Kind, res.Namespaced), Rows: rows}); err != nil {
+	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: project.Columns(res.Group, res.Kind, res.Namespaced), Rows: rows}); err != nil {
 		return
 	}
 	tick := time.NewTicker(flushInterval)

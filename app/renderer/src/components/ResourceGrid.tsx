@@ -4,7 +4,7 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type Column, type Row, type Usage } from '../api'
 import { findResource, openPanel, useApp, useUi } from '../store'
 import { useWatch } from '../useWatch'
-import { kindIcon, plural } from '../features/shell/nav'
+import { behaviorKind, kindIcon, plural } from '../features/shell/nav'
 import { openMenu } from '../features/shell/menu'
 import { RESTARTABLE, useRowActions } from '../features/grid/actions'
 import { ObjectDetails, type ObjectParams } from './ObjectPanel'
@@ -122,7 +122,8 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const selectedNs = useApp((s) => s.namespace[clusterId] ?? '')
   const namespace = res?.namespaced ? selectedNs : ''
   const { columns, rows, loading, error } = useWatch(clusterId, group, resource, namespace, !!res)
-  const usage = useMetrics(clusterId, res?.kind, namespace)
+  const bkind = res ? behaviorKind(res.group, res.kind) : undefined
+  const usage = useMetrics(clusterId, bkind, namespace)
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const [selected, setSelected] = useState<string>()
@@ -151,8 +152,8 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       : rows.slice()
     const col = columns.find((c) => c.key === sort.key)
     list.sort((a, b) => {
-      let va = col ? cellValue(a, col, usage, res?.kind) : a.name
-      let vb = col ? cellValue(b, col, usage, res?.kind) : b.name
+      let va = col ? cellValue(a, col, usage, bkind) : a.name
+      let vb = col ? cellValue(b, col, usage, bkind) : b.name
       if (col?.type === 'age') {
         // newest first when ascending by age
         va = va ? -new Date(String(va)).getTime() : 0
@@ -166,7 +167,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       return (String(va ?? '').localeCompare(String(vb ?? ''), undefined, { numeric: true }) || a.name.localeCompare(b.name)) * sort.dir
     })
     return list
-  }, [rows, q, sort, columns, usage, res?.kind])
+  }, [rows, q, sort, columns, usage, bkind])
 
   const max = useMemo(() => {
     const m = { cpu: 0, memory: 0 }
@@ -332,7 +333,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
         <div className="bulkbar" data-testid="bulkbar">
           <b>{checked.size} selecionado{checked.size === 1 ? '' : 's'}</b>
           <button onClick={() => navigator.clipboard.writeText(checkedRows.map((r) => r.name).join('\n')).then(() => useApp.getState().toast('ok', 'Nomes copiados'))}><Copy size={14} /> Copiar nomes</button>
-          {RESTARTABLE.includes(res.kind) && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Reiniciar</button>}
+          {RESTARTABLE.includes(bkind!) && <button disabled={actions.readOnly} onClick={() => actions.ask('restart', checkedRows)}><RotateCw size={14} /> Reiniciar</button>}
           <button className="danger" disabled={actions.readOnly} title={actions.readOnly ? 'Cluster em somente leitura' : ''} onClick={() => actions.ask('delete', checkedRows)} data-testid="bulk-delete">
             <Trash2 size={14} /> Excluir {checked.size}
           </button>
@@ -375,7 +376,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
                       <input type="checkbox" aria-label={`Selecionar ${r.name}`} checked={isChecked} onChange={() => toggle(r.uid)} />
                     </div>
                     {visibleCols.map((c) => {
-                      const v = cellValue(r, c, usage, res.kind)
+                      const v = cellValue(r, c, usage, bkind)
                       return (
                         <div key={c.key} className={`td ${c.key === 'name' ? 'name' : ''} ${c.type === 'number' || c.type === 'age' || c.key === 'ready' ? 'num' : ''}`} title={typeof v === 'object' ? undefined : String(v ?? '')}>
                           {c.key === 'name' && hasHealth && <span className={`dot d-${r.health}`} />}

@@ -93,8 +93,27 @@ func cols(extra ...Column) []Column {
 }
 
 // Columns returns the columns for a kind; namespaced controls the generic fallback.
-func Columns(kind string, namespaced bool) []Column {
-	if p, ok := projectors[kind]; ok {
+// Builtin reports whether an API group is one of the Kubernetes or OpenShift built-in groups. The
+// per-kind columns, health rules and navigator categories only apply to those: a CRD may reuse a
+// built-in kind name (Longhorn's nodes.longhorn.io is kind Node, Istio has a Gateway) and must not be
+// shown as, or projected like, the built-in one.
+func Builtin(group string) bool {
+	switch group {
+	case "", "apps", "batch", "autoscaling", "policy":
+		return true
+	}
+	return (strings.HasSuffix(group, ".k8s.io") && !strings.HasSuffix(group, ".x-k8s.io")) || strings.HasSuffix(group, ".openshift.io")
+}
+
+func groupOf(apiVersion string) string {
+	if i := strings.LastIndex(apiVersion, "/"); i >= 0 {
+		return apiVersion[:i]
+	}
+	return ""
+}
+
+func Columns(group, kind string, namespaced bool) []Column {
+	if p, ok := projectors[kind]; ok && Builtin(group) {
 		return p.columns
 	}
 	if namespaced {
@@ -112,7 +131,7 @@ func Project(u *unstructured.Unstructured) Row {
 	if r.UID == "" {
 		r.UID = r.Namespace + "/" + r.Name
 	}
-	if p, ok := projectors[u.GetKind()]; ok {
+	if p, ok := projectors[u.GetKind()]; ok && Builtin(groupOf(u.GetAPIVersion())) {
 		p.fn(u, &r)
 	} else {
 		genericConditions(u, &r)

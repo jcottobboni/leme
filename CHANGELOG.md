@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [Unreleased]
+
+### Fixed
+- A CRD reusing a built-in kind name (for example Longhorn's `nodes.longhorn.io`, kind `Node`, or
+  Istio's `Gateway`) showed up as a second built-in entry in the navigator, got the built-in columns
+  and could offer that kind's actions. Kind-specific categories, columns, health, actions and tabs now
+  apply only to Kubernetes and OpenShift API groups; such CRDs are listed under Custom Resources.
+
 ## [0.5.1] - 2026-10-27
 
 ### Changed

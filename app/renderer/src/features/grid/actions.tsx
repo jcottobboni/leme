@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { behaviorKind } from '../shell/nav'
 import { Copy, Filter, PanelRightOpen, PanelTopOpen, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2 } from 'lucide-react'
 import { api, type Ref, type Resource, type Row } from '../../api'
 import { openPanel, useApp } from '../../store'
@@ -29,7 +30,7 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
 
   const menuFor = (row: Row): MenuItem[] => {
     if (!res) return []
-    const kind = res.kind
+    const kind = behaviorKind(res.group, res.kind)
     const items: MenuItem[] = [
       { label: 'Ver detalhes', icon: PanelRightOpen, hint: 'Enter', onClick: () => open.drawer(row) },
       { label: 'Abrir em aba', icon: PanelTopOpen, hint: 'duplo clique', onClick: () => open.tab(row) },

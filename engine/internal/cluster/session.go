@@ -22,6 +22,7 @@ import (
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/jcottobboni/leme/engine/internal/kube"
+	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
 // ErrReadOnly is returned for mutations on a read-only (production-guarded) cluster.
@@ -403,7 +404,7 @@ var categories = map[string]string{
 }
 
 func categorize(group, kind string) string {
-	if c, ok := categories[kind]; ok {
+	if c, ok := categories[kind]; ok && project.Builtin(group) {
 		if kind == "Event" && group == "events.k8s.io" {
 			return "Cluster"
 		}

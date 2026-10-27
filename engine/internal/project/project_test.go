@@ -174,7 +174,25 @@ func TestMoreProjectors(t *testing.T) {
 			t.Errorf("%s: %s=%#v health=%s, want %#v %s", c.y, c.key, r.Cells[c.key], r.Health, c.want, c.health)
 		}
 	}
-	if cs := Columns("ClusterRoleBinding", false); cs[1].Key == "namespace" {
+	if cs := Columns("rbac.authorization.k8s.io", "ClusterRoleBinding", false); cs[1].Key == "namespace" {
 		t.Errorf("cluster-scoped kind got a namespace column: %+v", cs)
+	}
+}
+
+func TestCRDWithBuiltinKindNameIsNotProjectedAsBuiltin(t *testing.T) {
+	crd := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "longhorn.io/v1beta2", "kind": "Node",
+		"metadata":   map[string]any{"name": "con4", "namespace": "longhorn-system"},
+		"status":     map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}},
+	}}
+	r := Project(crd)
+	if _, ok := r.Cells["roles"]; ok {
+		t.Fatalf("CRD Node got the built-in Node projection: %+v", r.Cells)
+	}
+	if cs := Columns("longhorn.io", "Node", true); len(cs) != 3 || cs[1].Key != "namespace" {
+		t.Fatalf("CRD Node must get the generic columns: %+v", cs)
+	}
+	if cs := Columns("", "Node", false); len(cs) <= 2 {
+		t.Fatalf("built-in Node keeps its columns: %+v", cs)
 	}
 }

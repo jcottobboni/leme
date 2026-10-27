@@ -6,6 +6,20 @@ import {
 import type { Resource } from '../../api'
 
 /** English plural used for resource-type labels (Pods, Ingresses, NetworkPolicies, Endpoints). */
+/** Kubernetes or OpenShift built-in API group (same rule as the engine's project.Builtin). */
+export function isBuiltinGroup(group: string) {
+  if (['', 'apps', 'batch', 'autoscaling', 'policy'].includes(group)) return true
+  return (group.endsWith('.k8s.io') && !group.endsWith('.x-k8s.io')) || group.endsWith('.openshift.io')
+}
+
+/**
+ * The kind used to pick kind-specific behavior (actions, tabs, metrics). A CRD may reuse a built-in
+ * name (Longhorn's nodes.longhorn.io is kind Node): it gets "Node.longhorn.io", which matches nothing.
+ */
+export function behaviorKind(group: string, kind: string) {
+  return isBuiltinGroup(group) ? kind : `${kind}.${group}`
+}
+
 export function plural(kind: string) {
   if (kind === 'Event') return 'Events'
   if (/ss$/.test(kind)) return kind + 'es'
