@@ -25,11 +25,13 @@ It does not protect against an attacker who already controls your user account o
 ## Production safety
 
 - **Nothing connects on its own.** Restoring the window layout never reconnects a cluster.
-- **Fail-safe read-only.** Only clearly local clusters (kind, minikube, k3d, loopback) open with
-  write access. Every remote cluster opens read-only, and the **engine** rejects edits, deletes,
+- **Fail-safe read-only.** Only clearly local clusters open with write access: the context name
+  must come from a local tool (kind, k3d, minikube, Docker Desktop, ...) and the API server must
+  be on loopback or a local container network. A loopback address alone is not enough, since SSH
+  tunnels and `kubectl proxy` expose remote clusters there. Every other cluster opens read-only, and the **engine** rejects edits, deletes,
   scale, restart, exec, port-forward and Helm dry-runs while read-only, not only the UI.
 - **Production contexts** (markers such as `prd`, `prod`, `production`, `live` in the context,
-  cluster, user, namespace or API host) can only be unlocked by typing the exact context name.
+  cluster, user, namespace or API host, also glued to a prefix as in `ocpprd` or `k8sprod01`) can only be unlocked by typing the exact context name.
   Switching back to read-only immediately closes that cluster's terminals and port-forwards.
 - **Every change is previewed.** YAML edits go through a server-side dry-run, a diff and a
   confirmation. Updates carry the `resourceVersion` you opened, so they never overwrite someone

@@ -25,7 +25,8 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/settings"
 )
 
-var version = "0.3.0"
+// version is set at build time with -X main.version (see the Makefile).
+var version = "0.3.5"
 
 type listFlag []string
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -131,7 +132,9 @@ func ContextID(name string) string {
 }
 
 // prodPattern matches prod markers as whole words; a trailing digit still counts (prod01, prd2).
-var prodPattern = regexp.MustCompile(`(?i)(^|[^a-z])(prd|prod|production|producao|produção|produçao|live)([^a-z]|$)`)
+// The short markers prd and prod also count at the end of a word (ocpprd, k8sprod01), since
+// cluster names often glue them to a prefix; a following letter still rules them out (product, sprdx).
+var prodPattern = regexp.MustCompile(`(?i)(^|[^a-z])(production|producao|produção|produçao|produccion|producción|live)([^a-z]|$)|(prd|prod)([^a-z]|$)`)
 
 // IsProduction flags a context as production when the API server host or any of the
 // given names (context, cluster, user, namespace) carries a production marker.
@@ -148,22 +151,52 @@ func IsProduction(server string, names ...string) bool {
 	return false
 }
 
-var localContextPrefixes = []string{"kind-", "k3d-", "minikube", "docker-desktop", "rancher-desktop", "orbstack", "colima"}
+var localContextPrefixes = []string{"kind-", "k3d-", "minikube", "docker-desktop", "rancher-desktop", "orbstack", "colima", "microk8s"}
+
+// localNets are the private ranges local VM and container drivers (minikube, colima, Docker) use.
+var localNets = []*net.IPNet{mustCIDR("172.16.0.0/12"), mustCIDR("192.168.0.0/16")}
+
+func mustCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(err)
+	}
+	return n
+}
 
 // IsLocal reports clusters that clearly run on this machine. Only these start writable;
 // everything else starts read-only (fail-safe), and production needs a typed confirmation to unlock.
+// A loopback address alone is not enough: SSH tunnels and `kubectl proxy` expose remote clusters
+// on 127.0.0.1, so the context name must also come from a local cluster tool.
 func IsLocal(contextName, server string) bool {
 	u, err := url.Parse(server)
 	if err != nil {
 		return false
 	}
+	n := strings.ToLower(contextName)
+	named := false
+	for _, p := range localContextPrefixes {
+		if strings.HasPrefix(n, p) {
+			named = true
+			break
+		}
+	}
+	if !named {
+		return false
+	}
 	h := strings.ToLower(u.Hostname())
-	if h == "127.0.0.1" || h == "localhost" || h == "::1" || h == "host.docker.internal" || strings.HasSuffix(h, ".localhost") {
+	if h == "" || h == "localhost" || h == "host.docker.internal" || h == "kubernetes.docker.internal" || strings.HasSuffix(h, ".localhost") {
 		return true
 	}
-	n := strings.ToLower(contextName)
-	for _, p := range localContextPrefixes {
-		if strings.HasPrefix(n, p) && (h == "" || strings.HasPrefix(h, "192.168.") || strings.HasPrefix(h, "172.")) {
+	ip := net.ParseIP(h)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+	for _, ln := range localNets {
+		if ln.Contains(ip) {
 			return true
 		}
 	}

@@ -16,10 +16,15 @@ func TestIsProduction(t *testing.T) {
 		{"https://10.0.0.1:6443", []string{"acme-prd2"}, true},
 		{"https://10.0.0.1:6443", []string{"admin", "payroll-prod", "admin-user", "default"}, true},
 		{"https://10.0.0.1:6443", []string{"ctx", "c", "u", "app-producao"}, true},
+		{"https://10.0.0.1:6443", []string{"ocpprd"}, true},
+		{"https://10.0.0.1:6443", []string{"k8sprod01"}, true},
+		{"https://10.0.0.1:6443", []string{"app-produccion"}, true},
+		{"https://api.k8sprd.example:6443", []string{"ctx"}, true},
 		{"https://api-ocp-dev-acme-example:6443", []string{"hr-dsv/api-ocp-dev:6443/alice"}, false},
 		{"https://127.0.0.1:41234", []string{"kind-leme-dev"}, false},
 		{"https://10.0.0.2", []string{"product-catalog-dev"}, false},
 		{"https://10.0.0.3", []string{"sprdx", "delivery"}, false},
+		{"https://10.0.0.4", []string{"products", "reproducible", "olive"}, false},
 	}
 	for _, c := range cases {
 		if got := IsProduction(c.server, c.names...); got != c.want {
@@ -34,10 +39,18 @@ func TestIsLocal(t *testing.T) {
 		want         bool
 	}{
 		{"kind-dev", "https://127.0.0.1:40000", true},
-		{"anything", "https://localhost:6443", true},
 		{"minikube", "https://192.168.49.2:8443", true},
+		{"minikube", "https://127.0.0.1:32771", true},
+		{"colima", "https://172.17.0.2:6443", true},
+		{"docker-desktop", "https://kubernetes.docker.internal:6443", true},
 		{"hr-dsv/api:6443/alice", "https://api-ocp-dev-acme-example:6443", false},
 		{"kind-fake", "https://10.1.2.3:6443", false},
+		// Loopback alone may be an SSH tunnel or kubectl proxy to a remote cluster.
+		{"anything", "https://localhost:6443", false},
+		{"remote-via-tunnel", "https://127.0.0.1:6443", false},
+		// 172.* outside 172.16.0.0/12 is public address space.
+		{"minikube-x", "https://172.217.1.1:6443", false},
+		{"kind-x", "https://kind.example.com:6443", false},
 	}
 	for _, c := range cases {
 		if got := IsLocal(c.name, c.server); got != c.want {

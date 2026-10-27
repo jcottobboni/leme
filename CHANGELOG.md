@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [Unreleased]
+
+### Security
+- A loopback API server no longer makes a cluster local on its own: SSH tunnels and
+  `kubectl proxy` to remote clusters now open read-only. Local detection also requires a context
+  name from a local tool and only accepts 172.16.0.0/12 and 192.168.0.0/16 as container networks.
+- Production markers glued to a prefix (`ocpprd`, `k8sprod01`) and `produccion` are detected.
+- DOMPurify, bundled by Monaco, is pinned to 3.4.17.
+
+### Fixed
+- The engine reports the app version (it said 0.3.0 in 0.3.5).
+
 ## [0.3.5] - 2026-10-26
 
 ### Added
