@@ -154,6 +154,7 @@ func (j *jpCols) Apply(u *unstructured.Unstructured, r *project.Row) {
 	}
 }
 
+// isSecret: a core Secret (a CRD named Secret in another group is not masked by this rule).
 func isSecret(u *unstructured.Unstructured) bool {
 	return u.GetKind() == "Secret" && (u.GetAPIVersion() == "v1" || u.GetAPIVersion() == "")
 }

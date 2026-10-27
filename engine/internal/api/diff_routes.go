@@ -122,11 +122,6 @@ func diffFetch(ctx context.Context, get func(string) (*cluster.Session, bool), d
 	return u, diffSideResult{YAML: string(y), Found: true, Kind: res.Kind, norm: n.Object}
 }
 
-// isSecret: a core Secret (a CRD named Secret in another group is not masked by this rule).
-func isSecret(u *unstructured.Unstructured) bool {
-	return u.GetKind() == "Secret" && u.GetAPIVersion() == "v1"
-}
-
 // hiddenDiffer compares the masked values of two Secrets key by key, without revealing them.
 func hiddenDiffer(a, b *unstructured.Unstructured) []string {
 	if !isSecret(a) || !isSecret(b) {
