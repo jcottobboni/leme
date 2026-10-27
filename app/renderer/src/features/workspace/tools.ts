@@ -7,6 +7,8 @@ import { openPanel, useApp, type OpenOptions } from '../../store'
 import { openCharts } from '../helm/HelmReleases'
 import { openSecurity } from '../security/SecurityPanel'
 import { openNetpol } from '../netpol/NetpolPanel'
+import { openProblems } from '../analyze/ProblemsPanel'
+import { openCopilot } from '../ai/CopilotPanel'
 
 export function openHelm(clusterId: string, opts?: OpenOptions) {
   openPanel(`helm-releases:${clusterId}`, 'helmReleases', 'Helm releases', { clusterId }, opts)
@@ -15,6 +17,8 @@ export function openHelm(clusterId: string, opts?: OpenOptions) {
 /** Per-cluster screens shown in the navigator and in the Ctrl+K palette. */
 export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?: OpenOptions) => void }[] = [
   { id: 'overview', label: 'Visão geral', open: (id, o) => openOverview(id, o) },
+  { id: 'problems', label: 'Problemas', open: (id, o) => openProblems(id, o) },
+  { id: 'copilot', label: 'Copilot (IA)', open: (id, o) => openCopilot(id, undefined, o) },
   { id: 'topology', label: 'Topologia', open: (id, o) => openTopology(id, undefined, o) },
   { id: 'map', label: 'Mapa do cluster', open: (id, o) => openMap(id, o) },
   { id: 'timeline', label: 'Timeline de eventos', open: (id, o) => openTimeline(id, o) },

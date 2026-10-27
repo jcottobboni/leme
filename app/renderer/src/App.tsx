@@ -27,6 +27,8 @@ import { Palette } from './features/search/Palette'
 import { SecurityPanel } from './features/security/SecurityPanel'
 import { NetpolPanel } from './features/netpol/NetpolPanel'
 import { BuildLogPanel } from './features/openshift/BuildLogPanel'
+import { ProblemsPanel } from './features/analyze/ProblemsPanel'
+import { CopilotPanel } from './features/ai/CopilotPanel'
 import { ClusterTab, HeaderActions, restoreLayout, saveLayout } from './features/workspace/Dock'
 
 function Welcome(_: IDockviewPanelProps) {
@@ -61,6 +63,8 @@ const components = {
   security: SecurityPanel,
   netpol: NetpolPanel,
   buildLog: BuildLogPanel,
+  problems: ProblemsPanel,
+  copilot: CopilotPanel,
 } as Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>
 
 // Panels that start streams or shells are never restored from a saved layout.

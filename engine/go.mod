@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/coder/websocket v1.8.15
+	github.com/evanphx/json-patch/v5 v5.9.11
 	helm.sh/helm/v4 v4.3.1
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
@@ -32,7 +33,6 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dylibso/observe-sdk/go v0.0.0-20240819160327-2d926c5d788a // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
-	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/extism/go-sdk v1.7.1 // indirect
 	github.com/fatih/color v1.19.0 // indirect

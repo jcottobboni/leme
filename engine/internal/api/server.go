@@ -21,6 +21,8 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/helm"
 	"github.com/jcottobboni/leme/engine/internal/kube"
 	"github.com/jcottobboni/leme/engine/internal/ops"
+	"github.com/jcottobboni/leme/engine/internal/audit"
+	"github.com/jcottobboni/leme/engine/internal/change"
 	"github.com/jcottobboni/leme/engine/internal/settings"
 )
 
@@ -32,6 +34,9 @@ type Server struct {
 	settings *settings.Store
 	m2       *m2
 	m3       *m3
+	audit    *audit.Log
+	changes  *change.Store
+	ai       *aiState
 	token    string
 	origins  map[string]bool
 	static   fs.FS
@@ -51,7 +56,7 @@ type Options struct {
 
 // New builds the server; call Allow(port) once the listener port is known.
 func New(mgr *cluster.Manager, o Options) *Server {
-	s := &Server{mgr: mgr, forwards: ops.NewForwards(), helm: helm.New(o.Logger), settings: o.Settings, m2: newM2(), m3: newM3(o.ConfigDir), token: o.Token, origins: map[string]bool{}, log: o.Logger, mux: http.NewServeMux()}
+	s := &Server{mgr: mgr, forwards: ops.NewForwards(), helm: helm.New(o.Logger), settings: o.Settings, m2: newM2(), m3: newM3(o.ConfigDir), audit: audit.Open(o.ConfigDir), changes: change.NewStore(), ai: newAIState(), token: o.Token, origins: map[string]bool{}, log: o.Logger, mux: http.NewServeMux()}
 	for _, d := range o.DevOrigins {
 		s.origins[d] = true
 	}
@@ -95,6 +100,9 @@ func (s *Server) routes() {
 	s.helmRoutes(m)
 	s.m2Routes(m)
 	s.m3Routes(m)
+	s.analyzeRoutes(m)
+	s.agentRoutes(m)
+	s.aiRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { LogIn, LogOut, Lock, LockOpen, type LucideIcon, Palette as PaletteIcon, Pencil, Pin, PinOff, Plug, Unplug } from 'lucide-react'
+import { Bot, LogIn, LogOut, Lock, LockOpen, type LucideIcon, Palette as PaletteIcon, Pencil, Pin, PinOff, Plug, Unplug } from 'lucide-react'
 import { api3, type ClusterInfo } from '../../api'
 import { PALETTE, useApp, useProfiles, useUi, defaultColor } from '../../store'
 import { UnlockDialog } from '../../components/Dialogs'
 import { LoginDialog } from '../openshift/LoginDialog'
 import { ClusterProfileDialog } from './ClusterProfile'
+import { AgentAccessDialog } from '../agents/AgentAccessDialog'
 
 export interface MenuItem {
   label?: string
@@ -78,13 +79,14 @@ export function ContextMenuHost() {
 }
 
 // Cluster dialogs live at the app root so the hotbar, the navigator and the catalog can open them.
-const useDialogs = create<{ unlock?: ClusterInfo; login?: ClusterInfo; profile?: ClusterInfo }>(() => ({}))
+const useDialogs = create<{ unlock?: ClusterInfo; login?: ClusterInfo; profile?: ClusterInfo; agents?: ClusterInfo }>(() => ({}))
 
 export function DialogHost() {
-  const { unlock, login, profile } = useDialogs()
+  const { unlock, login, profile, agents } = useDialogs()
   return (
     <>
       {profile && <ClusterProfileDialog c={profile} onClose={() => useDialogs.setState({ profile: undefined })} />}
+      {agents && <AgentAccessDialog c={agents} onClose={() => useDialogs.setState({ agents: undefined })} />}
       {login && <LoginDialog clusterId={login.id} name={login.name} onClose={() => useDialogs.setState({ login: undefined })} />}
       {unlock && (
         <UnlockDialog
@@ -159,6 +161,7 @@ export function clusterMenu(c: ClusterInfo): MenuItem[] {
     { separator: true },
     { label: pinned ? 'Remover da hotbar' : 'Fixar na hotbar', icon: pinned ? PinOff : Pin, onClick: () => togglePin(c.id) },
     { label: 'Personalizar…', icon: Pencil, hint: 'cor, sigla, nome', onClick: () => openProfile(c) },
+    { label: 'Acesso de agentes (MCP)…', icon: Bot, onClick: () => useDialogs.setState({ agents: c }) },
     { label: 'Trocar cor', icon: PaletteIcon, onClick: () => cycleColor(c.id) },
   )
   return items

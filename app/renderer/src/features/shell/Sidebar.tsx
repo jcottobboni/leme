@@ -18,6 +18,7 @@ export function openGrid(clusterId: string, r: Resource, opts?: OpenOptions) {
 const TOOL_PANEL: Record<string, (id: string) => string> = {
   overview: (id) => `overview:${id}`, topology: (id) => `topology:${id}`, map: (id) => `map:${id}`, timeline: (id) => `timeline:${id}`, rbac: (id) => `rbac:${id}`,
   security: (id) => `security:${id}`, netpol: (id) => `netpol:${id}`, helm: (id) => `helm-releases:${id}`, charts: () => 'helm-charts',
+  problems: (id) => `problems:${id}`, copilot: (id) => `copilot:${id}`,
 }
 
 export function providerLabel(p: string) {

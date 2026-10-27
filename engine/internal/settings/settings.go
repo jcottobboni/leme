@@ -24,10 +24,34 @@ type Prometheus struct {
 	SendToken bool `json:"sendToken,omitempty"`
 }
 
+// AI configures the Copilot. API keys are never stored here (the desktop shell keeps them in the
+// OS keychain and hands them to the engine in memory).
+type AI struct {
+	Enabled  bool   `json:"enabled,omitempty"`
+	Provider string `json:"provider,omitempty"` // anthropic | openai | ollama
+	Model    string `json:"model,omitempty"`
+	BaseURL  string `json:"baseURL,omitempty"` // empty = the provider's official endpoint
+	Effort   string `json:"effort,omitempty"`  // anthropic only: low | medium | high | xhigh | max
+	// Anonymize replaces cluster identifiers before they leave the machine (nil = provider default).
+	Anonymize *bool `json:"anonymize,omitempty"`
+	// Consented lists provider endpoints the user agreed to send cluster data to ("provider|baseURL").
+	Consented []string `json:"consented,omitempty"`
+}
+
+// AgentAccess controls what MCP agents may change in one kubeconfig context.
+type AgentAccess struct {
+	Write bool `json:"write,omitempty"`
+	// ProdConfirmed records that the user typed the context name to allow writes on production.
+	ProdConfirmed bool `json:"prodConfirmed,omitempty"`
+}
+
 // Data is the persisted document.
 type Data struct {
 	// Prometheus is keyed by kubeconfig context name.
 	Prometheus map[string]Prometheus `json:"prometheus,omitempty"`
+	AI         *AI                   `json:"ai,omitempty"`
+	// Agents is keyed by kubeconfig context name.
+	Agents map[string]AgentAccess `json:"agents,omitempty"`
 }
 
 // Store reads and writes settings.json.
@@ -86,6 +110,63 @@ func (s *Store) SetPrometheus(context string, p Prometheus) error {
 		s.data.Prometheus[context] = p
 	}
 	return s.save()
+}
+
+// AI returns the Copilot configuration (zero value when never configured).
+func (s *Store) AI() AI {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.AI == nil {
+		return AI{}
+	}
+	a := *s.data.AI
+	a.Consented = append([]string(nil), a.Consented...)
+	return a
+}
+
+// SetAI saves the Copilot configuration.
+func (s *Store) SetAI(a AI) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.AI = &a
+	return s.save()
+}
+
+// AgentAccess re-reads the file first: the MCP server runs in another process and must see
+// changes made in the app immediately.
+func (s *Store) AgentAccess(context string) AgentAccess {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reload()
+	return s.data.Agents[context]
+}
+
+// SetAgentAccess saves (or with Write=false, clears) what agents may do in a context.
+func (s *Store) SetAgentAccess(context string, a AgentAccess) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reload()
+	if s.data.Agents == nil {
+		s.data.Agents = map[string]AgentAccess{}
+	}
+	if !a.Write {
+		delete(s.data.Agents, context)
+	} else {
+		s.data.Agents[context] = a
+	}
+	return s.save()
+}
+
+// reload picks up changes written by another process; on any error the in-memory copy stays.
+func (s *Store) reload() {
+	b, err := os.ReadFile(s.path)
+	if err != nil {
+		return
+	}
+	var d Data
+	if json.Unmarshal(b, &d) == nil {
+		s.data = d
+	}
 }
 
 func (s *Store) save() error {

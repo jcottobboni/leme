@@ -11,8 +11,10 @@ import { TopologyView } from '../features/topology/Topology'
 import { MetricsView } from '../features/metrics/Metrics'
 import { Revisions } from '../features/workspace/Revisions'
 import { ObjectSecurity } from '../features/security/ObjectSecurity'
+import { DiagnosisTab } from '../features/analyze/DiagnosisTab'
+import { openCopilot } from '../features/ai/CopilotPanel'
 import { api3 } from '../api'
-import { ExternalLink, FilePen, Hammer, PanelTopOpen, Rocket, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+import { ExternalLink, FilePen, Hammer, PanelTopOpen, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
 
 export interface ObjectParams {
   clusterId: string
@@ -24,7 +26,7 @@ export interface ObjectParams {
   name: string
 }
 
-type Tab = 'overview' | 'yaml' | 'events' | 'topology' | 'metrics' | 'revisions' | 'security'
+type Tab = 'overview' | 'yaml' | 'events' | 'diagnosis' | 'topology' | 'metrics' | 'revisions' | 'security'
 
 const METRIC_KINDS = ['Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'Node', 'DeploymentConfig']
 const SECURITY_KINDS = ['Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob', 'ReplicationController', 'DeploymentConfig']
@@ -183,6 +185,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           {kind === 'BuildConfig' && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
           {kind === 'Build' && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
           {kind === 'Route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
+          <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind, namespace, name })} />
           <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} onClick={() => { setTab('yaml'); if (view && !view.masked) setDraft(view.yaml) }} />
           <Act compact={compact} icon={Trash2} label="Excluir" danger disabled={readOnly || gone} onClick={() => setConfirm('delete')} />
           {(onPopOut || onClose) && <span className="sep" />}
@@ -191,9 +194,9 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         </div>
       </div>
       <div className="tabs">
-        {(['overview', 'yaml', 'events', ...(namespace ? ['topology'] : []), ...(METRIC_KINDS.includes(kind) ? ['metrics'] : []), ...(kind === 'Deployment' ? ['revisions'] : []), ...(SECURITY_KINDS.includes(kind) && namespace ? ['security'] : [])] as Tab[]).map((t) => (
+        {(['overview', 'yaml', 'events', 'diagnosis', ...(namespace ? ['topology'] : []), ...(METRIC_KINDS.includes(kind) ? ['metrics'] : []), ...(kind === 'Deployment' ? ['revisions'] : []), ...(SECURITY_KINDS.includes(kind) && namespace ? ['security'] : [])] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} data-testid={`tab-${t}`}>
-            {{ overview: 'Visão geral', yaml: 'YAML', events: 'Eventos', topology: 'Topologia', metrics: 'Métricas', revisions: 'Revisões', security: 'Segurança' }[t]}
+            {{ overview: 'Visão geral', yaml: 'YAML', events: 'Eventos', diagnosis: 'Diagnóstico', topology: 'Topologia', metrics: 'Métricas', revisions: 'Revisões', security: 'Segurança' }[t]}
           </button>
         ))}
       </div>
@@ -228,6 +231,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           </div>
         )}
         {tab === 'events' && obj && <EventsList clusterId={clusterId} namespace={namespace ?? obj.metadata?.namespace ?? ''} uid={obj.metadata?.uid} />}
+        {tab === 'diagnosis' && <DiagnosisTab clusterId={clusterId} group={params.group} kind={kind} namespace={namespace} name={name} />}
         {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} kind={kind} name={name} />}
         {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
         {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={kind} namespace={namespace} name={name} />}

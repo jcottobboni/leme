@@ -1,7 +1,7 @@
 import {
   Activity, AppWindow, Boxes, Box, Briefcase, Clock, Cloud, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
   Hammer, Image, Key, Layers, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, Network, Package, Plus, Route, ScrollText, Server, Settings2,
-  Shield, ShieldCheck, Share2, SlidersHorizontal, Terminal, Timer, Users, Waypoints, Workflow,
+  Shield, ShieldCheck, Share2, SlidersHorizontal, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Workflow,
 } from 'lucide-react'
 import type { Resource } from '../../api'
 
@@ -30,7 +30,7 @@ export function kindIcon(kind?: string): LucideIcon {
 /** Icons of the dock components (tabs). Grid and object tabs use the kind icon. */
 export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
-  rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer,
+  rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
 }
 
 export interface NavTool {
@@ -95,6 +95,8 @@ export function buildSections(resources: Resource[], filter: string): NavSection
   const sections: NavSection[] = [
     { id: 'Cluster', label: 'Cluster', icon: Cloud, tools: tools([
       { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
+      { id: 'problems', label: 'Problemas', icon: Stethoscope },
+      { id: 'copilot', label: 'Copilot (IA)', icon: Sparkles },
       { id: 'topology', label: 'Topologia', icon: Workflow },
       { id: 'map', label: 'Mapa do cluster', icon: MapIcon },
       { id: 'timeline', label: 'Timeline de eventos', icon: Timer },

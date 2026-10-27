@@ -110,6 +110,20 @@ func (s *Session) CheckWritable() error {
 	return nil
 }
 
+// NewStaticSession builds a session from ready clients and a fixed resource list, without
+// discovery or informers. It is meant for tests and for short-lived tools (e.g. the MCP server)
+// that reuse the engine's packages with their own clients.
+func NewStaticSession(kc kube.Context, typed kubernetes.Interface, dyn dynamic.Interface, resources []Resource, readOnly bool) *Session {
+	life, endLife := context.WithCancel(context.Background())
+	write, endWrite := context.WithCancel(life)
+	s := &Session{Context: kc, Typed: typed, Dynamic: dyn, readOnly: readOnly, resources: resources, byKey: map[string]Resource{},
+		life: life, endLife: endLife, write: write, endWrite: endWrite}
+	for _, r := range resources {
+		s.byKey[r.Group+"/"+r.Resource] = r
+	}
+	return s
+}
+
 // Resources returns the discovered resources.
 func (s *Session) Resources() []Resource {
 	s.mu.RLock()

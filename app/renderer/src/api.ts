@@ -283,7 +283,7 @@ export class ApiError extends Error {
   }
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(base + path, {
     method,
     headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
@@ -295,7 +295,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   return data as T
 }
 
-function qs(o: Record<string, string | number | boolean | undefined>) {
+export function qs(o: Record<string, string | number | boolean | undefined>) {
   const p = new URLSearchParams()
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== '') p.set(k, String(v))
   return p.toString()
