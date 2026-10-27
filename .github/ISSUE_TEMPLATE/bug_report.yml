@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security issues go to private reporting** (Security → Report a vulnerability), not here.
+        Do not paste kubeconfigs, tokens, Secret values or internal hostnames.
+  - type: input
+    id: version
+    attributes:
+      label: Leme version
+      description: Shown in the app, or by `apt policy leme`.
+      placeholder: 0.8.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Linux (.deb / APT), Linux (AppImage), Windows, macOS (from source), Browser (leme serve)]
+    validations:
+      required: true
+  - type: input
+    id: cluster
+    attributes:
+      label: Cluster
+      description: Distribution and version (kind, k3s, EKS, AKS, GKE, OpenShift 4.x…).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you saw. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Engine output (`leme serve` in a terminal) or the DevTools console, with names anonymized.
+      render: text

@@ -14,7 +14,7 @@
 word that gave Kubernetes its name. It is an agentless desktop client for Kubernetes and OpenShift, built for people who operate many clusters
 and need to be sure they are not about to break production.
 
-> **Status:** early (v0.5.x). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
+> **Status:** early (v0.x, see the [changelog](CHANGELOG.md)). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
 > Portuguese; English is on the roadmap. [Leia em português](README.pt-BR.md).
 
 ![Overview](docs/images/overview.png)
@@ -31,6 +31,8 @@ and need to be sure they are not about to break production.
   risks, a NetworkPolicy flow graph and simulator, plus optional Polaris, Kubescape and Trivy.
 - **Many clusters, at a glance.** Pinned clusters with your own alias, short tag, color, icon and
   environment, so you always know where you are before you click.
+- **Bring your k9s plugins.** Your k9s `plugins.yaml` works as it is, next to Leme's own YAML
+  actions, links, CRD views and CEL rules, behind the same production guard.
 - **Nothing leaves your machine.** No telemetry, no agent in the cluster, works air-gapped.
 
 ## Features
@@ -40,6 +42,9 @@ and need to be sure they are not about to break production.
 | Clusters | Every kubeconfig context; nothing connects on its own; hotbar with per-cluster identity; read-only / read-write switch |
 | Resources | Live grids for every built-in kind and CRD, details drawer, YAML editor with diff and dry-run, bulk actions |
 | Workloads | Logs, shell (exec), port-forward, scale, restart, rollback with revision diff |
+| Aggregated logs | All pods of a workload or label selector in one stream, colored per pod, following rollouts |
+| Search | Ctrl+K across clusters with k9s syntax (`:deploy demo -l app=web`, `!text`, `/regex/`); JSONPath columns per kind |
+| Compare and history | The same object in another cluster or namespace, side by side; local change history kept for 7 days |
 | Overview | Capacity (usage × requests × limits × allocatable), workloads by health, namespaces table, top consumers, warnings |
 | Topology | Object graph grouped by app, type filters, neighborhood highlight, focus mode |
 | Cluster map | Namespaces as islands, apps as regions, workloads as tiles, with health and search; WebGL for large clusters (up to 25,000 workloads) with traffic edges |
@@ -55,6 +60,8 @@ and need to be sure they are not about to break production.
 | Observed traffic | Workload-to-workload connections from Caretta or Hubble metrics in Prometheus, in a panel, the Topology and the map ([docs](docs/integrations/traffic.md)) |
 | Argo CD | Applications with sync/health, resources, history; Sync and Refresh as reviewed, audited changes ([docs](docs/integrations/argocd.md)) |
 | Grafana / Prometheus | Detects Grafana, Prometheus and Thanos and opens them through a local port-forward in a sandboxed window ([docs](docs/integrations/grafana.md)) |
+| Gateway API | Gateways and routes with status, Gateway → Route → Service in the topology, diagnosis of broken routes ([docs](docs/integrations/gateway-api.md)) |
+| Flux | Kustomizations, HelmReleases and sources; reconcile, suspend and resume as reviewed, audited changes ([docs](docs/integrations/flux.md)) |
 | Istio | Effective mTLS, weighted routes, DestinationRules, Gateways, offline `istioctl analyze` ([docs](docs/integrations/istio.md)) |
 | Plugins | YAML actions, links, CRD views and CEL diagnosis rules; reads k9s plugins as they are; trusted per command, cluster access through a read-only-aware proxy ([docs/plugins.md](docs/plugins.md)) |
 
@@ -92,6 +99,8 @@ needs Apple code signing and notarization.
 ### Manual (Linux)
 
 Download the `.deb` or AppImage from the [releases page](https://github.com/jcottobboni/leme/releases) and check it against `SHA256SUMS`.
+From 0.8.1 on, every package also carries a signed build provenance:
+`gh attestation verify leme_<version>_amd64.deb --repo jcottobboni/leme`.
 
 ```bash
 sudo apt install ./leme_<version>_amd64.deb
@@ -124,7 +133,8 @@ Details in [docs/architecture.md](docs/architecture.md); the security model is i
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the most
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md) first; the most
 important rule is that tests only ever run against the local kind cluster.
 
 ## License

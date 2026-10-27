@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [Unreleased]
+
+### Added
+- Repository: issue and pull request templates, code of conduct, CODEOWNERS, Dependabot, CodeQL and govulncheck in CI.
+- Releases carry signed build provenance (`gh attestation verify`).
+
+### Changed
+- `golang.org/x/net` 0.62.0.
+- README: status, and the M7 and M8 features in both languages.
+
 ## [0.8.0] - 2026-10-27
 
 M8 "plugins": extend Leme with YAML, and bring your k9s plugins along.

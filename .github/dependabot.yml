@@ -1,0 +1,19 @@
+# Weekly dependency updates, grouped so each ecosystem opens at most one PR (security fixes come
+# separately, as soon as they are published).
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /engine
+    schedule: {interval: weekly}
+    groups:
+      go: {patterns: ['*']}
+  - package-ecosystem: npm
+    directory: /app
+    schedule: {interval: weekly}
+    groups:
+      npm: {patterns: ['*']}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      actions: {patterns: ['*']}

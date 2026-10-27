@@ -96,6 +96,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -126,6 +128,14 @@ jobs:
           gpg --verify InRelease
           rm -rf "$GNUPGHOME"
           sha256sum *.deb *.AppImage *.exe > SHA256SUMS
+
+      # Signed build provenance (SLSA): `gh attestation verify <file> --repo jcottobboni/leme`.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.exe
 
       - name: Publish the release
         env:

@@ -1,0 +1,22 @@
+name: Feature request
+description: An idea to make Leme better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: How you imagine it working. Mention other tools that do it well, if any.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Production safety
+      options:
+        - label: If this changes clusters, it should keep the read-only default and the production unlock.

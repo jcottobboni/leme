@@ -14,7 +14,7 @@ O nome vem do timoneiro: "Kubernetes" é a palavra grega *kybernḗtēs*, quem s
 O Leme é um cliente desktop de Kubernetes e OpenShift, sem agente no cluster, feito para quem opera muitos
 clusters e precisa ter certeza de que não vai quebrar produção.
 
-> **Status:** inicial (v0.5.x). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
+> **Status:** inicial (v0.x, veja o [changelog](CHANGELOG.md)). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
 > inglês está no roadmap. [Read in English](README.md).
 
 ![Visão geral](docs/images/overview.png)
@@ -32,6 +32,8 @@ clusters e precisa ter certeza de que não vai quebrar produção.
   opcionais.
 - **Muitos clusters, de relance.** Clusters fixados com apelido, sigla, cor, ícone e ambiente seus,
   para saber onde você está antes de clicar.
+- **Traga seus plugins do k9s.** O `plugins.yaml` do k9s funciona como está, junto com ações,
+  links, visões de CRD e regras CEL em YAML do próprio Leme, atrás da mesma trava de produção.
 - **Nada sai da sua máquina.** Sem telemetria, sem agente no cluster, funciona sem internet.
 
 ## Funcionalidades
@@ -41,6 +43,9 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 | Clusters | Todos os contextos do kubeconfig; nada conecta sozinho; hotbar com identidade por cluster; chave somente leitura / leitura e escrita |
 | Recursos | Grids ao vivo de todos os tipos nativos e CRDs, painel de detalhes, editor YAML com diff e dry-run, ações em lote |
 | Workloads | Logs, shell (exec), port-forward, scale, restart, rollback com diff de revisões |
+| Logs agregados | Todos os pods de um workload ou seletor de label num só fluxo, com cor por pod, acompanhando rollouts |
+| Busca | Ctrl+K em todos os clusters com a sintaxe do k9s (`:deploy demo -l app=web`, `!texto`, `/regex/`); colunas JSONPath por tipo |
+| Comparar e histórico | O mesmo objeto em outro cluster ou namespace, lado a lado; histórico local de mudanças por 7 dias |
 | Visão geral | Capacidade (uso × requests × limits × alocável), workloads por saúde, tabela de namespaces, maiores consumidores, warnings |
 | Topologia | Grafo de objetos agrupado por app, filtros por tipo, destaque da vizinhança, modo foco |
 | Mapa do cluster | Namespaces como ilhas, apps como regiões, workloads como blocos, com saúde e busca; WebGL para clusters grandes (até 25.000 workloads) com arestas de tráfego |
@@ -56,7 +61,10 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 | Tráfego observado | Conexões entre workloads a partir de métricas do Caretta ou do Hubble no Prometheus, em painel, na Topologia e no mapa ([docs](docs/integrations/traffic.md)) |
 | Argo CD | Applications com sync/saúde, recursos e histórico; Sync e Refresh como mudanças revisadas e auditadas ([docs](docs/integrations/argocd.md)) |
 | Grafana / Prometheus | Detecta Grafana, Prometheus e Thanos e abre por port-forward local numa janela isolada ([docs](docs/integrations/grafana.md)) |
+| Gateway API | Gateways e rotas com status, Gateway → Route → Service na topologia, diagnóstico de rotas quebradas ([docs](docs/integrations/gateway-api.md)) |
+| Flux | Kustomizations, HelmReleases e fontes; reconcile, suspender e retomar como mudanças revisadas e auditadas ([docs](docs/integrations/flux.md)) |
 | Istio | mTLS efetivo, rotas com pesos, DestinationRules, Gateways, `istioctl analyze` offline ([docs](docs/integrations/istio.md)) |
+| Plugins | Ações, links, visões de CRD e regras de diagnóstico em CEL, em YAML; lê os plugins do k9s como estão; confiança por comando e acesso ao cluster por um proxy que respeita o somente leitura ([docs/plugins.md](docs/plugins.md)) |
 
 ## Instalação
 
@@ -88,6 +96,8 @@ precisa de assinatura e notarização da Apple.
 ### Manual (Linux)
 
 Baixe o `.deb` ou o AppImage na [página de releases](https://github.com/jcottobboni/leme/releases) e confira com o `SHA256SUMS`.
+A partir da 0.8.1, cada pacote também traz a proveniência de build assinada:
+`gh attestation verify leme_<versão>_amd64.deb --repo jcottobboni/leme`.
 
 ```bash
 sudo apt install ./leme_<versão>_amd64.deb
@@ -121,7 +131,8 @@ segurança está em [SECURITY.md](SECURITY.md).
 
 ## Contribuir
 
-Issues e pull requests são bem-vindos. Leia o [CONTRIBUTING.md](CONTRIBUTING.md) antes; a regra mais
+Issues e pull requests são bem-vindos. Leia o [CONTRIBUTING.md](CONTRIBUTING.md) e o
+[Código de Conduta](CODE_OF_CONDUCT.md) antes; a regra mais
 importante é que os testes só rodam contra o cluster kind local.
 
 ## Licença
