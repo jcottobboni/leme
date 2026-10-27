@@ -116,6 +116,8 @@ func (s *Server) routes() {
 	s.argocdRoutes(m)
 	s.grafanaRoutes(m)
 	s.istioRoutes(m)
+	// M7: Flux CD (RF04).
+	s.fluxRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 
