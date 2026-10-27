@@ -58,7 +58,7 @@ test('RF01: 20k workloads abrem em WebGL; busca, dica, clique abre o objeto e du
   await expect(renderer(page)).toHaveAttribute('data-workloads', '20000')
   await expect(page.getByTestId('map-gl').locator('canvas')).toBeVisible()
   await expect(page.getByTestId('map-summary')).toContainText('20000 workloads')
-  await expect(page.getByTestId('map-renderer-label')).toHaveText('WebGL')
+  await expect(page.getByTestId('map-renderer-label')).toHaveText('acelerado (GPU)')
   await expect.poll(async () => Number(await renderer(page).getAttribute('data-fps'))).toBeGreaterThan(0)
 
   // Search: one result, the view zooms to it (150%) and centres it.

@@ -7,7 +7,7 @@ import { openTopology } from '../topology/Topology'
 import { ClusterGate, ErrorBanner, Partial, useAsync } from '../common'
 import { usePanelVisible } from '../../hooks/visibility'
 import { useTheme } from '../shell/theme'
-import { Activity, Filter, Info, Layers, Map as MapIcon, Maximize2, Minus, Plus, RefreshCw, Search, Server, Settings2, TriangleAlert } from 'lucide-react'
+import { Activity, Filter, Info, Layers, Map as MapIcon, Maximize2, Minus, Plus, Search, Server, Settings2, TriangleAlert } from 'lucide-react'
 import { computeMatch, countWorkloads, dotRadius, hasProblem, isSystemNs, lodOf, TILE_R } from './layout'
 import { seen } from './geometry'
 import { useMapViewport } from './useMapViewport'
@@ -21,6 +21,7 @@ import { placeEdges } from '../map-webgl/edges'
 import { useFpsProbe, webglAvailable } from '../map-webgl/probe'
 import { useTrafficEdges } from '../map-webgl/trafficEdges'
 import type { Hit } from '../map-webgl/scene'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import './map.css'
 import '../map-webgl/mgl.css'
 
@@ -217,26 +218,22 @@ function MapView({ clusterId }: { clusterId: string }) {
 
   return (
     <div className="map-panel" data-testid="map-panel" data-theme={theme}>
-      <div className="map-bar">
-        <span className="grid-title"><Layers size={16} />Mapa do cluster</span>
+      <PanelHeader icon={Layers} title="Mapa do cluster" testid="map-header" actions={[
+        { key: 'ns', label: `Namespaces${selected.size ? ` (${selected.size})` : ''}`, icon: Server, testid: 'map-ns-filter', onClick: () => setNsOpen((o) => !o) },
+        { key: 'sys', label: 'Ocultar sistema', pressed: hideSystem && hasUserNs, testid: 'map-hide-system', title: 'Oculta kube-*, openshift-*', onClick: () => setHideSystem((v) => !v) },
+        { key: 'problems', label: `Só com problemas${nProblems ? ` (${nProblems})` : ''}`, icon: TriangleAlert, pressed: onlyProblems, testid: 'map-problems', onClick: () => setOnlyProblems((v) => !v) },
+        { key: 'traffic', label: `Tráfego${traffic && placed.edges.length ? ` (${placed.edges.length})` : ''}`, icon: Activity, pressed: traffic, testid: 'map-traffic', title: 'Arestas de tráfego observado (Caretta ou Hubble), com volume e direção', onClick: () => setTraffic((v) => !v) },
+        refreshAction(reload, loading || pending, { testid: 'map-refresh' }),
+        { key: 'settings', label: 'Configurações do mapa', icon: Settings2, iconOnly: true, keep: true, testid: 'map-settings', onClick: () => setSettingsOpen((o) => !o) },
+      ]}>
         <label className="map-search">
           <Search size={14} />
           <input data-testid="map-search" placeholder="Buscar workload, app, ns…" value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && match?.first) { lastQ.current = q; match.first.k ? animateTo(centerOn(match.first.x, match.first.y, match.first.k)) : zoomToBox(match.first.x, match.first.y, match.first.r) } if (e.key === 'Escape') setQ('') }} />
         </label>
         {q.trim() && <span className="map-count" data-testid="map-matches">{match ? match.tiles.size + (match.islands.size - match.islandsWithTiles.size) : 0} resultado(s)</span>}
-        <button className="map-toggle" data-testid="map-ns-filter" onClick={() => setNsOpen((o) => !o)}><Server size={14} /> Namespaces{selected.size ? ` (${selected.size})` : ''}</button>
-        <button className={`map-toggle${hideSystem && hasUserNs ? ' on' : ''}`} data-testid="map-hide-system" onClick={() => setHideSystem((v) => !v)} title="Oculta kube-*, openshift-*">Ocultar sistema</button>
-        <button className={`map-toggle${onlyProblems ? ' on' : ''}`} data-testid="map-problems" onClick={() => setOnlyProblems((v) => !v)}><TriangleAlert size={14} /> Só com problemas{nProblems ? ` (${nProblems})` : ''}</button>
-        <button className={`map-toggle${traffic ? ' on' : ''}`} data-testid="map-traffic" onClick={() => setTraffic((v) => !v)} title="Arestas de tráfego observado (Caretta ou Hubble), com volume e direção">
-          <Activity size={14} /> Tráfego{traffic && placed.edges.length ? ` (${placed.edges.length})` : ''}
-        </button>
         {map.truncated && <span className="badge badge-ro" title="O mapa mostra os primeiros workloads">truncado</span>}
-        <span className="spacer" />
-        {(loading || pending) && <span className="spinner" />}
-        <button onClick={reload} data-testid="map-refresh"><RefreshCw size={14} /> Recarregar</button>
-        <button className="map-toggle" data-testid="map-settings" title="Configurações do mapa" aria-label="Configurações do mapa" onClick={() => setSettingsOpen((o) => !o)}><Settings2 size={14} /></button>
-      </div>
+      </PanelHeader>
       {settingsOpen && (
         <>
           <div className="map-away" onClick={() => setSettingsOpen(false)} />
@@ -330,7 +327,7 @@ function MapView({ clusterId }: { clusterId: string }) {
       <div className="map-foot" data-testid="map-summary">
         <span>{scope} · <b>{layout.totals.namespaces}</b> namespaces / <b>{layout.totals.workloads}</b> workloads / <b>{layout.totals.pods}</b> pods / <b>{layout.totals.apps}</b> apps / <b>{layout.totals.services}</b> services</span>
         <span className="muted"><Filter size={11} style={{ verticalAlign: -1 }} /> {hideSystem && hasUserNs && !selected.size ? 'sistema oculto' : 'todos os namespaces'}</span>
-        <span className="muted" data-testid="map-renderer-label" title="Renderizador do palco (limiar nas configurações do mapa)">{renderer === 'webgl' ? 'WebGL' : 'SVG'}</span>
+        <span className="muted" data-testid="map-renderer-label" title={renderer === 'webgl' ? 'Desenho acelerado pela placa de vídeo (WebGL), usado em mapas grandes; o limiar fica nas configurações do mapa' : 'Desenho padrão (SVG); mapas grandes passam a usar a placa de vídeo (limiar nas configurações do mapa)'}>{renderer === 'webgl' ? 'acelerado (GPU)' : 'padrão'}</span>
         <span className="legend">
           <span><i style={{ background: 'var(--ok)' }} />{podTotals.ok} saudáveis</span>
           <span><i style={{ background: 'var(--warn)' }} />{podTotals.warn} atenção</span>

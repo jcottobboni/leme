@@ -272,6 +272,8 @@ function TopologyInner({ clusterId, namespace, group: kindGroup, kind, name, lea
 
   /** Group of the controller that owns an aggregate: the owner card in the graph, the built-in map, or the only kind with that name. */
   const ownerOf = (n: GraphNode) => {
+    // The engine names the owner of an aggregate (group included); older engines only had the id.
+    if (n.owner) return { kind: n.owner.kind, ns: n.namespace, name: n.owner.name, group: n.owner.group }
     const [, k, ns, owner] = n.id.split('/')
     const card = raw?.nodes.find((x) => !x.count && x.kind === k && x.name === owner && (x.namespace ?? '') === (ns ?? ''))
     const group = card ? card.group : k in OWNER_GROUPS ? OWNER_GROUPS[k] : findByKind(clusterId, k)?.group

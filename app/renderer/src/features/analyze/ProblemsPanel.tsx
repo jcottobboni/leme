@@ -1,7 +1,7 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { openPanel, useApp, type OpenOptions } from '../../store'
-import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, Partial, useAsync } from '../common'
 import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import { CircleCheck, Stethoscope } from 'lucide-react'
 import { SEVERITIES, SEV_LABEL, analyzeApi } from './api'
@@ -16,7 +16,8 @@ export function openProblems(clusterId: string, opts?: OpenOptions) {
 export function ProblemsPanel({ params }: IDockviewPanelProps<{ clusterId: string }>) {
   const { clusterId } = params
   const ns = useApp((s) => s.namespace[clusterId] ?? '')
-  const { data, error, loading, reload } = useAsync(() => analyzeApi.namespace(clusterId, ns), [clusterId, ns])
+  const { data: res, error, loading, reload } = useAsync(() => analyzeApi.namespace(clusterId, ns), [clusterId, ns])
+  const data = res?.findings
   const counts = (s: string) => data?.filter((f) => f.severity === s).length ?? 0
   return (
     <ClusterGate clusterId={clusterId}>
@@ -30,6 +31,7 @@ export function ProblemsPanel({ params }: IDockviewPanelProps<{ clusterId: strin
         </PanelHeader>
         <ErrorBanner error={error} />
         <div className="obj-body">
+          <Partial errors={res?.errors} />
           {data && data.length === 0 && <div className="empty an-empty"><CircleCheck size={24} className="s-ok" /><span>Nenhum problema encontrado {ns ? <>em <b>{ns}</b></> : 'no cluster'}.</span></div>}
           <div className="an-list">
             {SEVERITIES.filter(counts).map((s) => (

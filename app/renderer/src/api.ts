@@ -173,7 +173,7 @@ export interface Overview {
 export interface NamespaceStat { name: string; pods: Record<string, number>; requests: Res; limits: Res; usage?: Usage }
 
 // --- Graph ---
-export interface GraphNode { id: string; group: string; kind: string; name: string; namespace?: string; health: Health; status?: string; count?: number; pods?: Record<string, number>; ref?: boolean; missing?: boolean; app?: string }
+export interface GraphNode { id: string; group: string; kind: string; name: string; namespace?: string; health: Health; status?: string; count?: number; pods?: Record<string, number>; ref?: boolean; missing?: boolean; app?: string; /** Aggregates: the controller owning the pods. */ owner?: { group: string; kind: string; name: string } }
 export interface GraphEdge { from: string; to: string; rel: string }
 export interface Graph { root?: string; nodes: GraphNode[]; edges: GraphEdge[]; truncated?: boolean; errors?: Record<string, string> }
 

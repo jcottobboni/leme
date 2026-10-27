@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, ApiError, type KubeEvent, type ObjectView, type Ref } from '../api'
 import { findKind, findResource, openPanel, useApp, type OpenOptions } from '../store'
@@ -8,14 +8,16 @@ import { absDate, age, ago, healthOfStatus } from '../format'
 import { useWatch } from '../useWatch'
 import { YamlDiff, YamlEditor } from './Monaco'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
-import { TopologyView } from '../features/topology/Topology'
-import { MetricsView } from '../features/metrics/Metrics'
 import { Revisions } from '../features/workspace/Revisions'
 import { ObjectSecurity } from '../features/security/ObjectSecurity'
 import { DiagnosisTab } from '../features/analyze/DiagnosisTab'
 import { openCopilot } from '../features/ai/CopilotPanel'
 import { api3 } from '../api'
 import { Copy, ExternalLink, FilePen, Hammer, PanelTopOpen, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+
+// Heavy views (xyflow graph, uPlot charts) load only when their tab opens.
+const TopologyView = lazy(() => import('../features/topology/Topology').then((m) => ({ default: m.TopologyView })))
+const MetricsView = lazy(() => import('../features/metrics/Metrics').then((m) => ({ default: m.MetricsView })))
 
 export interface ObjectParams {
   clusterId: string
@@ -233,8 +235,10 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         )}
         {tab === 'events' && obj && <EventsList clusterId={clusterId} namespace={namespace ?? obj.metadata?.namespace ?? ''} uid={obj.metadata?.uid} />}
         {tab === 'diagnosis' && <DiagnosisTab clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
-        {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} group={params.group} kind={params.kind} name={name} />}
-        {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
+        <Suspense fallback={<div className="pad"><span className="spinner" /></div>}>
+          {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} group={params.group} kind={params.kind} name={name} />}
+          {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
+        </Suspense>
         {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
         {tab === 'revisions' && namespace && <Revisions clusterId={clusterId} namespace={namespace} name={name} readOnly={readOnly} />}
       </div>
