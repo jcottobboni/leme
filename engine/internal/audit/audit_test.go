@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -26,7 +27,8 @@ func TestAddRecentNewestFirst(t *testing.T) {
 		t.Fatalf("all: %d", len(all))
 	}
 	st, err := os.Stat(l.path)
-	if err != nil || st.Mode().Perm() != 0o600 {
+	// Windows has no POSIX permission bits.
+	if err != nil || (runtime.GOOS != "windows" && st.Mode().Perm() != 0o600) {
 		t.Fatalf("mode: %v %v", st, err)
 	}
 }

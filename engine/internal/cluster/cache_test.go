@@ -56,7 +56,8 @@ func TestCachedTTLAndErrors(t *testing.T) {
 	if v, err := Cached(s, testKey{}, time.Minute, false, func() (string, error) { return "ok", nil }); err != nil || v != "ok" {
 		t.Fatalf("after failure: %q %v", v, err)
 	}
-	if v, _ := Cached(s, testKey{}, time.Nanosecond, false, func() (string, error) { return "new", nil }); v != "new" {
+	time.Sleep(20 * time.Millisecond) // coarse clocks (Windows) would otherwise see no time passing
+	if v, _ := Cached(s, testKey{}, time.Millisecond, false, func() (string, error) { return "new", nil }); v != "new" {
 		t.Fatalf("expired value reused: %q", v)
 	}
 	// Keys of different types never collide.
