@@ -55,4 +55,4 @@ Leme does **not** bundle or link these tools. If they are installed, the app run
 
 The OpenShift test CRDs (`app/e2e/fixtures/openshift-crds.yaml`) were written for this project, without copying openshift/api; they only mimic the type names.
 
-The app icon and logo (`app/build/icon.svg`) are original artwork: an isometric cube with a status dot.
+The app icon and logo (`app/build/icon.svg`, `features/shell/Logo.tsx`) draw the Lucide "ship-wheel" glyph (ISC, see lucide-react above) on an original gradient background.
