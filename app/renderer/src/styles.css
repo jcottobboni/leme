@@ -685,3 +685,9 @@ fieldset.ep legend { color: var(--muted); font-size: 11px; padding: 0 4px; }
 .cp-dialog .grow input { width: 100%; }
 .cluster-list.compact .prov { display: none; }
 .img-row { align-items: center; }
+
+/* Error boundary: a panel that failed to render */
+.error-boundary { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 24px; height: 100%; text-align: center; color: var(--text); }
+.error-boundary svg { color: var(--error); }
+.error-boundary code { max-width: 560px; color: var(--error-text); background: var(--chip-bg); padding: 6px 10px; border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.error-boundary.full { height: 100vh; background: var(--bg); }

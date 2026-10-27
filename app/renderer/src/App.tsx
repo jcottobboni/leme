@@ -14,6 +14,7 @@ import { LogsPanel } from './components/LogsPanel'
 import { TerminalPanel } from './components/TerminalPanel'
 import { ForwardsPanel } from './components/ForwardsPanel'
 import { ClusterGate } from './features/common'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { HelmReleasesPanel } from './features/helm/HelmReleases'
 import { HelmReleasePanel } from './features/helm/HelmRelease'
 import { HelmChartsPanel } from './features/helm/HelmCharts'
@@ -50,7 +51,14 @@ function gated<P extends { clusterId?: string }>(C: React.FunctionComponent<IDoc
   )
 }
 
-const components = {
+// Each panel renders inside its own error boundary: a failure stays in that tab.
+function guard(map: Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>) {
+  return Object.fromEntries(Object.entries(map).map(([k, C]) => [k, (props: IDockviewPanelProps<any>) => (
+    <ErrorBoundary label={props.api?.title ?? k}><C {...props} /></ErrorBoundary>
+  )]))
+}
+
+const components = guard({
   welcome: Welcome,
   grid: gated(ResourceGrid),
   object: gated(ObjectPanel),
@@ -76,7 +84,7 @@ const components = {
   argocd: ArgoPanel,
   grafana: GrafanaPanel,
   istio: IstioPanel,
-} as Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>
+} as Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>)
 
 // Panels that start streams or shells are never restored from a saved layout.
 const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog'])

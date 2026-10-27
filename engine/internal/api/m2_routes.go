@@ -149,6 +149,9 @@ func (s *Server) activeProm(ctx context.Context, sess *cluster.Session) (setting
 
 func (s *Server) promConfig(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
 	cands := s.candidates(r.Context(), sess, r.URL.Query().Get("refresh") == "1")
+	if cands == nil {
+		cands = []prom.Candidate{}
+	}
 	active, saved, ok := s.activeProm(r.Context(), sess)
 	out := map[string]any{"candidates": cands, "saved": saved}
 	if ok {

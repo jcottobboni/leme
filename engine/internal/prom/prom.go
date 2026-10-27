@@ -296,7 +296,7 @@ func Detect(ctx context.Context, sess *cluster.Session) ([]Candidate, error) {
 			}
 		}
 	}
-	var out []Candidate
+	out := []Candidate{} // never null in JSON: the settings dialog reads its length
 	for _, s := range svcs {
 		if c, ok := score(s); ok {
 			out = append(out, c)

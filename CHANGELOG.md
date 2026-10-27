@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.5.3] - 2026-10-27
+
+### Added
+- Kubeconfig files and folders can be added in the app ("Arquivos kubeconfig"), with bounded folder
+  scans; only the paths are stored (#4, contributed).
+- "Topologia do projeto": an OpenShift-console-style topology of one namespace, with status rings,
+  grouping by application or Helm release, decorators and draggable layout (#4, contributed).
+- Pod shells can be allowed without unlocking writes ("Liberar shell"); production asks for the
+  context name (#3, contributed).
+
+### Changed
+- A context on the same API server as a production context counts as production (#3, contributed).
+
+### Fixed
+- "Configurar Prometheus" on a cluster without any Prometheus blanked the window (the engine sent
+  `candidates: null`). Each panel now renders inside an error boundary, so a failure stays in that
+  tab instead of blanking the whole app.
+- The overview blanked the window on namespaces without warnings or without access to nodes (#2,
+  contributed).
+- Links from cluster data in the project topology (Route host, `vcs-uri`) open only when http(s).
+
 ## [0.5.2] - 2026-10-27
 
 ### Fixed

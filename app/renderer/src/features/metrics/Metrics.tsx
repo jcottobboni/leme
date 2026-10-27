@@ -99,7 +99,7 @@ export function PromSettings({ clusterId, onClose }: { clusterId: string; onClos
   const [test, setTest] = useState<string>()
   useEffect(() => {
     api.promConfig(clusterId, true).then((r) => {
-      setCands(r.candidates)
+      setCands(r.candidates ?? [])
       setSaved(r.saved)
       if (r.active) setCfg(r.active)
     }, (e) => setTest(e.message))
