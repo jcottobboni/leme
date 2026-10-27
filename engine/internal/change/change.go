@@ -214,6 +214,12 @@ func (st *Store) Apply(ctx context.Context, s *cluster.Session, tok string, gate
 	}
 	next := p.after.DeepCopy()
 	next.SetResourceVersion(p.rv)
+	// p.after has no status (clean drops it from the diff). Kinds without a status subresource
+	// (the Argo CD Application CRD) would lose it on Update, so the live status is sent back.
+	// With a status subresource the API server ignores it in the body.
+	if st, ok := cur.Object["status"]; ok {
+		next.Object["status"] = st
+	}
 	if _, err := rc.Update(ctx, next, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}, FieldManager: fieldManager}); err != nil {
 		return nil, fmt.Errorf("dry-run failed: %w", err)
 	}

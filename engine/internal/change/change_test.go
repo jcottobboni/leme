@@ -89,6 +89,29 @@ func TestProposeAndApply(t *testing.T) {
 	}
 }
 
+func TestApplyKeepsStatus(t *testing.T) {
+	s, dyn := session(t, true)
+	ctx := context.Background()
+	rc := dyn.Resource(depRes.GVR()).Namespace("demo")
+	cur, _ := rc.Get(ctx, "broken", metav1.GetOptions{})
+	cur.Object["status"] = map[string]any{"history": []any{map[string]any{"id": int64(1)}}}
+	if _, err := rc.Update(ctx, cur, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	st := NewStore()
+	p, err := st.Propose(ctx, s, Ref{Group: "apps", Kind: "Deployment", Namespace: "demo", Name: "broken"}, imagePatch, "fix image", "copilot", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Apply(ctx, s, p.Token, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := rc.Get(ctx, "broken", metav1.GetOptions{})
+	if h, _, _ := unstructured.NestedSlice(got.Object, "status", "history"); len(h) != 1 {
+		t.Fatalf("status lost on apply: %v", got.Object["status"])
+	}
+}
+
 func TestRefusals(t *testing.T) {
 	s, _ := session(t, true)
 	st := NewStore()
