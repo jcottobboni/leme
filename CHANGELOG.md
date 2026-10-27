@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
-## [Unreleased]
+## [0.5.1] - 2026-10-27
 
 ### Changed
 - **Cluster map, visual refresh (SVG):** text and bars keep a readable screen size at every zoom (no
