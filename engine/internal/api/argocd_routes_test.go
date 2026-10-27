@@ -197,3 +197,16 @@ func TestArgoListAndDetail(t *testing.T) {
 		t.Fatalf("propose without CRDs: %d", w.Code)
 	}
 }
+
+func TestArgoSyncRemoteDestinationNote(t *testing.T) {
+	s, sess, dyn := argoFixture(t, false, "Succeeded")
+	app, _ := dyn.Resource(argoAppRes.GVR()).Namespace("argocd").Get(context.Background(), "guestbook", metav1.GetOptions{})
+	_ = unstructured.SetNestedField(app.Object, "https://prod.example.com:6443", "spec", "destination", "server")
+	if _, err := dyn.Resource(argoAppRes.GVR()).Namespace("argocd").Update(context.Background(), app, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	w := argoCall(s.argoPropose, sess, http.MethodPost, `{"action":"sync"}`, guestbook)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Destino remoto (https://prod.example.com:6443)") {
+		t.Fatalf("remote note: %d %s", w.Code, w.Body)
+	}
+}

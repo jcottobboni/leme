@@ -99,8 +99,12 @@ func (s *Server) argoPropose(w http.ResponseWriter, r *http.Request, sess *clust
 			summary += " com prune"
 			notes = append(notes, "Prune: o Argo CD apaga do cluster os recursos que não estão mais no Git.")
 		}
-		if argocd.ParseApp(cur).Automated {
+		app := argocd.ParseApp(cur)
+		if app.Automated {
 			notes = append(notes, "Esta Application tem sync automático: o controlador já sincroniza sozinho.")
+		}
+		if !app.Local {
+			notes = append(notes, remoteNote(app.Destination))
 		}
 	case "refresh":
 		patch = argocd.RefreshPatch(req.Hard)
@@ -121,6 +125,16 @@ func (s *Server) argoPropose(w http.ResponseWriter, r *http.Request, sess *clust
 	entry.Result = "ok"
 	_ = s.audit.Add(entry)
 	writeJSON(w, argoProposal{Proposal: p.View(false), Notes: notes})
+}
+
+// remoteNote warns that the destination is another cluster: the read-only lock and the production
+// confirmation of the connected cluster do not protect it.
+func remoteNote(d argocd.Destination) string {
+	dest := d.Name
+	if dest == "" {
+		dest = d.Server
+	}
+	return "Destino remoto (" + dest + "): o Argo CD aplica em outro cluster, que o Leme não vê. A trava de somente leitura e a confirmação de produção valem só para o cluster conectado."
 }
 
 // argoApply applies a proposal made by this feature. Proposals from other sources (Copilot, MCP)

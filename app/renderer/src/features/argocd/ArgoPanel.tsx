@@ -254,6 +254,7 @@ function AppDetail({ clusterId, ns, name, onClose, onChanged }: { clusterId: str
       )}
       {proposal && (
         <ProposalReview clusterId={clusterId} p={proposal} readOnly={readOnly}
+          remote={d && !d.local ? d.destination.name || d.destination.server || 'outro cluster' : undefined}
           onClose={() => setProposal(undefined)}
           onApplied={() => {
             setProposal(undefined)
@@ -292,8 +293,12 @@ function KindGroup({ clusterId, kind, list }: { clusterId: string; kind: string;
   )
 }
 
-function ProposalReview({ clusterId, p, readOnly, onClose, onApplied }: { clusterId: string; p: ArgoProposal; readOnly: boolean; onClose: () => void; onApplied: () => void }) {
+function ProposalReview({ clusterId, p, readOnly, remote, onClose, onApplied }: { clusterId: string; p: ArgoProposal; readOnly: boolean; remote?: string; onClose: () => void; onApplied: () => void }) {
   const [confirm, setConfirm] = useState(false)
+  const [typed, setTyped] = useState('')
+  // A sync on another cluster is not covered by the connected cluster's lock or production
+  // confirmation: the Application name must be typed.
+  const typedRequired = !!remote && p.summary.startsWith('Sync')
   const [applying, setApplying] = useState(false)
   const [err, setErr] = useState<string>()
   const risky = (p.risks?.length ?? 0) > 0
@@ -341,7 +346,20 @@ function ProposalReview({ clusterId, p, readOnly, onClose, onApplied }: { cluste
           </button>
         </div>
       </Modal>
-      {confirm && (
+      {confirm && typedRequired && (
+        <Modal title="Confirmar pedido ao Argo CD" onClose={() => { setConfirm(false); setTyped('') }}>
+          <div data-testid="argo-confirm-remote">
+            <p>Gravar <b>{p.summary.toLowerCase()}</b> em <b>{p.ref.namespace}/{p.ref.name}</b>? O controlador do Argo CD executa a operação no cluster de destino <b>{remote}</b>, que não é o cluster conectado: a trava de somente leitura e a confirmação de produção do Leme não o protegem.</p>
+            <p>Digite <code>{p.ref.name}</code> para confirmar.</p>
+            <input autoFocus className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="nome da Application" data-testid="argo-confirm-name" />
+          </div>
+          <div className="modal-actions">
+            <button onClick={() => { setConfirm(false); setTyped('') }}>Cancelar</button>
+            <button className="danger" disabled={typed !== p.ref.name} onClick={apply}>Aplicar</button>
+          </div>
+        </Modal>
+      )}
+      {confirm && !typedRequired && (
         <ConfirmDialog title="Confirmar pedido ao Argo CD" confirmLabel="Aplicar" danger={p.summary.includes('prune')}
           body={<p>Gravar <b>{p.summary.toLowerCase()}</b> em <b>{p.ref.namespace}/{p.ref.name}</b>? O controlador do Argo CD executa a operação no cluster de destino.</p>}
           onConfirm={apply} onCancel={() => setConfirm(false)} />
