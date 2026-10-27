@@ -5,7 +5,7 @@ import {
   type Edge, type Node, type NodeChange, type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowDown, ArrowRight, Focus, Maximize, Minus, Plus, RefreshCw, X } from 'lucide-react'
+import { ArrowDown, ArrowLeftRight, ArrowRight, Focus, Maximize, Minus, Plus, RefreshCw, X } from 'lucide-react'
 import { api, type Graph, type GraphNode } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
@@ -17,6 +17,8 @@ import { layoutGraph, type Dir, type LayoutResult } from './layout'
 import {
   CARD_W, EDGE_COLORS, HEALTH_COLORS, OTHER, distinctApps, hueOf, nodeSize, podStats, relClass, squares, total, type Health, type PodStats,
 } from './model'
+import { TRAFFIC_EVENT, TrafficEdgeView, TrafficExtNode, useTopologyTraffic } from './traffic'
+import { sourceLabel } from '../traffic/api'
 import './topology.css'
 
 const DEPENDENCY_KINDS = ['ConfigMap', 'Secret', 'ServiceAccount', 'RoleBinding', 'Role', 'ClusterRole', 'Node', 'PersistentVolume', 'StorageClass']
@@ -75,12 +77,13 @@ const RegionNode = memo(function RegionNode({ data }: NodeProps<Node<RegionData>
   )
 })
 
-const nodeTypes = { kind: KindNode, region: RegionNode }
+const nodeTypes = { kind: KindNode, region: RegionNode, trfExt: TrafficExtNode }
+const edgeTypes = { trf: TrafficEdgeView }
 
 type Focus = { kind: string; name: string; ns: string }
 type Lay = { g: Graph; res: LayoutResult; stats: Map<string, PodStats>; dir: Dir }
 
-export function TopologyView(props: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode }) {
+export function TopologyView(props: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
   return (
     <ReactFlowProvider>
       <TopologyInner {...props} />
@@ -88,7 +91,7 @@ export function TopologyView(props: { clusterId: string; namespace: string; kind
   )
 }
 
-function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode }) {
+function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: trafficInit }: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
   const theme = useTheme((s) => s.theme)
   const { fitView } = useReactFlow()
   const root = useRef<HTMLDivElement>(null)
@@ -106,6 +109,13 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
   const [selected, setSelected] = useState<string>()
   const [focus, setFocus] = useState<Focus>()
   const [moved, setMoved] = useState<Map<string, { x: number; y: number }>>(new Map())
+  const [traffic, setTraffic] = useState(!!trafficInit)
+
+  useEffect(() => {
+    const on = (e: Event) => (e as CustomEvent<string>).detail === clusterId && setTraffic(true)
+    window.addEventListener(TRAFFIC_EVENT, on)
+    return () => window.removeEventListener(TRAFFIC_EVENT, on)
+  }, [clusterId])
 
   const effKind = focus?.kind ?? kind
   const effName = focus?.name ?? name
@@ -234,6 +244,17 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
     })
   }, [lay, selected, labels, theme])
 
+  const trf = useTopologyTraffic(clusterId, effNs, traffic, lay?.g.nodes, baseNodes, lay?.dir ?? dir, selected)
+  const allNodes = useMemo(() => (trf.nodes.length ? [...nodes, ...trf.nodes.map((n) => (moved.has(n.id) ? { ...n, position: moved.get(n.id)! } : n))] : nodes), [nodes, trf.nodes, moved])
+  const allEdges = useMemo(() => (trf.edges.length ? [...edges, ...trf.edges] : edges), [edges, trf.edges])
+  // External endpoints sit beside the layout: refit when that set changes so they are on screen.
+  const extIds = trf.nodes.map((n) => n.id).join('|')
+  useEffect(() => {
+    if (!extIds) return
+    const t = setTimeout(() => fitView({ padding: FIT_PADDING, maxZoom: 1, duration: 250 }), 60)
+    return () => clearTimeout(t)
+  }, [extIds, fitView])
+
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const pos = changes.filter((c) => c.type === 'position' && c.position)
     if (!pos.length) return
@@ -274,6 +295,7 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
         <input className="search" placeholder="Destacar…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className={`tp-tog ${showDeps ? 'on' : ''}`} aria-pressed={showDeps} onClick={() => setShowDeps((v) => !v)}>config, RBAC e nodes</button>
         <button className={`tp-tog ${labels ? 'on' : ''}`} aria-pressed={labels} onClick={() => setLabels((v) => !v)}>rótulos</button>
+        <button className={`tp-tog ${traffic ? 'on' : ''}`} aria-pressed={traffic} data-testid="topology-traffic" title="Conexões observadas (Caretta ou Hubble pelo Prometheus)" onClick={() => setTraffic((v) => !v)}><ArrowLeftRight size={13} /> Tráfego</button>
         <button className={`tp-tog ${group ? 'on' : ''}`} aria-pressed={group} data-testid="group-toggle" title={apps ? `${apps} apps` : 'Nenhuma app identificada'} onClick={() => setGroupPref(!group)}>Agrupar por app</button>
         <span className="tp-seg" role="group" aria-label="Direção">
           <button className={dir === 'RIGHT' ? 'on' : ''} title="Horizontal" aria-label="Horizontal" onClick={() => setDir('RIGHT')}><ArrowRight size={14} /></button>
@@ -289,7 +311,7 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
       <div className="flow" data-testid="topology">
         {raw && (
           <ReactFlow
-            nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange}
+            nodes={allNodes} edges={allEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange}
             onNodeClick={(_, node) => {
               root.current?.focus()
               setSelected(node.type === 'kind' ? node.id : undefined)
@@ -332,6 +354,7 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
                 </div>
               </Panel>
             )}
+            {traffic && <TrafficStatus t={trf} ns={effNs} />}
             <ZoomControls />
             {nodes.length > 12 && (
               <MiniMap pannable zoomable className="tp-mini" nodeStrokeWidth={0} nodeColor={(n) => (n.type === 'kind' ? hc[(n.data as CardData).n.health as Health] ?? hc.neutral : 'transparent')} maskColor="color-mix(in srgb, var(--bg) 62%, transparent)" />
@@ -342,6 +365,17 @@ function TopologyInner({ clusterId, namespace, kind, name, leading }: { clusterI
       </div>
     </div>
   )
+}
+
+function TrafficStatus({ t, ns }: { t: ReturnType<typeof useTopologyTraffic>; ns: string }) {
+  const s = t.snapshot
+  let body: ReactNode
+  if (t.error) body = <><b>Tráfego indisponível.</b> {t.error}</>
+  else if (!s.available && t.loading && !s.hint) body = <>Lendo o tráfego observado…</>
+  else if (!s.available) body = <><b>Sem dados de tráfego.</b> {s.hint || 'A fonte de tráfego não respondeu.'}</>
+  else if (!s.edges.length) body = <>Nenhuma conexão observada em <b>{ns}</b> nos últimos {s.window ?? '5m'} ({sourceLabel(s.source)}).</>
+  else body = <><b>{t.shown}</b> conex{t.shown === 1 ? 'ão' : 'ões'} observada{t.shown === 1 ? '' : 's'} · {sourceLabel(s.source)} · últimos {s.window ?? '5m'}</>
+  return <Panel position="bottom-center" className="trf-banner" data-testid="topology-traffic-status">{body}</Panel>
 }
 
 function ZoomControls() {
@@ -362,25 +396,27 @@ function filterDeps(g: Graph, root?: string): Graph {
   return { ...g, nodes: g.nodes.filter((n) => !hide.has(n.id)), edges: g.edges.filter((e) => !hide.has(e.from) && !hide.has(e.to)) }
 }
 
-export function openTopology(clusterId: string, namespace?: string, opts?: OpenOptions) {
-  openPanel(`topology:${clusterId}`, 'topology', 'Topologia', { clusterId, namespace }, opts)
+export function openTopology(clusterId: string, namespace?: string, opts?: OpenOptions, extra?: { traffic?: boolean }) {
+  openPanel(`topology:${clusterId}`, 'topology', 'Topologia', { clusterId, namespace, traffic: extra?.traffic }, opts)
+  // An already open topology keeps its params: ask it to turn the overlay on.
+  if (extra?.traffic) window.dispatchEvent(new CustomEvent(TRAFFIC_EVENT, { detail: clusterId }))
 }
 
-export function TopologyPanel({ params }: IDockviewPanelProps<{ clusterId: string; namespace?: string }>) {
+export function TopologyPanel({ params }: IDockviewPanelProps<{ clusterId: string; namespace?: string; traffic?: boolean }>) {
   return (
     <ClusterGate clusterId={params.clusterId}>
-      <NamespaceTopology clusterId={params.clusterId} initial={params.namespace} />
+      <NamespaceTopology clusterId={params.clusterId} initial={params.namespace} traffic={params.traffic} />
     </ClusterGate>
   )
 }
 
-function NamespaceTopology({ clusterId, initial }: { clusterId: string; initial?: string }) {
+function NamespaceTopology({ clusterId, initial, traffic }: { clusterId: string; initial?: string; traffic?: boolean }) {
   const selected = useApp((s) => s.namespace[clusterId] ?? '')
   const fallback = useApp((s) => s.connected[clusterId]?.defaultNamespace || 'default')
   const ns = selected || initial || fallback
   return (
     <div className="object-panel">
-      <TopologyView clusterId={clusterId} namespace={ns} leading={<NamespaceSelect clusterId={clusterId} effective={ns} />} />
+      <TopologyView clusterId={clusterId} namespace={ns} traffic={traffic} leading={<NamespaceSelect clusterId={clusterId} effective={ns} />} />
     </div>
   )
 }

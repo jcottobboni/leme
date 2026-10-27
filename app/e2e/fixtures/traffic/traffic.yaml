@@ -1,0 +1,189 @@
+# Observed-traffic fixture for the Leme test cluster (kind ONLY). Nothing real is installed:
+# - demo/m5-traffic-backend: the server side of the fake link (nginx);
+# - m5-traffic/m5-traffic-exporter: busybox httpd + CGI emitting an increasing caretta_links_observed
+#   for demo/web -> demo/m5-traffic-backend:80 (2048 bytes/s) and demo/web -> api.example.net:443
+#   (external, 512 bytes/s);
+# - m5-traffic/m5-traffic-tsdb: a private Prometheus scraping only that exporter;
+# - m5-traffic/m5-traffic-empty-tsdb: a Prometheus with no series at all (the "no source" case).
+# The Prometheus services deliberately avoid "prometheus" in their names and labels so the engine's
+# auto-detection keeps choosing the shared monitoring/prometheus-server for every other test.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-traffic-backend
+  namespace: demo
+  labels: { app: m5-traffic-backend, leme-fixture: m5-traffic }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: m5-traffic-backend }
+  template:
+    metadata:
+      labels: { app: m5-traffic-backend, leme-fixture: m5-traffic }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 80 }]
+          resources: { requests: { cpu: 5m, memory: 16Mi }, limits: { memory: 64Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-traffic-backend
+  namespace: demo
+  labels: { leme-fixture: m5-traffic }
+spec:
+  selector: { app: m5-traffic-backend }
+  ports: [{ port: 80, targetPort: 80 }]
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m5-traffic
+  labels: { leme-fixture: m5-traffic }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: m5-traffic-exporter
+  namespace: m5-traffic
+data:
+  metrics: |
+    #!/bin/sh
+    # Caretta-shaped link counter that grows 2048 bytes per second.
+    now=$(date +%s)
+    printf 'Content-Type: text/plain; version=0.0.4\r\n\r\n'
+    echo '# HELP caretta_links_observed Total bytes observed between two workloads (fixture).'
+    echo '# TYPE caretta_links_observed gauge'
+    echo "caretta_links_observed{client_kind=\"Deployment\",client_namespace=\"demo\",client_name=\"web\",server_kind=\"Deployment\",server_namespace=\"demo\",server_name=\"m5-traffic-backend\",server_port=\"80\",role=\"1\"} $((now * 2048))"
+    echo "caretta_links_observed{client_kind=\"Deployment\",client_namespace=\"demo\",client_name=\"web\",server_kind=\"external\",server_namespace=\"\",server_name=\"api.example.net\",server_port=\"443\",role=\"1\"} $((now * 512))"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-traffic-exporter
+  namespace: m5-traffic
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: m5-traffic-exporter }
+  template:
+    metadata:
+      labels: { app: m5-traffic-exporter }
+    spec:
+      containers:
+        - name: httpd
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: [httpd, -f, -v, -p, '8080', -h, /www]
+          ports: [{ containerPort: 8080, name: http }]
+          volumeMounts: [{ name: cgi, mountPath: /www/cgi-bin }]
+          resources: { requests: { cpu: 5m, memory: 8Mi }, limits: { memory: 32Mi } }
+      volumes:
+        - name: cgi
+          configMap: { name: m5-traffic-exporter, defaultMode: 0555 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-traffic-exporter
+  namespace: m5-traffic
+spec:
+  selector: { app: m5-traffic-exporter }
+  ports: [{ port: 8080, targetPort: 8080, name: http }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: m5-traffic-tsdb
+  namespace: m5-traffic
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+    scrape_configs:
+      - job_name: m5-traffic-exporter
+        metrics_path: /cgi-bin/metrics
+        fallback_scrape_protocol: PrometheusText0.0.4
+        static_configs:
+          - targets: [m5-traffic-exporter.m5-traffic.svc:8080]
+  empty.yml: |
+    global:
+      scrape_interval: 1m
+    scrape_configs: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-traffic-tsdb
+  namespace: m5-traffic
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: m5-traffic-tsdb }
+  template:
+    metadata:
+      labels: { app: m5-traffic-tsdb }
+    spec:
+      containers:
+        - name: tsdb
+          image: prom/prometheus:v3.5.0
+          imagePullPolicy: IfNotPresent
+          args: [--config.file=/etc/tsdb/prometheus.yml, --storage.tsdb.path=/data, --storage.tsdb.retention.time=2h]
+          ports: [{ containerPort: 9090, name: web }]
+          readinessProbe: { httpGet: { path: /-/ready, port: 9090 }, periodSeconds: 3 }
+          volumeMounts: [{ name: config, mountPath: /etc/tsdb }, { name: data, mountPath: /data }]
+          resources: { requests: { cpu: 20m, memory: 64Mi }, limits: { memory: 256Mi } }
+      volumes:
+        - name: config
+          configMap: { name: m5-traffic-tsdb }
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-traffic-tsdb
+  namespace: m5-traffic
+spec:
+  selector: { app: m5-traffic-tsdb }
+  ports: [{ port: 9090, targetPort: 9090, name: web }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: m5-traffic-empty-tsdb
+  namespace: m5-traffic
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: m5-traffic-empty-tsdb }
+  template:
+    metadata:
+      labels: { app: m5-traffic-empty-tsdb }
+    spec:
+      containers:
+        - name: tsdb
+          image: prom/prometheus:v3.5.0
+          imagePullPolicy: IfNotPresent
+          args: [--config.file=/etc/tsdb/empty.yml, --storage.tsdb.path=/data, --storage.tsdb.retention.time=1h]
+          ports: [{ containerPort: 9090, name: web }]
+          readinessProbe: { httpGet: { path: /-/ready, port: 9090 }, periodSeconds: 3 }
+          volumeMounts: [{ name: config, mountPath: /etc/tsdb }, { name: data, mountPath: /data }]
+          resources: { requests: { cpu: 10m, memory: 48Mi }, limits: { memory: 192Mi } }
+      volumes:
+        - name: config
+          configMap: { name: m5-traffic-tsdb }
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m5-traffic-empty-tsdb
+  namespace: m5-traffic
+spec:
+  selector: { app: m5-traffic-empty-tsdb }
+  ports: [{ port: 9090, targetPort: 9090, name: web }]
