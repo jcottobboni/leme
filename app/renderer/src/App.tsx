@@ -51,6 +51,8 @@ const TrafficPanel = lazyPanel(() => import('./features/traffic/TrafficPanel'), 
 const ArgoPanel = lazyPanel(() => import('./features/argocd/ArgoPanel'), 'ArgoPanel')
 const GrafanaPanel = lazyPanel(() => import('./features/grafana/GrafanaPanel'), 'GrafanaPanel')
 const IstioPanel = lazyPanel(() => import('./features/istio/IstioPanel'), 'IstioPanel')
+// M7: Flux CD.
+const FluxPanel = lazyPanel(() => import('./features/flux/FluxPanel'), 'FluxPanel')
 
 function Welcome(_: IDockviewPanelProps) {
   return <Home />
@@ -108,6 +110,7 @@ const components = Object.fromEntries(
     argocd: ArgoPanel,
     grafana: GrafanaPanel,
     istio: IstioPanel,
+    flux: FluxPanel,
   } as Record<string, PanelComponent>).map(([k, C]) => [k, panel(C, k)]),
 )
 

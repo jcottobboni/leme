@@ -24,7 +24,7 @@ import { TRAFFIC_EVENT, TrafficEdgeView, TrafficExtNode, useTopologyTraffic } fr
 import { sourceLabel } from '../traffic/api'
 import './topology.css'
 
-const DEPENDENCY_KINDS = ['ConfigMap', 'Secret', 'ServiceAccount', 'RoleBinding', 'Role', 'ClusterRole', 'Node', 'PersistentVolume', 'StorageClass']
+const DEPENDENCY_KINDS = ['ConfigMap', 'Secret', 'ServiceAccount', 'RoleBinding', 'Role', 'ClusterRole', 'Node', 'PersistentVolume', 'StorageClass', 'GatewayClass']
 const OWNER_GROUPS: Record<string, string> = { ReplicaSet: 'apps', StatefulSet: 'apps', DaemonSet: 'apps', Job: 'batch', DeploymentConfig: 'apps.openshift.io', ReplicationController: '' }
 
 // The summary sits above the canvas (not over it), so the fit only keeps room for the zoom controls.

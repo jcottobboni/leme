@@ -25,6 +25,7 @@ export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?
   { id: 'argocd', label: 'Argo CD', open: (id, o) => void import('../argocd/ArgoPanel').then((m) => m.openArgo(id, o)) },
   { id: 'grafana', label: 'Grafana e Prometheus', open: (id, o) => void import('../grafana/GrafanaPanel').then((m) => m.openGrafana(id, o)) },
   { id: 'istio', label: 'Istio', open: (id, o) => void import('../istio/IstioPanel').then((m) => m.openIstio(id, o)) },
+  { id: 'flux', label: 'Flux', open: (id, o) => void import('../flux/FluxPanel').then((m) => m.openFlux(id, o)) },
   { id: 'create', label: 'Novo recurso (YAML)', open: (id) => void import('../rbac/RbacPanel').then((m) => m.openCreate(id, 'blank', useApp.getState().namespace[id] || 'default')) },
 ]
 
