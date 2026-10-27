@@ -1,0 +1,11 @@
+/* Aggregated logs (M7). The terminal keeps its dark background; header and legend follow the theme. */
+.ml-panel > .toolbar, .ml-panel > .banner, .ml-legend { background: var(--panel); }
+.ml-panel .ml-sel { display: flex; min-width: 120px; flex: 0 1 220px; }
+.ml-panel .ml-sel input { width: 100%; }
+.ml-panel input.search.invalid { border-color: var(--error); }
+.ml-panel .ml-ns { flex-shrink: 0; }
+.ml-legend { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--line); max-height: 76px; overflow: auto; }
+.ml-pod { font-size: 11.5px; padding: 1px 8px; border-radius: 12px; gap: 6px; background: var(--chip-bg); color: var(--chip-text); border-color: transparent; }
+.ml-pod.off { opacity: 0.45; text-decoration: line-through; }
+.ml-pod.waiting { border-style: dashed; border-color: var(--line); }
+.ml-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }

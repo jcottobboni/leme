@@ -1,4 +1,5 @@
 import { openPanel, useApp, type OpenOptions } from '../../store'
+import { openMultiLogs } from '../logs/open'
 
 // Openers load their panel module on demand: importing them statically would pull every panel (and xyflow,
 // uplot…) into the initial bundle through the sidebar.
@@ -16,6 +17,8 @@ export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?
   { id: 'projtopo', label: 'Topologia do projeto', open: (id, o) => void import('../projtopo/ProjectTopology').then((m) => m.openProjectTopology(id, o)) },
   { id: 'map', label: 'Mapa do cluster', open: (id, o) => void import('../map/MapPanel').then((m) => m.openMap(id, o)) },
   { id: 'timeline', label: 'Timeline de eventos', open: (id, o) => void import('../timeline/Timeline').then((m) => m.openTimeline(id, o)) },
+  { id: 'changes', label: 'Mudanças (histórico)', open: (id, o) => void import('../timeline/Timeline').then((m) => m.openChanges(id, o)) },
+  { id: 'multilogs', label: 'Logs por rótulo', open: (id) => openMultiLogs({ clusterId: id, namespace: useApp.getState().namespace[id] || 'default' }) },
   { id: 'helm', label: 'Helm releases', open: (id, o) => openHelm(id, o) },
   { id: 'charts', label: 'Helm charts', open: (id, o) => void import('../helm/HelmReleases').then((m) => m.openCharts(id, o)) },
   { id: 'rbac', label: 'RBAC e permissões', open: (id, o) => void import('../rbac/RbacPanel').then((m) => m.openRbac(id, o)) },

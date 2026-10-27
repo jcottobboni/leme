@@ -6,7 +6,9 @@ import { openObject } from '../../components/ObjectPanel'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { ClusterGate } from '../common'
 import { PanelHeader } from '../../components/PanelHeader'
-import { CircleHelp, Play, Timer } from 'lucide-react'
+import { CircleHelp, History, Play, Timer } from 'lucide-react'
+import type { HeaderAction } from '../../components/PanelHeader'
+import { ChangesView } from '../history/ChangesView'
 import { buildRows, density, matches, type Filter, type Row } from './model'
 
 const LABEL_W = 300
@@ -17,6 +19,20 @@ const WINDOWS: [string, number][] = [['15 min', 15 * 60e3], ['1 h', 3600e3], ['6
 
 export function openTimeline(clusterId: string, opts?: OpenOptions) {
   openPanel(`timeline:${clusterId}`, 'timeline', 'Timeline', { clusterId }, opts)
+}
+
+/** The Timeline opened on the persistent change history ("Mudanças"). */
+export function openChanges(clusterId: string, opts?: OpenOptions) {
+  openPanel(`changes:${clusterId}`, 'timeline', 'Mudanças', { clusterId, mode: 'changes' }, opts)
+}
+
+type Mode = 'events' | 'changes'
+
+function modeAction(mode: Mode, set: (m: Mode) => void): HeaderAction {
+  return {
+    key: 'mode', label: 'Visão', keep: true, testid: 'timeline-mode', value: mode, onSelect: (v) => set(v as Mode),
+    options: [{ value: 'events', label: 'Eventos', icon: Timer, title: 'Eventos do Kubernetes (enquanto a timeline está aberta)' }, { value: 'changes', label: 'Mudanças', icon: History, title: 'Histórico persistente de mudanças dos objetos' }],
+  }
 }
 
 function useTimeline(clusterId: string, namespace: string) {
@@ -66,7 +82,7 @@ function fmtTime(t: number, span: number) {
     : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: span < 30 * 60e3 ? '2-digit' : undefined })
 }
 
-function Timeline({ clusterId }: { clusterId: string }) {
+function Timeline({ clusterId, mode }: { clusterId: string; mode: HeaderAction }) {
   const ns = useApp((s) => s.namespace[clusterId] ?? '')
   const { events, error } = useTimeline(clusterId, ns)
   const [win, setWin] = useState(3600e3)
@@ -294,6 +310,7 @@ function Timeline({ clusterId }: { clusterId: string }) {
   return (
     <div className="object-panel timeline-panel">
       <PanelHeader icon={Timer} title="Timeline de eventos" scope={<NamespaceSelect clusterId={clusterId} />} actions={[
+        mode,
         { key: 'window', label: 'Janela', value: live ? String(win) : '', onSelect: (v) => { setWin(Number(v)); setLive(true) }, options: WINDOWS.map(([l, ms]) => ({ value: String(ms), label: l, title: `Últimos ${l}, ao vivo` })) },
         ...(!live ? [{ key: 'live', label: 'Ao vivo', icon: Play, keep: true, onClick: () => setLive(true) }] : []),
         { key: 'help', label: 'Como navegar', icon: CircleHelp, iconOnly: true, keep: true, title: 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas', onClick: () => useApp.getState().toast('info', 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas') },
@@ -381,10 +398,17 @@ function Timeline({ clusterId }: { clusterId: string }) {
   )
 }
 
-export function TimelinePanel({ params }: IDockviewPanelProps<{ clusterId: string }>) {
+export function TimelinePanel({ params, api: panelApi }: IDockviewPanelProps<{ clusterId: string; mode?: Mode }>) {
+  const [mode, setMode] = useState<Mode>(params.mode ?? 'events')
+  const set = useCallback((m: Mode) => {
+    setMode(m)
+    panelApi?.updateParameters({ ...params, mode: m })
+    panelApi?.setTitle(m === 'changes' ? 'Mudanças' : 'Timeline')
+  }, [panelApi, params])
+  const action = modeAction(mode, set)
   return (
     <ClusterGate clusterId={params.clusterId}>
-      <Timeline clusterId={params.clusterId} />
+      {mode === 'changes' ? <ChangesView clusterId={params.clusterId} modeAction={action} /> : <Timeline clusterId={params.clusterId} mode={action} />}
     </ClusterGate>
   )
 }

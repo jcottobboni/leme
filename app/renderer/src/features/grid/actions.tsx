@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { behaviorOf } from '../shell/kinds'
-import { Copy, Filter, PanelRightOpen, PanelTopOpen, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2 } from 'lucide-react'
+import { Copy, Filter, Logs, PanelRightOpen, PanelTopOpen, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2 } from 'lucide-react'
+import { openMultiLogs } from '../logs/open'
 import { api, type Ref, type Resource, type Row } from '../../api'
 import { openPanel, useApp } from '../../store'
 import { ConfirmDialog, PromptDialog } from '../../components/Dialogs'
@@ -40,6 +41,9 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
         { label: 'Logs', icon: ScrollText, onClick: () => openPanel(`logs:${clusterId}:${row.namespace}/${row.name}`, 'logs', `logs ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
         { label: 'Shell', icon: SquareTerminal, disabled: readOnly && !shell, onClick: () => openPanel(`term:${clusterId}:${row.namespace}/${row.name}:${Date.now()}`, 'terminal', `sh ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
       )
+    }
+    if (b.workload && row.namespace) {
+      items.push({ separator: true }, { label: 'Logs (todos os pods)', icon: Logs, onClick: () => openMultiLogs({ clusterId, namespace: row.namespace!, group: res.group, resource: res.resource, kind: res.kind, name: row.name }) })
     }
     if (b.scalable || b.restartable) items.push({ separator: true })
     if (b.scalable) items.push({ label: 'Escalar…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })

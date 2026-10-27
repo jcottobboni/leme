@@ -1,0 +1,27 @@
+/* Change history (M7): object tab and the Timeline "Mudanças" view. */
+.hist-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
+.hist-list { flex: 1; }
+.hist-row { border-bottom: 1px solid var(--line-soft); }
+.hist-row.open { background: var(--panel-2); }
+.hist-head { width: 100%; border: none; border-radius: 0; background: none; padding: 7px 12px; gap: 10px; text-align: left; min-width: 0; }
+.hist-head:hover:not(:disabled) { background: var(--hover); }
+.hist-time { width: 92px; flex-shrink: 0; color: var(--muted); font-size: 12px; }
+.hist-head .pill { flex-shrink: 0; width: 76px; justify-content: flex-start; }
+.pill-info { background: color-mix(in srgb, var(--info) 16%, transparent); color: var(--info-text); }
+.hist-obj { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-body { padding: 2px 12px 10px 36px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.hist-ops { width: 100%; }
+.hist-table { width: auto; max-width: 100%; }
+.hist-table td { padding: 3px 8px; vertical-align: top; }
+.hist-op { width: 18px; font-weight: 700; text-align: center; }
+.hist-add { color: var(--ok-text); }
+.hist-remove { color: var(--error-text); }
+.hist-replace { color: var(--warn-text); }
+.hist-path { white-space: nowrap; color: var(--muted); }
+.hist-old { color: var(--error-text); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--error) 50%, transparent); }
+.hist-new { color: var(--ok-text); }
+.hist-more { padding: 8px 12px; border-top: 1px solid var(--line); }
+.hist-none { padding: 2px 0; }
+.hist-tab { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.hist-tab-bar { border-bottom: 1px solid var(--line); }
