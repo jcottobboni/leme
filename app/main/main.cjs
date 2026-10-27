@@ -107,6 +107,20 @@ ipcMain.handle('ai-key:set', async (e, provider, baseURL, key) => {
 })
 ipcMain.handle('ai-key:status', (e) => (fromApp(e) ? { keychain: keychainAvailable() } : {}))
 
+// Native picker for kubeconfig files or folders. Only the chosen paths go back to the renderer,
+// which hands them to the engine; the files themselves are read by the engine alone.
+ipcMain.handle('kubeconfig:pick', async (e, kind) => {
+  if (!fromApp(e) || !mainWindow) return []
+  const dir = kind === 'dir'
+  const kube = path.join(app.getPath('home'), '.kube')
+  const r = await dialog.showOpenDialog(mainWindow, {
+    title: dir ? 'Adicionar pasta de kubeconfigs' : 'Adicionar arquivo kubeconfig',
+    defaultPath: fs.existsSync(kube) ? kube : app.getPath('home'),
+    properties: [dir ? 'openDirectory' : 'openFile', 'multiSelections', 'showHiddenFiles'],
+  })
+  return r.canceled ? [] : r.filePaths
+})
+
 // Embedded web UIs (M5: Grafana, Prometheus) reached through an active port-forward of the engine.
 // Same isolation as the detached windows plus: no preload, an in-memory session per window (logins
 // never persist), navigation pinned to the forward's origin, no popups, no permissions.

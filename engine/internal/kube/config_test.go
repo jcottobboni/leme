@@ -1,6 +1,11 @@
 package kube
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestIsProduction(t *testing.T) {
 	cases := []struct {
@@ -62,5 +67,82 @@ func TestIsLocal(t *testing.T) {
 func TestContextIDStable(t *testing.T) {
 	if ContextID("a/b:6443/c") != ContextID("a/b:6443/c") || len(ContextID("x")) != 12 {
 		t.Fatal("unstable id")
+	}
+}
+
+func TestLoaderSources(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, ctx string) string {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		cfg := "apiVersion: v1\nkind: Config\nclusters:\n- {name: " + ctx + ", cluster: {server: \"https://10.0.0.1:6443\"}}\n" +
+			"users:\n- {name: " + ctx + ", user: {token: x}}\ncontexts:\n- {name: " + ctx + ", context: {cluster: " + ctx + ", user: " + ctx + "}}\n"
+		if err := os.WriteFile(p, []byte(cfg), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	base := write("base/config", "base")
+	single := write("single.kubeconfig", "single")
+	clients := filepath.Join(dir, "clients")
+	write("clients/acme/prd.yaml", "acme-prd")
+	write("clients/acme/stg.yml", "acme-stg")
+	write("clients/other/config", "other")
+	write("clients/acme/prd.yaml.bak-2026-10-26", "stale")
+	write("clients/.hidden/config", "hidden")
+	write("clients/notes.txt", "notes")
+
+	t.Setenv("KUBECONFIG", base)
+	l := NewLoader(nil)
+	l.SetSources([]string{clients, single, filepath.Join(dir, "gone")})
+
+	ctxs, err := l.Contexts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, c := range ctxs {
+		names = append(names, c.Name)
+	}
+	if got, want := strings.Join(names, ","), "acme-prd,acme-stg,base,other,single"; got != want {
+		t.Fatalf("contexts = %s, want %s", got, want)
+	}
+	if got := l.Paths(); len(got) != 5 || got[0] != base {
+		t.Fatalf("paths must keep the base first and skip backups, hidden and missing entries: %v", got)
+	}
+	l.SetSources(nil)
+	if got := l.Paths(); len(got) != 1 {
+		t.Fatalf("clearing the sources leaves the base only: %v", got)
+	}
+}
+
+func TestExpandSourceBounds(t *testing.T) {
+	dir := t.TempDir()
+	deep := filepath.Join(dir, "a", "b", "c", "d", "e")
+	if err := os.MkdirAll(deep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Join(dir, "a", "ok.yaml"), filepath.Join(deep, "too-deep.yaml")} {
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := ExpandSource(dir); len(got) != 1 || filepath.Base(got[0]) != "ok.yaml" {
+		t.Fatalf("depth limit: %v", got)
+	}
+	l := NewLoader(nil)
+	l.SetSources([]string{dir})
+	first := l.Paths()
+	if err := os.WriteFile(filepath.Join(dir, "new.yaml"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Paths(); len(got) != len(first) {
+		t.Fatalf("a scan must be reused within its TTL: %v -> %v", first, got)
+	}
+	l.SetSources([]string{dir}) // saving the sources drops the cache
+	if got := l.Paths(); len(got) != len(first)+1 {
+		t.Fatalf("SetSources must rescan: %v", got)
 	}
 }

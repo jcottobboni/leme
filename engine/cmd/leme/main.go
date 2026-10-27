@@ -81,7 +81,9 @@ func main() {
 		os.Exit(1)
 	}
 	security.CleanStaleExports()
-	mgr := cluster.NewManager(kube.NewLoader(kubeconfigs))
+	loader := kube.NewLoader(kubeconfigs)
+	loader.SetSources(store.Kubeconfigs())
+	mgr := cluster.NewManager(loader)
 	srv := api.New(mgr, api.Options{Token: token, StaticDir: *static, DevOrigins: devOrigins, Logger: logger, Settings: store, ConfigDir: dir})
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {

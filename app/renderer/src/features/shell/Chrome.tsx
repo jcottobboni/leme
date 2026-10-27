@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { create } from 'zustand'
-import { ArrowLeft, ArrowRight, Command, Keyboard, ShieldCheck, Lock, LockOpen, Folder, Monitor, Moon, PanelLeft, Plug, Server, RefreshCw, Search, Sun, Waypoints } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Command, Keyboard, ShieldCheck, Lock, LockOpen, Folder, FolderCog, Monitor, Moon, PanelLeft, Plug, Server, RefreshCw, Search, Sun, Waypoints } from 'lucide-react'
 import { Logo } from './Logo'
 import { cycleTheme } from './theme'
 import { api } from '../../api'
 import { identityOf, openPanel, reopenClosed, useApp, useClusterColor, useProfiles, useUi } from '../../store'
 import { ClusterCards } from './Sidebar'
+import { KubeconfigDialog } from '../kubeconfig/KubeconfigDialog'
 
 // Back/forward over the tabs the user visited, like a browser.
 const useHistory = create<{ stack: string[]; pos: number }>(() => ({ stack: [], pos: -1 }))
 let navigating = false
+
+// The kubeconfig dialog opens from the top bar and from the home tab.
+const useKubeconfigDialog = create<{ open: boolean }>(() => ({ open: false }))
+const openKubeconfigs = () => useKubeconfigDialog.setState({ open: true })
 
 export function trackActive(id?: string) {
   useApp.setState({ activePanelId: id })
@@ -39,7 +44,9 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
   const hidden = useUi((s) => s.sidebarHidden)
   const theme = useUi((s) => s.theme)
   const ThemeIcon = { system: Monitor, dark: Moon, light: Sun }[theme]
+  const kubeconfigsOpen = useKubeconfigDialog((s) => s.open)
   return (
+    <>
     <header className="topbar">
       <div className="brand"><Logo /> Leme</div>
       <button className="icon-btn" title={`${hidden ? 'Mostrar' : 'Ocultar'} barra lateral (Ctrl+B)`} onClick={() => useUi.getState().update({ sidebarHidden: !hidden })}>
@@ -54,12 +61,15 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
       </button>
       <div className="top-actions">
         <button className="icon-btn" title="Port-forwards" onClick={() => openPanel('forwards', 'forwards', 'Port-forwards', {})}><Waypoints size={16} /></button>
+        <button className="icon-btn" data-testid="open-kubeconfigs" title="Arquivos kubeconfig" onClick={openKubeconfigs}><FolderCog size={16} /></button>
         <button className="icon-btn" title="Recarregar kubeconfig" onClick={() => useApp.getState().loadClusters()}><RefreshCw size={16} /></button>
         <button className="icon-btn" data-testid="theme-toggle" title={`Tema: ${{ system: 'do sistema', dark: 'escuro', light: 'claro' }[theme]} (clique para trocar)`} onClick={cycleTheme}>
           <ThemeIcon size={16} />
         </button>
       </div>
     </header>
+    {kubeconfigsOpen && <KubeconfigDialog onClose={() => useKubeconfigDialog.setState({ open: false })} />}
+    </>
   )
 }
 
@@ -124,7 +134,10 @@ export function Home() {
         <Logo />
         <div>
           <h2>Clusters</h2>
-          <p>{n} contextos no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · conexão sempre manual</p>
+          <p>
+            {n} contextos no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · conexão sempre manual ·{' '}
+            <button className="link" onClick={openKubeconfigs}>adicionar kubeconfigs</button>
+          </p>
         </div>
       </div>
       <ClusterCards />

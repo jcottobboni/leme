@@ -58,6 +58,9 @@ type Data struct {
 	AI         *AI                   `json:"ai,omitempty"`
 	// Agents is keyed by kubeconfig context name.
 	Agents map[string]AgentAccess `json:"agents,omitempty"`
+	// Kubeconfigs lists kubeconfig files or folders added in the app, on top of $KUBECONFIG
+	// (or ~/.kube/config). Only paths are stored, never their contents.
+	Kubeconfigs []string `json:"kubeconfigs,omitempty"`
 }
 
 // Store reads and writes settings.json.
@@ -135,6 +138,22 @@ func (s *Store) SetAI(a AI) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data.AI = &a
+	return s.save()
+}
+
+// Kubeconfigs returns the kubeconfig files and folders added in the app.
+func (s *Store) Kubeconfigs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.data.Kubeconfigs...)
+}
+
+// SetKubeconfigs saves the kubeconfig files and folders added in the app.
+func (s *Store) SetKubeconfigs(paths []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reload()
+	s.data.Kubeconfigs = append([]string(nil), paths...)
 	return s.save()
 }
 

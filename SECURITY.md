@@ -38,6 +38,10 @@ It does not protect against an attacker who already controls your user account o
 - **Every change is previewed.** YAML edits go through a server-side dry-run, a diff and a
   confirmation. Updates carry the `resourceVersion` you opened, so they never overwrite someone
   else's newer change.
+- **Kubeconfig files and folders added in the app** ("Arquivos kubeconfig") are stored as paths
+  only (settings.json, 0600) and read by the engine like ~/.kube/config. A kubeconfig can run
+  commands through `exec` credential plugins when you connect, so add only trusted files and
+  folders; folder scans are bounded (depth 4, 5,000 entries, 200 kubeconfigs, backups skipped).
 - **Cluster profiles are cosmetic.** Alias, color and environment set in the UI never relax the
   engine's read-only or production rules.
 
