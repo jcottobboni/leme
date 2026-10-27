@@ -1,6 +1,8 @@
 package ops
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -44,5 +46,18 @@ func TestAggregateNamespaces(t *testing.T) {
 	}
 	if len(aggregateNamespaces(nil, nil)) != 0 {
 		t.Fatal("empty input")
+	}
+}
+
+// An overview without warnings or visible nodes must send empty lists, never null (the UI crashed).
+func TestNewOverviewEmptyLists(t *testing.T) {
+	b, err := json.Marshal(newOverview())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{`"nodes":[]`, `"warnings":[]`, `"namespaceStats":[]`} {
+		if !strings.Contains(string(b), f) {
+			t.Fatalf("missing %s in %s", f, b)
+		}
 	}
 }

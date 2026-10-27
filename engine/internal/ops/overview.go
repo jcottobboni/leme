@@ -147,11 +147,18 @@ func aggregateNamespaces(pods []*corev1.Pod, usage map[string]Usage) []Namespace
 	return out
 }
 
+// newOverview starts with empty (not nil) lists: the UI reads their length, and a nil slice would be
+// sent as null when a namespace has no warnings or the nodes cannot be listed.
+func newOverview() *Overview {
+	return &Overview{Scope: "cluster", Nodes: []NodeSummary{}, Pods: map[string]int{}, Workloads: map[string]HealthCount{},
+		Warnings: []Warning{}, NamespaceStats: []NamespaceStat{}, Errors: map[string]string{}}
+}
+
 // GetOverview builds the overview from the informer caches. namespace is only used as a fallback.
 func GetOverview(ctx context.Context, s *cluster.Session, fallbackNS string) *Overview {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	o := &Overview{Scope: "cluster", Pods: map[string]int{}, Workloads: map[string]HealthCount{}, Errors: map[string]string{}}
+	o := newOverview()
 	list := func(group, resource, ns string) ([]*unstructured.Unstructured, error) {
 		r, ok := s.Lookup(group, resource)
 		if !ok {
