@@ -57,7 +57,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - name: Build the engine
         working-directory: engine
-        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME#v}" -o bin/leme.exe ./cmd/leme
+        run: go build -trimpath -ldflags "-s -w -X main.version=$(node -p "require('../app/package.json').version")" -o bin/leme.exe ./cmd/leme
       - name: Build the UI and the installer
         working-directory: app
         run: |

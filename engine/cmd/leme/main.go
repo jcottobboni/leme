@@ -25,8 +25,9 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/settings"
 )
 
-// version is set at build time with -X main.version (see the Makefile).
-var version = "0.3.5"
+// version is set at build time with -X main.version from app/package.json (Makefile, release
+// workflow); a plain `go build` reports "dev".
+var version = "dev"
 
 type listFlag []string
 
