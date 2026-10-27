@@ -21,7 +21,9 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/client-go/rest"
@@ -36,8 +38,9 @@ type Policy struct {
 	Shell    func() bool // exec/attach allowed while writes stay locked
 }
 
-// errBlocked is the reason given to the plugin's kubectl.
-func (p Policy) check(method, path string) error {
+// check returns the reason a request is refused (given to the plugin's kubectl), or nil. upgrade
+// marks requests that become interactive streams (WebSocket/SPDY).
+func (p Policy) check(method, path string, upgrade bool) error {
 	if !p.ReadOnly() {
 		return nil
 	}
@@ -56,6 +59,10 @@ func (p Policy) check(method, path string) error {
 	case "portforward":
 		return nil // like the app's own port-forwards: reading, not changing
 	}
+	if upgrade {
+		// Other interactive streams (e.g. KubeVirt console/vnc on aggregated APIs) are refused.
+		return errors.New("Leme: cluster travado; streams interativos bloqueados")
+	}
 	switch method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return nil
@@ -67,14 +74,11 @@ func (p Policy) check(method, path string) error {
 	return errors.New("Leme: cluster travado (produção); este plugin só pode ler. Destrave a escrita no Leme para alterar")
 }
 
-// readOnlyReview lists POST endpoints that only ask questions (kubectl auth can-i / whoami).
-func readOnlyReview(path string) bool {
-	for _, s := range []string{"/selfsubjectaccessreviews", "/selfsubjectrulesreviews", "/selfsubjectreviews"} {
-		if strings.HasSuffix(path, s) {
-			return true
-		}
-	}
-	return false
+// readOnlyReview matches the POST endpoints that only ask questions (kubectl auth can-i / whoami).
+var readOnlyReview = regexp.MustCompile(`^/apis/(authorization\.k8s\.io/v1(beta1)?/selfsubject(access|rules)reviews|authentication\.k8s\.io/v1(beta1|alpha1)?/selfsubjectreviews)/?$`).MatchString
+
+func isUpgrade(r *http.Request) bool {
+	return r.Header.Get("Upgrade") != "" || strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
 }
 
 // subresource returns the subresource of a resource path (/api/v1/namespaces/n/pods/p/exec ->
@@ -113,6 +117,20 @@ type Proxy struct {
 	CAData []byte
 	srv    *http.Server
 	ln     net.Listener
+
+	mu      sync.Mutex
+	streams map[string]*stream // by remote address
+	stop    chan struct{}
+}
+
+// stream is a connection taken over by an interactive stream (exec, attach, port-forward). Those
+// bypass the HTTP server's shutdown, so the proxy closes them itself.
+type stream struct {
+	conn     net.Conn
+	method   string
+	path     string
+	upgrade  bool
+	hijacked bool
 }
 
 // StartProxy listens on 127.0.0.1 for the duration of one plugin run.
@@ -132,7 +150,7 @@ func StartProxy(cfg *rest.Config, pol Policy) (*Proxy, error) {
 	if _, err := rand.Read(tok); err != nil {
 		return nil, err
 	}
-	p := &Proxy{Token: hex.EncodeToString(tok)}
+	p := &Proxy{Token: hex.EncodeToString(tok), streams: map[string]*stream{}, stop: make(chan struct{})}
 	rp := httputil.NewSingleHostReverseProxy(target)
 	rp.Transport = rt
 	rp.FlushInterval = -1 // watches and log follows stream
@@ -143,6 +161,26 @@ func StartProxy(cfg *rest.Config, pol Policy) (*Proxy, error) {
 		// Our token must not reach the API server; the transport adds the user's credentials only
 		// when the request has no Authorization of its own.
 		r.Header.Del("Authorization")
+		// Nor can the plugin choose another identity or smuggle its token in a WebSocket subprotocol.
+		for k := range r.Header {
+			if lk := strings.ToLower(k); strings.HasPrefix(lk, "impersonate-") || strings.HasPrefix(lk, "x-remote-") {
+				r.Header.Del(k)
+			}
+		}
+		if v := r.Header.Values("Sec-WebSocket-Protocol"); len(v) > 0 {
+			var keep []string
+			for _, h := range v {
+				for _, sp := range strings.Split(h, ",") {
+					if sp = strings.TrimSpace(sp); sp != "" && !strings.HasPrefix(sp, "base64url.bearer.authorization.k8s.io.") {
+						keep = append(keep, sp)
+					}
+				}
+			}
+			r.Header.Del("Sec-WebSocket-Protocol")
+			if len(keep) > 0 {
+				r.Header.Set("Sec-WebSocket-Protocol", strings.Join(keep, ", "))
+			}
+		}
 	}
 	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		status(w, http.StatusBadGateway, "Leme: falha ao falar com o API server: "+err.Error())
@@ -153,9 +191,17 @@ func StartProxy(cfg *rest.Config, pol Policy) (*Proxy, error) {
 			status(w, http.StatusUnauthorized, "Leme: token do plugin inválido")
 			return
 		}
-		if err := pol.check(r.Method, r.URL.Path); err != nil {
+		up := isUpgrade(r)
+		if err := pol.check(r.Method, r.URL.Path, up); err != nil {
 			status(w, http.StatusForbidden, err.Error())
 			return
+		}
+		if up {
+			p.mu.Lock()
+			if st := p.streams[r.RemoteAddr]; st != nil {
+				st.method, st.path, st.upgrade = r.Method, r.URL.Path, true
+			}
+			p.mu.Unlock()
 		}
 		rp.ServeHTTP(w, r)
 	})
@@ -170,9 +216,45 @@ func StartProxy(cfg *rest.Config, pol Policy) (*Proxy, error) {
 	}
 	p.ln = tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}})
 	p.URL = "https://" + ln.Addr().String()
-	p.srv = &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	p.srv = &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, ConnState: func(c net.Conn, st http.ConnState) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		switch st {
+		case http.StateNew:
+			p.streams[c.RemoteAddr().String()] = &stream{conn: c}
+		case http.StateHijacked:
+			if s := p.streams[c.RemoteAddr().String()]; s != nil {
+				s.hijacked = true
+			}
+		case http.StateClosed:
+			delete(p.streams, c.RemoteAddr().String())
+		}
+	}}
 	go func() { _ = p.srv.Serve(p.ln) }()
+	go p.enforce(pol)
 	return p, nil
+}
+
+// enforce re-checks open interactive streams: locking the cluster or revoking the shell closes
+// the exec/attach sessions a plugin opened before.
+func (p *Proxy) enforce(pol Policy) {
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-p.stop:
+			return
+		case <-t.C:
+		}
+		p.mu.Lock()
+		for k, s := range p.streams {
+			if s.hijacked && s.upgrade && pol.check(s.method, s.path, true) != nil {
+				_ = s.conn.Close()
+				delete(p.streams, k)
+			}
+		}
+		p.mu.Unlock()
+	}
 }
 
 // selfSigned makes a short-lived certificate for 127.0.0.1, its own CA. The key never leaves memory.
@@ -211,6 +293,18 @@ func (p *Proxy) Close() {
 	defer cancel()
 	_ = p.srv.Shutdown(ctx)
 	_ = p.srv.Close()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	select {
+	case <-p.stop:
+	default:
+		close(p.stop)
+	}
+	// Hijacked connections (exec, attach, port-forward) survive Shutdown and Close.
+	for k, s := range p.streams {
+		_ = s.conn.Close()
+		delete(p.streams, k)
+	}
 }
 
 // status writes a Kubernetes Status, which kubectl prints as a normal API error.

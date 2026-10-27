@@ -1,16 +1,21 @@
 package plugins
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -268,6 +273,7 @@ func TestProxyPolicy(t *testing.T) {
 		{"GET", "/api/v1/namespaces/n/services/s/proxy/admin", p.Token, 403},
 		{"GET", "/api/v1/namespaces/n/pods//p/exec", p.Token, 403},
 		{"POST", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", p.Token, 200},
+		{"POST", "/apis/evil.io/v1/namespaces/n/selfsubjectreviews", p.Token, 403},
 	}
 	for _, c := range checks {
 		if got := do(c.method, c.path, c.tok); got != c.want {
@@ -465,5 +471,98 @@ func TestRegistryReloadAndK9sToggle(t *testing.T) {
 	r.checked = time.Time{}
 	if a, _ := r.Current().Action("rails/console"); !strings.Contains(strings.Join(a.Args, " "), "dbconsole") {
 		t.Fatalf("not reloaded: %v", a.Args)
+	}
+}
+
+// TestExamplesLoad keeps the published examples valid.
+func TestExamplesLoad(t *testing.T) {
+	dir := filepath.Join("..", "..", "..", "examples", "plugins")
+	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no examples in %s: %v", dir, err)
+	}
+	for _, f := range files {
+		p, err := parseFile(f)
+		if err != nil {
+			t.Errorf("%s: %v", f, err)
+			continue
+		}
+		if _, _, err := compileAll(p); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+		if len(p.Warnings) > 0 {
+			t.Errorf("%s: warnings %v", f, p.Warnings)
+		}
+	}
+}
+
+func TestProxyStreamsAndHeaders(t *testing.T) {
+	var gotImpersonate, gotProto string
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotImpersonate, gotProto = r.Header.Get("Impersonate-User"), r.Header.Get("Sec-WebSocket-Protocol")
+		if r.Header.Get("Upgrade") == "" {
+			w.WriteHeader(200)
+			return
+		}
+		c, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			return
+		}
+		_, _ = buf.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+		_ = buf.Flush()
+		_, _ = io.Copy(io.Discard, c) // keep the stream open until the proxy closes it
+		c.Close()
+	}))
+	defer api.Close()
+	var mu sync.Mutex
+	locked, shell := false, false
+	get := func(b *bool) func() bool { return func() bool { mu.Lock(); defer mu.Unlock(); return *b } }
+	p, err := StartProxy(&rest.Config{Host: api.URL}, Policy{ReadOnly: get(&locked), Shell: get(&shell)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(p.CAData)
+	tlsCfg := &tls.Config{RootCAs: pool}
+	open := func(path string) (net.Conn, string) {
+		c, err := tls.Dial("tcp", strings.TrimPrefix(p.URL, "https://"), tlsCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(c, "GET %s HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer %s\r\nImpersonate-User: admin\r\nSec-WebSocket-Protocol: v5.channel.k8s.io, base64url.bearer.authorization.k8s.io.%s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", path, p.Token, p.Token)
+		line, _ := bufio.NewReader(c).ReadString('\n')
+		return c, line
+	}
+	// Unlocked: the exec stream opens, without the impersonation header or the token subprotocol.
+	c, line := open("/api/v1/namespaces/n/pods/p/exec")
+	if !strings.Contains(line, "101") {
+		t.Fatalf("exec unlocked: %q", line)
+	}
+	if gotImpersonate != "" || strings.Contains(gotProto, p.Token) || !strings.Contains(gotProto, "v5.channel.k8s.io") {
+		t.Fatalf("headers forwarded: impersonate=%q proto=%q", gotImpersonate, gotProto)
+	}
+	// Locking the cluster closes the open stream.
+	mu.Lock()
+	locked = true
+	mu.Unlock()
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("stream still open after locking: %v", err)
+	}
+	// Locked: other interactive streams (e.g. a VM console on an aggregated API) are refused.
+	if _, line := open("/apis/subresources.kubevirt.io/v1/namespaces/n/virtualmachineinstances/vm/console"); !strings.Contains(line, "403") {
+		t.Fatalf("console stream on a locked cluster: %q", line)
+	}
+}
+
+func TestStrictInterpreters(t *testing.T) {
+	for _, c := range [][]string{{"python3", "-c", "x"}, {"/usr/bin/python3.12"}, {"perl"}, {"kubectl", "exec", "p", "--", "python3", "-c", "x"}, {"docker", "exec"}, {"find", ".", "-exec"}} {
+		if !Strict(c[0], c[1:]) {
+			t.Errorf("%v not strict", c)
+		}
+	}
+	if !IsBatch(`C:\\tools\\az.CMD`) || IsBatch("/usr/bin/az") {
+		t.Fatal("IsBatch")
 	}
 }

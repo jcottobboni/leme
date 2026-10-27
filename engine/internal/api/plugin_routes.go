@@ -142,37 +142,35 @@ type pluginRunRequest struct {
 }
 
 // pluginAuthorize finds the action and checks trust and the write guard; entry is filled for the audit.
-func (s *Server) pluginAuthorize(sess *cluster.Session, id string, in plugins.Input, entry *audit.Entry) (plugins.Action, int, error) {
+// The returned scope ends the run: on disconnect, and for mutating actions when the cluster is
+// locked again. It is taken before the write check, so a lock in between is not missed.
+func (s *Server) pluginAuthorize(sess *cluster.Session, id string, in plugins.Input, entry *audit.Entry) (plugins.Action, context.Context, int, error) {
 	a, ok := s.plugins.Current().Action(id)
 	if !ok {
-		return a, http.StatusNotFound, errors.New("ação de plugin não encontrada (o arquivo mudou?)")
+		return a, nil, http.StatusNotFound, errors.New("ação de plugin não encontrada (o arquivo mudou?)")
+	}
+	scope := sess.Life()
+	if a.Mutates {
+		scope = sess.WriteScope()
 	}
 	entry.Detail = a.ID + " · " + a.Mode
 	if !s.pluginTrustStore.Trusted(a) {
-		return a, http.StatusForbidden, errors.New("ação não confiável: revise e aprove o comando antes de executar")
+		return a, nil, http.StatusForbidden, errors.New("ação não confiável: revise e aprove o comando antes de executar")
 	}
 	if a.Mutates {
-		if err := sess.CheckWritable(); err != nil {
-			return a, http.StatusForbidden, errors.New("esta ação altera o cluster e ele está travado: destrave a escrita para executar")
+		if err := sess.CheckWritable(); err != nil || scope.Err() != nil {
+			return a, nil, http.StatusForbidden, errors.New("esta ação altera o cluster e ele está travado: destrave a escrita para executar")
 		}
 	}
 	if in.Name == "" {
-		return a, http.StatusBadRequest, errors.New("objeto não informado")
+		return a, nil, http.StatusBadRequest, errors.New("objeto não informado")
 	}
-	return a, 0, nil
+	return a, scope, 0, nil
 }
 
 func (s *Server) pluginTarget(sess *cluster.Session) plugins.Target {
 	return plugins.Target{Config: sess.Config, Context: sess.Context.Name, Cluster: sess.Context.Cluster, User: sess.Context.User, Namespace: sess.Namespace,
 		Policy: plugins.Policy{ReadOnly: sess.ReadOnly, Shell: sess.Shell}}
-}
-
-// pluginScope ends a mutating run when the cluster is locked again, any run on disconnect.
-func pluginScope(sess *cluster.Session, a plugins.Action) context.Context {
-	if a.Mutates {
-		return sess.WriteScope()
-	}
-	return sess.Life()
 }
 
 func objectOf(in plugins.Input) string {
@@ -188,7 +186,7 @@ func (s *Server) pluginRun(w http.ResponseWriter, r *http.Request, sess *cluster
 		return
 	}
 	entry := audit.Entry{Source: pluginSource, Action: "run", Context: sess.Context.Name, Object: objectOf(req.Input)}
-	a, code, err := s.pluginAuthorize(sess, req.Action, req.Input, &entry)
+	a, scope, code, err := s.pluginAuthorize(sess, req.Action, req.Input, &entry)
 	if err == nil && a.Mode == plugins.ModeTerminal {
 		code, err = http.StatusBadRequest, errors.New("ação de terminal: use o painel de terminal")
 	}
@@ -199,7 +197,7 @@ func (s *Server) pluginRun(w http.ResponseWriter, r *http.Request, sess *cluster
 		httpError(w, code, err.Error())
 		return
 	}
-	ctx, cancel := within(r.Context(), pluginScope(sess, a))
+	ctx, cancel := within(r.Context(), scope)
 	defer cancel()
 	ctx, cancelT := context.WithTimeout(ctx, plugins.RunTimeout)
 	defer cancelT()
@@ -230,7 +228,7 @@ func (s *Server) pluginTerm(w http.ResponseWriter, r *http.Request, sess *cluste
 		return
 	}
 	entry := audit.Entry{Source: pluginSource, Action: "run", Context: sess.Context.Name, Object: objectOf(in)}
-	a, code, err := s.pluginAuthorize(sess, q.Get("action"), in, &entry)
+	a, scope, code, err := s.pluginAuthorize(sess, q.Get("action"), in, &entry)
 	if err != nil {
 		entry.Result = "denied"
 		entry.Detail = truncate(entry.Detail+": "+err.Error(), 200)
@@ -243,7 +241,7 @@ func (s *Server) pluginTerm(w http.ResponseWriter, r *http.Request, sess *cluste
 		return
 	}
 	defer c.CloseNow()
-	ctx, cancel := within(r.Context(), pluginScope(sess, a))
+	ctx, cancel := within(r.Context(), scope)
 	defer cancel()
 	sendExit := func(code int, msg string) {
 		b, _ := json.Marshal(map[string]any{"type": "exit", "code": code, "error": msg})
@@ -305,8 +303,30 @@ func (s *Server) pluginTerm(w http.ResponseWriter, r *http.Request, sess *cluste
 		_ = t.Close() // UI closed, cluster locked (mutating action) or disconnected
 	}()
 	out := wsWriter{ctx, c, websocket.MessageBinary}
-	_, _ = io.Copy(out, t) // a PTY read fails with EIO once the command exits
-	exit, werr := t.Wait()
+	copied := make(chan struct{})
+	go func() {
+		defer close(copied)
+		_, _ = io.Copy(out, t) // a PTY read fails with EIO once nothing holds the terminal
+	}()
+	var exit int
+	var werr error
+	waited := make(chan struct{})
+	go func() {
+		defer close(waited)
+		exit, werr = t.Wait()
+	}()
+	select {
+	case <-waited:
+		// A child left in the background may keep the terminal open: give the output a moment, then end it.
+		select {
+		case <-copied:
+		case <-time.After(time.Second):
+			_ = t.Close()
+			<-copied
+		}
+	case <-copied:
+		<-waited
+	}
 	msg := ""
 	if werr != nil {
 		msg = werr.Error()

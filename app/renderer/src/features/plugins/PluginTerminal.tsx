@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { openSocket } from '../../api'
 import { Xterm } from '../../components/Xterm'
-import type { PluginInput } from './api'
+import { usePlugins, type PluginInput } from './api'
+import { runAction } from './run'
 
 export interface PluginTermParams {
   clusterId: string
@@ -20,7 +21,12 @@ export function PluginTerminalPanel({ params, api: panelApi }: IDockviewPanelPro
   return (
     <div className="term-panel" data-testid="plugin-term">
       <div className="toolbar">
-        <button onClick={() => setSession((n) => n + 1)}>Executar de novo</button>
+        <button onClick={() => {
+          // Actions that ask before running ask again (and run in a new panel).
+          const a = usePlugins.getState().info?.actions.find((x) => x.id === action)
+          if (a && (a.confirm || a.mutates || !a.trusted)) void runAction(clusterId, a, input)
+          else setSession((n) => n + 1)
+        }}>Executar de novo</button>
         <span className="muted">{title} · {input.namespace ? `${input.namespace}/` : ''}{input.name} · <span data-testid="plugin-term-status">{status}</span></span>
       </div>
       <Xterm

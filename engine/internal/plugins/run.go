@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -79,7 +80,7 @@ func Prepare(ctx context.Context, a Action, in Input, t Target) (*Prepared, erro
 		return nil, err
 	}
 	vars := Vars(in, t.Context, t.Cluster, t.User, kc)
-	strict := Strict(a.Command, a.Args)
+	strict := Strict(a.Command, a.Args) || IsBatch(path)
 	exempt := map[string]bool{"KUBECONFIG": true}
 	args := make([]string, 0, len(a.Args))
 	for _, raw := range a.Args {
@@ -88,7 +89,7 @@ func Prepare(ctx context.Context, a Action, in Input, t Target) (*Prepared, erro
 			return nil, err
 		}
 		// A value must not turn into an option of the command (e.g. a column holding "--server=…").
-		if !strings.HasPrefix(raw, "-") && strings.HasPrefix(v, "-") {
+		if becameOption(raw, v) {
 			return nil, fmt.Errorf("o argumento %q virou uma opção (%q) depois de preencher as variáveis: a ação não foi executada", raw, v)
 		}
 		args = append(args, v)
@@ -101,6 +102,15 @@ func Prepare(ctx context.Context, a Action, in Input, t Target) (*Prepared, erro
 	p.Cmd = cmd
 	ok = true
 	return p, nil
+}
+
+// becameOption reports a value that turned an argument into an option ("--server=…", or "/x" for
+// Windows programs).
+func becameOption(raw, v string) bool {
+	if !strings.HasPrefix(raw, "-") && strings.HasPrefix(v, "-") {
+		return true
+	}
+	return runtime.GOOS == "windows" && !strings.HasPrefix(raw, "/") && strings.HasPrefix(v, "/")
 }
 
 // childEnv is the user's environment without kubeconfig overrides, plus the plugin variables.
@@ -160,6 +170,10 @@ func Run(p *Prepared) Result {
 	killGroup(cmd)
 	t0 := time.Now()
 	err := cmd.Run()
+	// Children left in the background (kubectl port-forward &) end with the run.
+	if cmd.Cancel != nil {
+		_ = cmd.Cancel()
+	}
 	res := Result{Output: out.buf.String(), Truncated: out.truncated, Duration: time.Since(t0).Milliseconds()}
 	var ee *exec.ExitError
 	switch {

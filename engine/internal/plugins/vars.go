@@ -54,18 +54,35 @@ func colKey(label string) string {
 var varRe = regexp.MustCompile(`\$\{(COL-[A-Z0-9_]+|[A-Z][A-Z0-9_]*)\}|\$(COL-[A-Z0-9_]+|[A-Z][A-Z0-9_]*)`)
 
 // safeValue is what may be interpolated into a shell script without quoting.
-var safeValue = regexp.MustCompile(`^[A-Za-z0-9._:/@=+,~%-]*$`)
+var safeValue = regexp.MustCompile(`^[A-Za-z0-9._:/@=+,~-]*$`)
 
 // shells run their arguments as scripts: interpolated values could inject commands.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "fish": true, "ash": true, "busybox": true,
-	"cmd": true, "powershell": true, "pwsh": true}
+var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "fish": true, "ash": true, "busybox": true,
+	"csh": true, "tcsh": true, "rbash": true, "cmd": true, "powershell": true, "pwsh": true,
+	// Interpreters that take a script on the command line (-c, -e, -r…).
+	"python": true, "python3": true, "python2": true, "perl": true, "ruby": true, "node": true, "nodejs": true, "deno": true, "bun": true,
+	"php": true, "lua": true, "awk": true, "gawk": true, "mawk": true, "nawk": true, "osascript": true}
 
 // wrappers hand (part of) their arguments to a shell or run them as another command line.
-var wrappers = map[string]bool{"env": true, "watch": true, "xargs": true, "sudo": true, "nohup": true, "script": true, "ssh": true, "su": true, "timeout": true, "nice": true}
+var wrappers = map[string]bool{"env": true, "watch": true, "xargs": true, "sudo": true, "doas": true, "nohup": true, "script": true, "ssh": true, "su": true,
+	"runuser": true, "timeout": true, "nice": true, "setsid": true, "stdbuf": true, "chroot": true, "parallel": true, "tmux": true, "screen": true,
+	"wsl": true, "find": true, "docker": true, "podman": true, "nerdctl": true, "crictl": true}
 
 func base(command string) string {
 	b := strings.ToLower(filepath.Base(filepath.ToSlash(command)))
-	return strings.TrimSuffix(b, ".exe")
+	b = strings.TrimSuffix(b, ".exe")
+	// python3.12, perl5.36…: the versioned names of the same interpreters.
+	if i := strings.IndexAny(b, "0123456789"); i > 0 && shells[strings.TrimRight(b[:i], ".-")] {
+		return strings.TrimRight(b[:i], ".-")
+	}
+	return b
+}
+
+// IsBatch reports a Windows batch file: CreateProcess runs it through cmd.exe, which parses the
+// arguments again.
+func IsBatch(path string) bool {
+	e := strings.ToLower(filepath.Ext(path))
+	return e == ".bat" || e == ".cmd"
 }
 
 // IsShell reports whether a command interprets its arguments as a script.

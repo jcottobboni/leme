@@ -129,6 +129,8 @@ ipcMain.handle('plugins:open-folder', async (e) => {
   const dir = path.join(base, 'plugins')
   try {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
+    // openPath runs files: only a real folder (not a file or a link to one) is opened.
+    if (!fs.lstatSync(dir).isDirectory()) return { ok: false, error: 'a pasta de plugins não é um diretório' }
   } catch (err) {
     return { ok: false, error: String(err) }
   }

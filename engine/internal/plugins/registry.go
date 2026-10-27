@@ -1,7 +1,9 @@
 package plugins
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -240,16 +242,32 @@ func load(srcs []source, dir string, k9s bool) *Snapshot {
 }
 
 func parseFile(path string) (*Parsed, error) {
-	st, err := os.Stat(path)
+	// A FIFO or a device would block or never end the read while the registry lock is held; check
+	// before opening (opening a FIFO already blocks).
+	if st, err := os.Stat(path); err != nil {
+		return nil, err
+	} else if !st.Mode().IsRegular() {
+		return nil, errors.New("não é um arquivo comum")
+	}
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	if st.Size() > maxFileSize {
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	// A FIFO or a device would block or never end the read while the registry lock is held.
+	if !st.Mode().IsRegular() {
+		return nil, errors.New("não é um arquivo comum")
+	}
+	b, err := io.ReadAll(io.LimitReader(f, maxFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > maxFileSize {
 		return nil, fmt.Errorf("arquivo maior que %d KiB", maxFileSize>>10)
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
 	}
 	name := strings.TrimSuffix(strings.TrimSuffix(filepath.Base(path), ".yaml"), ".yml")
 	return Parse(b, name, path)

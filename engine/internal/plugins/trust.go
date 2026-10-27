@@ -11,7 +11,8 @@ import (
 	"sync"
 )
 
-// hashAction fingerprints what an action runs: trusting it covers exactly this command line.
+// hashAction fingerprints what an action runs and where it is offered: trusting it covers exactly
+// this command line, these scopes and this title.
 // The source file is part of it, so another file reusing the id does not inherit the trust.
 func hashAction(a Action) string {
 	b, _ := json.Marshal(struct {
@@ -19,8 +20,11 @@ func hashAction(a Action) string {
 		Args    []string `json:"args"`
 		Mode    string   `json:"mode"`
 		Mutates bool     `json:"mutates"`
+		Confirm bool     `json:"confirm"`
+		Scopes  []string `json:"scopes"`
+		Title   string   `json:"title"`
 		Source  string   `json:"source"`
-	}{a.Command, a.Args, a.Mode, a.Mutates, a.Source})
+	}{a.Command, a.Args, a.Mode, a.Mutates, a.Confirm, a.Scopes, a.Title, a.Source})
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }

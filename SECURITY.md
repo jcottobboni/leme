@@ -149,6 +149,36 @@ It does not protect against an attacker who already controls your user account o
 - **Observed traffic:** PromQL queries only, through the Prometheus you configured. Nothing is
   installed in the cluster.
 
+## Plugins
+
+Plugins are declarative YAML: no third-party code runs inside the app ([docs/plugins.md](docs/plugins.md)).
+
+- **Actions** run a local program only after you approve its exact definition: the command, the
+  arguments, the mode, `mutates` and the source file. A changed definition asks again. Approvals are
+  kept in `plugins-trust.json` (0600).
+- **Cluster access goes through a guard.** A run gets a temporary kubeconfig (0600, deleted
+  afterwards) with a single context. It points to a loopback HTTPS proxy with a one-time certificate
+  and token; the proxy forwards with your credentials, which are never written for the plugin.
+  - While the cluster is locked, the proxy lets only reads through and refuses changes with a 403.
+  - It also refuses exec and attach (unless the shell is allowed) and the pod, service and node
+    proxy.
+  - It also refuses other interactive streams (such as VM consoles).
+  - Locking the cluster, or revoking the shell, closes exec and attach sessions a plugin already
+    opened.
+  - A `mutates` action does not start on a locked cluster, and locking the cluster ends it.
+  - Programs a run leaves in the background are ended with it. On Windows only the program itself
+    is ended, not the processes it started.
+- **Values from the cluster cannot inject commands.** Object names, grid columns and the search text
+  interpolated into a command line are refused if a shell or an interpreter (local or
+  `kubectl exec … sh -c`; `.bat`/`.cmd` on Windows) would interpret them, or if they would become an
+  option.
+- **Links** open only `http(s)` URLs, with values URL-encoded.
+- **CEL views and rules** are sandboxed and cost-limited. Rules see a redacted copy of objects
+  (Secret values, credentials in `env`), since findings can reach the Copilot.
+- **Audit.** Runs, approvals and revocations are audited with source `plugin`, without the output.
+- **Limits.** The proxy guards against mistakes, not against a malicious program: a trusted program
+  can read your files (including `~/.kube/config`) on its own. Approve only plugins you know.
+
 ## External scanners
 
 Polaris and Kubescape only see YAML exported to a private temporary directory (`0700`, removed

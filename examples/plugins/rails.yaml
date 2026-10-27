@@ -1,0 +1,28 @@
+# Rails helpers for pods and Deployments. Copy to <config>/plugins/ (see docs/plugins.md).
+apiVersion: leme.dev/v1
+name: rails
+description: Console, migrations and logs of Rails apps
+actions:
+- id: console
+  title: Rails console
+  scopes: [containers]   # on pods; Leme asks which container when there is more than one
+  command: kubectl
+  args: [exec, -it, $NAME, -n, $NAMESPACE, -c, $CONTAINER, --, bin/rails, console]
+  mode: terminal
+- id: migrate-status
+  title: rails db:migrate:status
+  scopes: [pods]
+  command: kubectl
+  args: [exec, $NAME, -n, $NAMESPACE, --, bin/rails, db:migrate:status]
+  mode: output
+- id: describe
+  title: kubectl describe
+  scopes: [pods, deployments, statefulsets, services, ingresses]
+  command: kubectl
+  args: [describe, $RESOURCE_NAME, $NAME, -n, $NAMESPACE]
+  mode: output
+links:
+- id: grafana
+  title: Abrir no Grafana
+  scopes: [deployments]
+  url: https://grafana.example.com/d/rails-app?var-namespace=$NAMESPACE&var-app=$NAME
