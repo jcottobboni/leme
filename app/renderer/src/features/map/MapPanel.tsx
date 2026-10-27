@@ -11,7 +11,7 @@ import { Activity, Filter, Info, Layers, Maximize2, Minus, Plus, RefreshCw, Sear
 import { computeMatch, countWorkloads, dotRadius, hasProblem, isSystemNs, lodOf, TILE_R, type AppL, type IslandL, type Match, type TileL } from './layout'
 import { useMapLayout } from '../map-webgl/useMapLayout'
 import { GlStage, type GlStageHandle } from '../map-webgl/GlStage'
-import { arrowOf, installTestTrafficProvider, placeEdges, type EdgeL } from '../map-webgl/edges'
+import { arrowOf, placeEdges, type EdgeL } from '../map-webgl/edges'
 import { useFpsProbe, webglAvailable } from '../map-webgl/probe'
 import { useTrafficEdges } from '../map-webgl/trafficEdges'
 import type { Hit } from '../map-webgl/scene'
@@ -194,7 +194,6 @@ function MapView({ clusterId }: { clusterId: string }) {
   // The stage exists once there is a layout (with the worker it arrives after the map).
   const ready = !!map && !!layout
 
-  useEffect(() => installTestTrafficProvider(), [])
   const trafficQ = useTrafficEdges(clusterId, nsParam || undefined, traffic)
   const placed = useMemo(() => placeEdges(layout, trafficQ.data), [layout, trafficQ.data])
   const fpsRef = useFpsProbe<HTMLDivElement>()

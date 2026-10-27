@@ -38,12 +38,9 @@ async function serveMap(page: Page, n: number) {
   return problems
 }
 
-async function openMap(page: Page, opts: { trafficProvider?: boolean } = {}) {
+async function openMap(page: Page) {
   await page.goto(`${base}/#token=${TOKEN}`)
-  await page.evaluate((tp) => {
-    localStorage.clear()
-    if (tp) localStorage.setItem('leme.e2e.trafficProvider', '1')
-  }, !!opts.trafficProvider)
+  await page.evaluate(() => localStorage.clear())
   await page.reload()
   await page.getByTestId(`cluster-row-${KIND_CONTEXT}`).first().click()
   await page.getByTestId('tool-map').click()
@@ -153,7 +150,7 @@ test('RF01/RF02: toggle Tráfego desenha arestas nos dois renderizadores e expli
   let snapshot: unknown = syntheticTraffic()
   await page.route('**/api/clusters/*/traffic*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(snapshot) }))
   await serveMap(page, 300)
-  await openMap(page, { trafficProvider: true })
+  await openMap(page)
   await expect(renderer(page)).toHaveAttribute('data-kind', 'svg')
   await expect(renderer(page)).toHaveAttribute('data-edges', '0')
   await page.getByTestId('map-traffic').click()

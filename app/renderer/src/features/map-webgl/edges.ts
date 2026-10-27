@@ -1,8 +1,7 @@
 // Traffic edges placed on the map layout (shared by the SVG and WebGL renderers).
-import { call, qs } from '../../api'
 import type { Layout } from '../map/layout'
 import { TILE_R } from '../map/layout'
-import { endpointKey, setTrafficProvider, type TrafficEdge, type TrafficEndpoint, type TrafficSnapshot } from './trafficEdges'
+import { endpointKey, type TrafficEdge, type TrafficEndpoint, type TrafficSnapshot } from './trafficEdges'
 
 /** One drawable edge, in world coordinates. `w` is the stroke width in screen pixels. */
 export interface EdgeL {
@@ -82,18 +81,4 @@ export function arrowOf(e: EdgeL, k: number) {
   const hl = (7 + e.w * 1.6) / k, hw = (4 + e.w) / k
   const bx = tx - ux * hl, by = ty - uy * hl
   return { ex: bx, ey: by, tip: [tx, ty, bx - uy * hw, by + ux * hw, bx + uy * hw, by - ux * hw] as const }
-}
-
-/**
- * Test-only provider: with localStorage `leme.e2e.trafficProvider` = "1" the map reads GET /api/clusters/{id}/traffic
- * directly, so the e2e can serve a fake snapshot with page.route before the traffic feature ships its provider.
- * Off by default; never set by the app.
- */
-export function installTestTrafficProvider() {
-  try {
-    if (localStorage.getItem('leme.e2e.trafficProvider') !== '1') return
-  } catch {
-    return
-  }
-  setTrafficProvider((id, namespace) => call<TrafficSnapshot>('GET', `/api/clusters/${encodeURIComponent(id)}/traffic?` + qs({ namespace })))
 }

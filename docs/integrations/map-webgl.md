@@ -39,8 +39,7 @@ service names) and sets `compact: true`.
   `data-edges` and `data-fps` (frames per second over the last second, sampled with requestAnimationFrame).
 - `app/e2e/map-webgl.spec.ts` (always runs): synthetic 20k-workload map through `page.route`; WebGL, search,
   click, double click, filters, threshold, SVG fallback without WebGL, traffic edges in both renderers.
-  A test-only provider (localStorage `leme.e2e.trafficProvider = "1"`) reads `GET /api/clusters/{id}/traffic`
-  so the e2e can serve a fake snapshot; the app never sets it.
+  The traffic feature's provider reads `GET /api/clusters/{id}/traffic`, so the e2e serves a fake snapshot there.
 - `app/e2e/perf/map-webgl.spec.ts` (`PERF=1`): `app/e2e/fixtures/map-webgl/kwok-20k.sh up` creates 20 kwok
   nodes `m5-mapwebgl-kwok-N` and 20,000 bare pods in `m5-mapwebgl-scale` in the kind test cluster
   (kwok only from `scripts/kwok-load.sh`, v0.8.0 with a pinned SHA-256); the spec measures the open time and
