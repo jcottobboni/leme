@@ -420,7 +420,7 @@ function MapView({ clusterId }: { clusterId: string }) {
           <Row k="Pods" v={`${w.pods.total} (${w.pods.ok} ok · ${w.pods.warn} atenção · ${w.pods.error} erro)`} />
           {!!w.services?.length && <Row k="Services" v={w.services.join(', ')} />}
           {!!w.pvcs && <Row k="PVCs" v={String(w.pvcs)} />}
-          {(map as { compact?: boolean } | undefined)?.compact && <div className="muted small" style={{ marginTop: 4 }}>Mapa grande: status e services no painel do objeto</div>}
+          {map?.compact && <div className="muted small" style={{ marginTop: 4 }}>Mapa grande: status e services no painel do objeto</div>}
         </>
       )
     }
