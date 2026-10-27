@@ -4,8 +4,15 @@
 set -euo pipefail
 export KUBECONFIG="${DEV_KUBECONFIG:-$HOME/.kube/leme-dev/kubeconfig}"
 kk() { kubectl --context "kind-${KIND_NAME:-leme-dev}" "$@"; }
-kk apply -f https://github.com/kubernetes-sigs/kwok/releases/download/v0.8.0/kwok.yaml >/dev/null
-kk apply -f https://github.com/kubernetes-sigs/kwok/releases/download/v0.8.0/stage-fast.yaml >/dev/null
+# Applies a release manifest only if it matches the SHA-256 pinned here.
+apply_pinned() {
+  local f; f="$(mktemp)"
+  curl -fsSL "$1" -o "$f"
+  echo "$2  $f" | sha256sum --check --strict --quiet - || { echo "checksum mismatch: $1" >&2; rm -f "$f"; exit 1; }
+  kk apply -f "$f" >/dev/null; rm -f "$f"
+}
+apply_pinned https://github.com/kubernetes-sigs/kwok/releases/download/v0.8.0/kwok.yaml a4c16e6431e382dcb5c1903139344b7a68652f16a6460337fe17a678a426f405
+apply_pinned https://github.com/kubernetes-sigs/kwok/releases/download/v0.8.0/stage-fast.yaml 2f28d95564ec43056c0873f7a25ac7d2a5bba4c8496c72f8b3ee73fd4f54ee24
 kk -n kube-system rollout status deploy/kwok-controller --timeout=120s
 for i in 0 1 2 3 4; do
 cat <<Y | kk apply -f - >/dev/null

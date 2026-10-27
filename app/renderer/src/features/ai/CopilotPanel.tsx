@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { Check, Eye, Send, Settings2, Sparkles, Square, Wrench, X } from 'lucide-react'
+import { Check, Eye, Send, Settings2, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide-react'
 import { clusterName, openPanel, useApp, type OpenOptions } from '../../store'
 import { ClusterGate } from '../common'
 import { Modal } from '../../components/Dialogs'
@@ -50,6 +50,8 @@ function Copilot({ clusterId, initialRef }: { clusterId: string; initialRef?: Co
   const [ref, setRef] = useState<CopilotRef | undefined>(initialRef)
   const [items, setItems] = useState<Item[]>([])
   const [history, setHistory] = useState<ChatRequest['history']>([])
+  // The engine keeps this conversation's anonymization aliases, so names learned in earlier turns stay hidden.
+  const [conversation] = useState(() => crypto.randomUUID())
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [allowLogs, setAllowLogs] = useState(false)
@@ -82,7 +84,7 @@ function Copilot({ clusterId, initialRef }: { clusterId: string; initialRef?: Co
 
   // Local endpoints (Ollama, LM Studio, vLLM on localhost) need no key.
   const ready = settings?.ai.enabled && (settings.keys[settings.ai.provider] || settings.local)
-  const request = (question: string): ChatRequest => ({ history, question, ref, allowLogs, logLines })
+  const request = (question: string): ChatRequest => ({ conversation, history, question, ref, allowLogs, logLines })
 
   const send = (question: string) => {
     const q = question.trim()
@@ -256,7 +258,9 @@ function Copilot({ clusterId, initialRef }: { clusterId: string; initialRef?: Co
 }
 
 function ProposalCard({ p, state, error, readOnly, onApply, onDiscard }: { p: Proposal; state: string; error?: string; readOnly: boolean; onApply: () => void; onDiscard: () => void }) {
-  const blocked = readOnly ? 'O cluster está em somente leitura: libere a escrita para aplicar.' : !p.rbacAllowed ? 'Você não tem permissão de update neste objeto.' : p.dryRunError ? 'O dry-run falhou.' : ''
+  const [ack, setAck] = useState(false)
+  const risky = (p.risks?.length ?? 0) > 0
+  const blocked = readOnly ? 'O cluster está em somente leitura: libere a escrita para aplicar.' : !p.rbacAllowed ? 'Você não tem permissão de update neste objeto.' : p.dryRunError ? 'O dry-run falhou.' : risky && !ack ? 'Marque que revisou os riscos.' : ''
   return (
     <div className="ai-proposal" data-testid="copilot-proposal">
       <div className="ai-proposal-head">
@@ -267,6 +271,15 @@ function ProposalCard({ p, state, error, readOnly, onApply, onDiscard }: { p: Pr
         {p.dryRun ? <span className="ai-pill ok">dry-run ok</span> : p.dryRunError ? <span className="ai-pill bad" title={p.dryRunError}>dry-run falhou</span> : <span className="ai-pill warn">sem dry-run (somente leitura)</span>}
         <span className={`ai-pill ${p.rbacAllowed ? 'ok' : 'bad'}`}>{p.rbacAllowed ? 'permissão ok' : 'sem permissão'}</span>
       </div>
+      {risky && (
+        <div className="ai-risks" data-testid="copilot-risks">
+          <b><ShieldAlert size={14} /> Esta mudança amplia privilégios ou exposição</b>
+          <ul>{p.risks!.map((r) => <li key={r}>{r}</li>)}</ul>
+          {state !== 'applied' && state !== 'discarded' && (
+            <label><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="copilot-risks-ack" /> Revisei os riscos e quero aplicar mesmo assim</label>
+          )}
+        </div>
+      )}
       <div className="ai-proposal-diff"><YamlDiff original={p.before} modified={p.after} /></div>
       <div className="ai-proposal-foot">
         {state === 'applied' ? <span className="s-ok"><Check size={14} /> Aplicada</span> : state === 'discarded' ? <span className="muted">Descartada</span> : (

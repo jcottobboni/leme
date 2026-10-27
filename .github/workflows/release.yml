@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: engine/go.mod
-          cache-dependency-path: engine/go.sum
+          cache: false # release builds never restore caches written by other workflows
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: engine/go.mod
-          cache-dependency-path: engine/go.sum
+          cache: false # release builds never restore caches written by other workflows
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -118,9 +118,11 @@ jobs:
             release . > Release
           export GNUPGHOME="$(mktemp -d)"
           printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --quiet --import
-          gpg --batch --yes --clearsign -o InRelease Release
-          gpg --batch --yes --armor --detach-sign -o Release.gpg Release
-          gpg --export > leme-archive-keyring.gpg
+          fpr=8230020B4E3AB4337EBE0D9588ED1FDA269D1375
+          gpg --with-colons --list-secret-keys | grep -q "^fpr:::::::::$fpr:" || { echo "unexpected signing key" >&2; exit 1; }
+          gpg --batch --yes --local-user "$fpr" --clearsign -o InRelease Release
+          gpg --batch --yes --local-user "$fpr" --armor --detach-sign -o Release.gpg Release
+          gpg --export "$fpr" > leme-archive-keyring.gpg
           gpg --verify InRelease
           rm -rf "$GNUPGHOME"
           sha256sum *.deb *.AppImage *.exe > SHA256SUMS

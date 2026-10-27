@@ -28,20 +28,15 @@ jobs:
       - name: Install kind
         run: go install sigs.k8s.io/kind@v0.31.0 && echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: make deps engine ui
-      - name: Install the optional security scanners (checksum-verified)
+      - name: Install the optional security scanners (SHA-256 pinned here)
         run: |
           set -euo pipefail
           bin="$HOME/.local/bin"; mkdir -p "$bin"; cd "$(mktemp -d)"
-          get() { curl -fsSLO "$1"; }
-          get https://github.com/FairwindsOps/polaris/releases/download/v10.2.5/polaris_10.2.5_linux_amd64.tar.gz
-          get https://github.com/FairwindsOps/polaris/releases/download/v10.2.5/checksums.txt
-          get https://github.com/kubescape/kubescape/releases/download/v4.0.15/kubescape_4.0.15_linux_amd64
-          get https://github.com/kubescape/kubescape/releases/download/v4.0.15/checksums.sha256
-          get https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz
-          get https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_checksums.txt
-          sha256sum --check --ignore-missing checksums.txt
-          sha256sum --check --ignore-missing checksums.sha256
-          sha256sum --check --ignore-missing trivy_0.70.0_checksums.txt
+          # Hashes pinned in this file, not read from the same release: a replaced asset fails.
+          get() { curl -fsSLO "$1" && echo "$2  ${1##*/}" | sha256sum --check --strict -; }
+          get https://github.com/FairwindsOps/polaris/releases/download/v10.2.5/polaris_10.2.5_linux_amd64.tar.gz 21c979f649e9600ad41d907d188c6e01b2c7ae4dc0cdbf4df392120c950e1fca
+          get https://github.com/kubescape/kubescape/releases/download/v4.0.15/kubescape_4.0.15_linux_amd64 011569dbcde85afc96cf63262e4f967166b6680fd70a623e9065334b6767b244
+          get https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz 8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9
           tar -xzf polaris_10.2.5_linux_amd64.tar.gz polaris && install -m 755 polaris "$bin/polaris"
           install -m 755 kubescape_4.0.15_linux_amd64 "$bin/kubescape"
           tar -xzf trivy_0.70.0_Linux-64bit.tar.gz trivy && install -m 755 trivy "$bin/trivy"

@@ -3,6 +3,7 @@ package kube
 
 import (
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -31,6 +32,13 @@ type Context struct {
 	Prod      bool   `json:"prod"`
 	Local     bool   `json:"local"`
 	Provider  string `json:"provider"`
+}
+
+// Fingerprint identifies what the context points to (server, cluster and user entries), so state
+// keyed by context name can tell when the name now means another cluster or identity.
+func (c Context) Fingerprint() string {
+	h := sha256.Sum256([]byte(c.Server + "\x00" + c.Cluster + "\x00" + c.User))
+	return hex.EncodeToString(h[:12])
 }
 
 // Loader resolves kubeconfig paths and contexts.

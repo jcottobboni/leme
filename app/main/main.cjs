@@ -71,7 +71,11 @@ function loadAiKeys() {
 }
 
 function saveAiKeys() {
-  if (!keychainAvailable()) return
+  if (!keychainAvailable()) {
+    // Cannot re-encrypt what is left: drop the file so a cleared key does not come back next launch.
+    fs.rmSync(AI_KEYS_FILE(), { force: true })
+    return
+  }
   const out = [...aiKeys.values()].map((e) => ({ provider: e.provider, baseURL: e.baseURL, enc: safeStorage.encryptString(e.key).toString('base64') }))
   fs.mkdirSync(path.dirname(AI_KEYS_FILE()), { recursive: true, mode: 0o700 })
   fs.writeFileSync(AI_KEYS_FILE(), JSON.stringify(out), { mode: 0o600 })

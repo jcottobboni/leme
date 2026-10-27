@@ -17,21 +17,29 @@ const maxAnnotation = 200
 
 // Object returns a sanitized deep copy of u:
 //   - no managedFields, no last-applied-configuration;
-//   - Secret: only the keys of data/stringData;
-//   - ConfigMap: only the keys of data/binaryData;
+//   - Secret: only the keys of data/stringData, and every annotation value masked (tools such as
+//     kapp embed the whole original manifest in an annotation);
+//   - ConfigMap: only the keys of data/binaryData, annotations masked the same way;
 //   - env[].value masked everywhere (env vars often carry passwords);
-//   - annotations longer than 200 characters truncated, and annotations that look like credentials masked.
+//   - every string value whose key looks like a credential (password, secret, token, apiKey,
+//     privateKey...) masked, at any depth (e.g. OAuthClient.secret);
+//   - every remaining string passed through Text (PEM private keys such as Route spec.tls.key,
+//     "--db-password=x" arguments, bearer/JWT/cloud tokens, credentials in URLs);
+//   - annotations longer than 200 characters truncated; annotations holding an embedded manifest dropped.
 func Object(u *unstructured.Unstructured) *unstructured.Unstructured {
 	c := u.DeepCopy()
 	c.SetManagedFields(nil)
+	sensitiveKind := c.GetKind() == "Secret" || c.GetKind() == "ConfigMap"
 	if ann := c.GetAnnotations(); ann != nil {
 		delete(ann, "kubectl.kubernetes.io/last-applied-configuration")
 		for k, v := range ann {
 			switch {
-			case secretKey.MatchString(k):
+			case sensitiveKind && !safeAnnotations[k], secretKey.MatchString(k), embedsManifest(v):
 				ann[k] = Mask
 			case len(v) > maxAnnotation:
-				ann[k] = v[:maxAnnotation] + "…"
+				ann[k] = Text(v[:maxAnnotation]) + "…"
+			default:
+				ann[k] = Text(v)
 			}
 		}
 		if len(ann) == 0 {
@@ -44,9 +52,68 @@ func Object(u *unstructured.Unstructured) *unstructured.Unstructured {
 		maskValues(c.Object, "data", "stringData")
 	case "ConfigMap":
 		maskValues(c.Object, "data", "binaryData")
+	case "Template": // template.openshift.io: parameter values are often generated passwords
+		if ps, ok := c.Object["parameters"].([]any); ok {
+			for _, p := range ps {
+				if m, ok := p.(map[string]any); ok {
+					if _, has := m["value"]; has {
+						m["value"] = Mask
+					}
+				}
+			}
+		}
 	}
 	env(c.Object)
+	leaves(c.Object)
 	return c
+}
+
+// Annotations of Secrets/ConfigMaps that carry no secret material and help diagnosis.
+var safeAnnotations = map[string]bool{
+	"kubernetes.io/service-account.name": true, "kubernetes.io/service-account.uid": true,
+	"kubernetes.io/description": true, "openshift.io/description": true,
+}
+
+func embedsManifest(v string) bool {
+	t := strings.TrimSpace(v)
+	return (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "apiVersion:")) && (strings.Contains(t, `"data"`) || strings.Contains(t, `"stringData"`) || strings.Contains(t, "\ndata:") || strings.Contains(t, "stringData:"))
+}
+
+// keyRefs are credential-looking keys whose values are references or settings, not secrets.
+var keyRefs = regexp.MustCompile(`(?i)(name|namespace|ref|path|file|mode|seconds|expiration|audience|type|policy|items)$`)
+
+// leaves masks credential-named string values and runs Text over every other string.
+func leaves(o map[string]any) {
+	var walk func(v any) any
+	walk = func(v any) any {
+		switch t := v.(type) {
+		case map[string]any:
+			for k, x := range t {
+				if s, ok := x.(string); ok {
+					if s != Mask && secretKey.MatchString(k) && !keyRefs.MatchString(k) {
+						t[k] = Mask
+					} else {
+						t[k] = Text(s)
+					}
+					continue
+				}
+				t[k] = walk(x)
+			}
+		case []any:
+			for i, x := range t {
+				t[i] = walk(x)
+			}
+		case string:
+			return Text(t)
+		}
+		return v
+	}
+	meta, hasMeta := o["metadata"]
+	delete(o, "metadata") // names, labels and annotations are handled above; Text on uids is noise
+	walk(o)
+	if hasMeta {
+		o["metadata"] = meta
+	}
 }
 
 func maskValues(o map[string]any, fields ...string) {

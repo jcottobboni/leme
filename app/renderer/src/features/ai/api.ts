@@ -36,6 +36,7 @@ export interface Proposal {
   dryRun: boolean
   dryRunError?: string
   rbacAllowed: boolean
+  risks?: string[]
   expires: string
 }
 
@@ -53,6 +54,7 @@ export interface ChatEvent {
 }
 
 export interface ChatRequest {
+  conversation: string
   history: { role: 'user' | 'assistant'; text: string }[]
   question: string
   ref?: ChangeRef

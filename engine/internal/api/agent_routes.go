@@ -33,7 +33,8 @@ func (s *Server) agentAccess(w http.ResponseWriter, r *http.Request) {
 	out := make([]agentAccessView, 0, len(ctxs))
 	for _, c := range ctxs {
 		a := s.settings.AgentAccess(c.Name)
-		out = append(out, agentAccessView{ID: c.ID, Name: c.Name, Prod: c.Prod, Write: a.Write, ProdConfirmed: a.ProdConfirmed})
+		ok := a.Granted(c.Fingerprint())
+		out = append(out, agentAccessView{ID: c.ID, Name: c.Name, Prod: c.Prod, Write: ok, ProdConfirmed: ok && a.ProdConfirmed})
 	}
 	exe, _ := os.Executable()
 	writeJSON(w, map[string]any{"contexts": out, "enginePath": exe})
@@ -63,7 +64,7 @@ func (s *Server) setAgentAccess(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusForbidden, "para produção, digite o nome exato do contexto")
 			return
 		}
-		a := settings.AgentAccess{Write: body.Write, ProdConfirmed: body.Write && c.Prod}
+		a := settings.AgentAccess{Write: body.Write, ProdConfirmed: body.Write && c.Prod, Fingerprint: c.Fingerprint()}
 		if err := s.settings.SetAgentAccess(c.Name, a); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return

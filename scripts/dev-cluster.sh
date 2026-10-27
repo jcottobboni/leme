@@ -21,9 +21,17 @@ if ! kind get clusters 2>/dev/null | grep -qx "$NAME"; then
   kind create cluster --name "$NAME" --kubeconfig "$KUBECONFIG"
 fi
 
+# Applies a release manifest only if it matches the SHA-256 pinned here.
+apply_pinned() {
+  local f; f="$(mktemp)"
+  curl -fsSL "$1" -o "$f"
+  echo "$2  $f" | sha256sum --check --strict --quiet - || { echo "checksum mismatch: $1" >&2; rm -f "$f"; exit 1; }
+  kk apply -f "$f" >/dev/null; rm -f "$f"
+}
+
 echo "metrics-server"
 if ! kk -n kube-system get deploy metrics-server >/dev/null 2>&1; then
-  kk apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml >/dev/null
+  apply_pinned https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml 1cec29a5267809306a2c6ec74a3e449abbb705b4a8beed0c8a1963910f72c79b
   # kind kubelets use self-signed certificates.
   kk -n kube-system patch deploy metrics-server --type=json \
     -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]' >/dev/null

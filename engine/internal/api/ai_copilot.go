@@ -22,6 +22,7 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/ops"
 	"github.com/jcottobboni/leme/engine/internal/redact"
+	"github.com/jcottobboni/leme/engine/internal/security"
 )
 
 // copilotRef is the object the conversation is about.
@@ -89,6 +90,47 @@ func learnObject(an *anonymize.Map, u *unstructured.Unstructured) {
 	for _, v := range u.GetLabels() {
 		an.Learn(anonymize.Object, v)
 	}
+	// Names the object points to: nodes, service accounts, claims, config maps and secrets.
+	spec, _ := security.PodSpec(u)
+	if spec == nil && u.GetKind() == "Pod" {
+		spec, _, _ = unstructured.NestedMap(u.Object, "spec")
+	}
+	if spec != nil {
+		for _, k := range []string{"nodeName", "serviceAccountName", "serviceAccount"} {
+			if v, ok := spec[k].(string); ok {
+				an.Learn(anonymize.Object, v)
+			}
+		}
+		learnRefs(an, "", spec)
+	}
+}
+
+// learnRefs learns every name referenced through volumes, env and envFrom.
+func learnRefs(an *anonymize.Map, key string, v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		switch key {
+		case "persistentVolumeClaim":
+			if n, ok := t["claimName"].(string); ok {
+				an.Learn(anonymize.Object, n)
+			}
+		case "secret":
+			if n, ok := t["secretName"].(string); ok {
+				an.Learn(anonymize.Object, n)
+			}
+		case "configMap", "configMapRef", "configMapKeyRef", "secretRef", "secretKeyRef":
+			if n, ok := t["name"].(string); ok {
+				an.Learn(anonymize.Object, n)
+			}
+		}
+		for k, x := range t {
+			learnRefs(an, k, x)
+		}
+	case []any:
+		for _, x := range t {
+			learnRefs(an, key, x)
+		}
+	}
 }
 
 func objectYAML(u *unstructured.Unstructured) string {
@@ -108,6 +150,8 @@ func (s *Server) copilotPrompt(ctx context.Context, sess *cluster.Session, req *
 	var b strings.Builder
 	// The context name often embeds the API host and the user name: it is replaced as a whole.
 	an.Learn(anonymize.Object, sess.Context.Name)
+	an.Learn(anonymize.Object, sess.Context.User)
+	an.Learn(anonymize.Object, sess.Context.Cluster)
 	version := "?"
 	if v, err := sess.Typed.Discovery().ServerVersion(); err == nil {
 		version = v.GitVersion
@@ -315,6 +359,9 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 					if i == 40 {
 						break
 					}
+					an.Learn(anonymize.Object, e.InvolvedObject.Name)
+					an.Learn(anonymize.Namespace, e.InvolvedObject.Namespace)
+					an.Learn(anonymize.Object, e.Source.Host)
 					fmt.Fprintf(&b, "- %s %s %s/%s (x%d): %s\n", e.Type, e.Reason, e.InvolvedObject.Kind, e.InvolvedObject.Name, e.Count, redact.Text(e.Message))
 				}
 				if b.Len() == 0 {
@@ -360,7 +407,7 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 				if err != nil {
 					return "", err
 				}
-				return mustJSON(map[string]any{"allowed": r.Status.Allowed, "reason": r.Status.Reason}), nil
+				return mustJSON(map[string]any{"allowed": r.Status.Allowed}), nil
 			}),
 		tool(ai.ToolDef{Name: "propose_change", Description: "Propõe uma alteração em UM objeto existente como JSON merge patch (RFC 7386). O usuário verá o diff, o resultado do dry-run e decidirá se aplica. Não aplica nada. Não permite excluir, nem alterar Secrets, RBAC, Namespaces, CRDs ou o conteúdo de ConfigMaps. Para listas (ex.: containers), envie a lista completa.",
 			Schema: schema(map[string]any{

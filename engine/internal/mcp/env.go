@@ -100,6 +100,8 @@ func (e *Env) resolve(ctx context.Context, name string) (*cluster.Session, error
 func (e *Env) writesAllowed(kc kube.Context) (bool, string) {
 	a := e.Settings.AgentAccess(kc.Name)
 	switch {
+	case a.Write && !a.Granted(kc.Fingerprint()):
+		return false, "agent writes were enabled for context " + kc.Name + " when it pointed to another cluster, server or user; the user must enable them again in the Leme app (cluster menu > \"Acesso de agentes (MCP)…\")."
 	case !a.Write:
 		return false, "agent writes are disabled for context " + kc.Name + ". The user can enable them in the Leme app: cluster menu > \"Acesso de agentes (MCP)…\" > \"Permitir escrita por agentes neste contexto\"."
 	case kc.Prod && !a.ProdConfirmed:

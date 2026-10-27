@@ -43,7 +43,13 @@ type AgentAccess struct {
 	Write bool `json:"write,omitempty"`
 	// ProdConfirmed records that the user typed the context name to allow writes on production.
 	ProdConfirmed bool `json:"prodConfirmed,omitempty"`
+	// Fingerprint ties the permission to the cluster, user and server the context pointed to when
+	// it was granted: another kubeconfig reusing the context name does not inherit it.
+	Fingerprint string `json:"fingerprint,omitempty"`
 }
+
+// Granted reports whether a stored permission applies to a context with this fingerprint.
+func (a AgentAccess) Granted(fingerprint string) bool { return a.Write && a.Fingerprint == fingerprint }
 
 // Data is the persisted document.
 type Data struct {

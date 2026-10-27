@@ -71,6 +71,7 @@ type Proposal struct {
 	DryRun      bool      `json:"dryRun"` // the API server accepted it in dry-run
 	DryRunError string    `json:"dryRunError,omitempty"`
 	RBACAllowed bool      `json:"rbacAllowed"`
+	Risks       []string  `json:"risks,omitempty"` // what the change adds that widens privileges or exposure
 	Expires     time.Time `json:"expires"`
 
 	rv     string
@@ -120,6 +121,9 @@ func (st *Store) Propose(ctx context.Context, s *cluster.Session, ref Ref, patch
 	if err != nil {
 		return nil, err
 	}
+	if containsMask(patch) {
+		return nil, errMasked
+	}
 	next, err := applyMergePatch(cur, patch)
 	if err != nil {
 		return nil, err
@@ -133,6 +137,7 @@ func (st *Store) Propose(ctx context.Context, s *cluster.Session, ref Ref, patch
 	p := &Proposal{
 		Token: token(), ClusterID: s.Context.ID, Ref: ref, Summary: summary, Source: source,
 		Expires: time.Now().Add(TTL), rv: cur.GetResourceVersion(), before: clean(cur), after: clean(next),
+		Risks: risks(cur, next),
 	}
 	p.Before, p.After = render(p.before), render(p.after)
 	if r, err := s.Typed.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authv1.SelfSubjectAccessReview{Spec: authv1.SelfSubjectAccessReviewSpec{
@@ -176,6 +181,9 @@ func (st *Store) Apply(ctx context.Context, s *cluster.Session, tok string, gate
 	}
 	if err := gate(); err != nil {
 		return nil, err
+	}
+	if p.Source == "mcp" && len(p.Risks) > 0 {
+		return nil, errors.New("agents cannot apply changes that widen privileges or exposure")
 	}
 	res, ok := s.LookupKind(p.Ref.Group, p.Ref.Kind)
 	if !ok {

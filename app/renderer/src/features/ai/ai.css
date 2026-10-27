@@ -55,3 +55,7 @@
 .ai-preview pre { max-height: 50vh; overflow: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 0; }
 .ai-settings .banner { border: 1px solid var(--line); border-radius: 8px; }
 .ai-settings .ai-ok { color: var(--ok); }
+.ai-risks { padding: 8px 12px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--warn) 10%, transparent); display: grid; gap: 4px; font-size: 12px; }
+.ai-risks b { color: var(--warn); display: inline-flex; gap: 6px; align-items: center; }
+.ai-risks ul { margin: 0; padding-left: 20px; }
+.ai-risks label { display: inline-flex; gap: 6px; align-items: center; }

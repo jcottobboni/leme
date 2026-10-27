@@ -88,3 +88,57 @@ func TestText(t *testing.T) {
 		t.Error("plain text must not change")
 	}
 }
+
+func TestCredentialsOutsideSecrets(t *testing.T) {
+	pem := "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0123456789\n-----END RSA PRIVATE KEY-----"
+	route := obj(t, `
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata: {name: r}
+spec:
+  host: app.example.com
+  tls: {termination: edge, certificate: PUBLICCERT, key: "`+strings.ReplaceAll(pem, "\n", `\n`)+`"}
+`)
+	oauth := obj(t, "apiVersion: oauth.openshift.io/v1\nkind: OAuthClient\nmetadata: {name: c}\nsecret: topsecretvalue\nredirectURIs: [https://x]\n")
+	dep := obj(t, `
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: d}
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        image: app:1
+        args: ["--db-password=hunter2", "--port=80"]
+        volumeMounts: [{name: v, mountPath: /x}]
+      volumes: [{name: v, secret: {secretName: keep-this-name}}]
+  apiKey: abc123xyz
+`)
+	cr := obj(t, "apiVersion: example.io/v1\nkind: Database\nmetadata: {name: db}\nspec: {adminPassword: hunter3, passwordSecretRef: {name: keep-ref}}\n")
+	tpl := obj(t, "apiVersion: template.openshift.io/v1\nkind: Template\nmetadata: {name: t}\nparameters: [{name: DB_PASS, value: generated123}]\n")
+	sec := obj(t, `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s
+  annotations:
+    kapp.k14s.io/original: '{"apiVersion":"v1","data":{"password":"aHVudGVyMg=="},"kind":"Secret"}'
+    kubernetes.io/service-account.name: builder
+data: {password: aHVudGVyMg==}
+`)
+	for name, o := range map[string]*unstructured.Unstructured{"route": route, "oauth": oauth, "deployment": dep, "cr": cr, "template": tpl, "secret": sec} {
+		y, _ := yaml.Marshal(Object(o).Object)
+		s := string(y)
+		for _, bad := range []string{"MIIEowIBAAKCAQEA", "topsecretvalue", "hunter2", "abc123xyz", "hunter3", "generated123", "aHVudGVyMg"} {
+			if strings.Contains(s, bad) {
+				t.Errorf("%s leaked %q:\n%s", name, bad, s)
+			}
+		}
+		for _, keep := range map[string][]string{"route": {"PUBLICCERT", "app.example.com"}, "deployment": {"keep-this-name", "--port=80"}, "cr": {"keep-ref"}, "secret": {"builder"}}[name] {
+			if !strings.Contains(s, keep) {
+				t.Errorf("%s lost %q:\n%s", name, keep, s)
+			}
+		}
+	}
+}

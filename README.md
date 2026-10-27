@@ -62,8 +62,9 @@ and need to be sure they are not about to break production.
 ### APT (Debian, Ubuntu and derivatives), with automatic updates
 
 ```bash
-curl -fsSL https://github.com/jcottobboni/leme/releases/latest/download/leme-archive-keyring.gpg \
-  | sudo tee /usr/share/keyrings/leme-archive-keyring.gpg > /dev/null
+curl -fsSL https://github.com/jcottobboni/leme/releases/latest/download/leme-archive-keyring.gpg -o leme.gpg
+gpg --show-keys --with-colons leme.gpg | grep -q '^fpr:::::::::8230020B4E3AB4337EBE0D9588ED1FDA269D1375:' \
+  && sudo install -m 644 leme.gpg /usr/share/keyrings/leme-archive-keyring.gpg && rm leme.gpg
 echo "deb [signed-by=/usr/share/keyrings/leme-archive-keyring.gpg] https://github.com/jcottobboni/leme/releases/latest/download/ ./" \
   | sudo tee /etc/apt/sources.list.d/leme.list
 sudo apt update && sudo apt install leme

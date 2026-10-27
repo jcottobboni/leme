@@ -70,6 +70,16 @@ func (e *Env) proposeChange(ctx context.Context, args json.RawMessage) (string, 
 		"rbacAllowed":   v.RBACAllowed,
 		"writesEnabled": canWrite,
 	}
+	if len(v.Risks) > 0 {
+		// Privilege or exposure escalations (and changes to values the agent cannot see) are never
+		// applied by an agent: a prompt injection must not be one approval away from them.
+		out["risks"] = v.Risks
+		out["dryRun"] = false
+		out["note"] = "Not applicable by an agent: this change widens privileges or exposure, or touches values hidden from you. " +
+			"Show the diff and the risks to the user; if they want it, they make the change themselves in the Leme app or with kubectl."
+		e.audit(audit.Entry{Action: "propose", Context: s.Context.Name, Object: ref.String(), Result: "blocked", Detail: short(strings.Join(v.Risks, "; "))})
+		return jsonText(out)
+	}
 	if canWrite {
 		out["dryRun"] = v.DryRun
 		if v.DryRunError != "" {

@@ -166,3 +166,40 @@ func TestRedactedView(t *testing.T) {
 		t.Fatal("the agent view must mask env values")
 	}
 }
+
+func TestMaskedValuesAndRisks(t *testing.T) {
+	s, _ := session(t, true)
+	st := NewStore()
+	ctx := context.Background()
+	ref := Ref{Group: "apps", Kind: "Deployment", Namespace: "demo", Name: "broken"}
+	masked := map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
+		"containers": []any{map[string]any{"name": "nginx", "image": "nginx:1.27-alpine", "env": []any{map[string]any{"name": "DB_PASS", "value": "<redacted>"}}}},
+	}}}}
+	if _, err := st.Propose(ctx, s, ref, masked, "", "copilot", true); err == nil || !strings.Contains(err.Error(), "masked") {
+		t.Fatalf("a patch carrying the mask must be refused: %v", err)
+	}
+	p, err := st.Propose(ctx, s, ref, imagePatch, "", "mcp", true)
+	if err != nil || len(p.Risks) != 0 {
+		t.Fatalf("an image fix carries no risk: %v %v", err, p.Risks)
+	}
+	esc := map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
+		"hostNetwork":        true,
+		"serviceAccountName": "admin",
+		"containers": []any{map[string]any{"name": "nginx", "image": "nginx:1.27-alpine",
+			"securityContext": map[string]any{"privileged": true},
+			"envFrom":         []any{map[string]any{"secretRef": map[string]any{"name": "db-creds"}}}}},
+	}}}}
+	p, err = st.Propose(ctx, s, ref, esc, "", "mcp", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(p.Risks, "\n")
+	for _, want := range []string{"hostNetwork", "ServiceAccount", "db-creds", "rivileg"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("risk %q not flagged:\n%s", want, all)
+		}
+	}
+	if _, err := st.Apply(ctx, s, p.Token, func() error { return nil }); err == nil {
+		t.Fatal("an agent must not apply an escalation")
+	}
+}

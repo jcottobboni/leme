@@ -27,11 +27,51 @@ import (
 // never written to disk by the engine nor returned by any endpoint. A key is bound to the endpoint
 // it was entered for, so pointing the settings at another server never sends it there.
 type aiState struct {
-	mu   sync.Mutex
-	keys map[string]string // provider|baseURL -> key
+	mu    sync.Mutex
+	keys  map[string]string // provider|baseURL -> key
+	convs map[string]*conversation
 }
 
-func newAIState() *aiState { return &aiState{keys: map[string]string{}} }
+// conversation keeps the anonymization aliases of one Copilot conversation: the UI resends the
+// history with real names, and names learned in earlier turns (tool results) must stay hidden.
+type conversation struct {
+	mu      sync.Mutex
+	cluster string
+	an      *anonymize.Map
+	used    time.Time
+}
+
+const conversationTTL = 2 * time.Hour
+
+func newAIState() *aiState {
+	return &aiState{keys: map[string]string{}, convs: map[string]*conversation{}}
+}
+
+// conversation returns the conversation's alias map, locked; the caller must unlock it.
+// fresh is true when no earlier turn is known (new conversation, engine restart, setting changed).
+func (a *aiState) conversation(id, cluster string, anonymizeOn bool) (c *conversation, fresh bool, err error) {
+	a.mu.Lock()
+	now := time.Now()
+	for k, v := range a.convs {
+		if now.Sub(v.used) > conversationTTL {
+			delete(a.convs, k)
+		}
+	}
+	c = a.convs[id]
+	if c == nil || c.cluster != cluster || c.an.Enabled() != anonymizeOn || id == "" {
+		c = &conversation{cluster: cluster, an: anonymize.New(anonymizeOn)}
+		if id != "" {
+			a.convs[id] = c
+		}
+		fresh = true
+	}
+	c.used = now
+	a.mu.Unlock()
+	if !c.mu.TryLock() {
+		return nil, false, errors.New("esta conversa já tem uma pergunta em andamento")
+	}
+	return c, fresh, nil
+}
 
 func endpointKey(provider, baseURL string) string {
 	return provider + "|" + strings.TrimRight(baseURL, "/")
@@ -56,7 +96,9 @@ func (a *aiState) key(provider, baseURL string) string {
 	if k != "" {
 		return k
 	}
-	if v := os.Getenv("LEME_AI_API_KEY"); v != "" {
+	// Environment keys only go to the provider's official endpoint, or to the endpoint named in
+	// LEME_AI_BASE_URL: a key must never follow a base URL changed through the API.
+	if v := os.Getenv("LEME_AI_API_KEY"); v != "" && strings.TrimRight(baseURL, "/") == strings.TrimRight(os.Getenv("LEME_AI_BASE_URL"), "/") {
 		return v
 	}
 	if baseURL == "" {
@@ -228,11 +270,12 @@ func (s *Server) auditList(w http.ResponseWriter, r *http.Request) {
 
 // chatRequest is the single message a client sends on the chat socket (and the preview body).
 type chatRequest struct {
-	History   []ai.Turn   `json:"history"`
-	Question  string      `json:"question"`
-	Ref       *copilotRef `json:"ref,omitempty"`
-	AllowLogs bool        `json:"allowLogs"`
-	LogLines  int         `json:"logLines"`
+	Conversation string      `json:"conversation"`
+	History      []ai.Turn   `json:"history"`
+	Question     string      `json:"question"`
+	Ref          *copilotRef `json:"ref,omitempty"`
+	AllowLogs    bool        `json:"allowLogs"`
+	LogLines     int         `json:"logLines"`
 }
 
 func (s *Server) aiPreview(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
@@ -241,7 +284,13 @@ func (s *Server) aiPreview(w http.ResponseWriter, r *http.Request, sess *cluster
 		return
 	}
 	_, a, _ := s.aiConfig()
-	an := anonymize.New(anonymizeOn(a))
+	conv, _, err := s.ai.conversation(req.Conversation, sess.Context.ID, anonymizeOn(a))
+	if err != nil {
+		httpError(w, http.StatusConflict, err.Error())
+		return
+	}
+	defer conv.mu.Unlock()
+	an := conv.an
 	user, err := s.copilotPrompt(r.Context(), sess, &req, an)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
@@ -310,12 +359,23 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request, sess *cluster.Se
 		finish()
 		return
 	}
-	an := anonymize.New(anonymizeOn(a))
+	cv, fresh, err := s.ai.conversation(req.Conversation, sess.Context.ID, anonymizeOn(a))
+	if err != nil {
+		send(chatEvent{Type: "error", Text: err.Error()})
+		finish()
+		return
+	}
+	defer cv.mu.Unlock()
+	an := cv.an
 	user, err := s.copilotPrompt(ctx, sess, &req, an)
 	if err != nil {
 		send(chatEvent{Type: "error", Text: err.Error()})
 		finish()
 		return
+	}
+	if fresh && an.Enabled() {
+		// The aliases of earlier turns are gone: real names in that history would go out in clear.
+		req.History = nil
 	}
 	history := make([]ai.Turn, 0, len(req.History))
 	for _, h := range req.History {

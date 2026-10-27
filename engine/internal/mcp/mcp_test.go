@@ -132,6 +132,10 @@ func (h *harness) tool(t *testing.T, name string, args map[string]any) (string, 
 
 func (h *harness) enable(t *testing.T, a settings.AgentAccess) {
 	t.Helper()
+	if a.Write { // granted from the app, which records what the context points to
+		list, _ := h.env.Contexts()
+		a.Fingerprint = list[0].Fingerprint()
+	}
 	if err := h.settings.SetAgentAccess("kind-test", a); err != nil {
 		t.Fatal(err)
 	}
@@ -351,5 +355,18 @@ func TestLineDiff(t *testing.T) {
 	d := lineDiff("a\nb\nc\nd\ne\nf", "a\nb\nc\nX\ne\nf")
 	if !strings.Contains(d, "-d") || !strings.Contains(d, "+X") || !strings.Contains(d, " c") {
 		t.Fatal(d)
+	}
+}
+
+func TestGrantDoesNotFollowAnotherClusterWithTheSameName(t *testing.T) {
+	h := newHarness(t, false)
+	h.enable(t, settings.AgentAccess{Write: true})
+	a := h.settings.AgentAccess("kind-test")
+	a.Fingerprint = "granted-to-another-cluster"
+	if err := h.settings.SetAgentAccess("kind-test", a); err != nil {
+		t.Fatal(err)
+	}
+	if ok, why := h.env.writesAllowed(kube.Context{Name: "kind-test", Server: "https://10.0.0.1:6443"}); ok || !strings.Contains(why, "another cluster") {
+		t.Fatalf("a grant made for another cluster must not apply: %v %s", ok, why)
 	}
 }
