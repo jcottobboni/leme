@@ -94,7 +94,9 @@ test('CA-V3: menu da linha conforme o tipo', async ({ page }) => {
   await page.getByTestId('row-web').getByRole('button', { name: 'Ações de web' }).click()
   await expect(page.getByRole('menuitem', { name: 'Escalar…' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Reiniciar…' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: 'Logs' })).toHaveCount(0)
+  // A workload has the aggregated logs (M7), not the logs of one pod.
+  await expect(page.getByRole('menuitem', { name: 'Logs', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Logs (todos os pods)' })).toBeVisible()
   await page.keyboard.press('Escape')
   // Containers column (squares) on pods.
   await page.getByTestId('nav-kind-Pod').click()
