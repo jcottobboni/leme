@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -43,5 +44,18 @@ func TestIstioRoutesWithoutIstio(t *testing.T) {
 	s.istioAnalyze(rec, httptest.NewRequest(http.MethodPost, "/api/clusters/k/istio/analyze", strings.NewReader(`{"namespace":"shop"}`)), sess)
 	if !strings.Contains(rec.Body.String(), `"installed":false`) || !strings.Contains(rec.Body.String(), "istioctl") {
 		t.Fatalf("analyze without istioctl: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestIstioAnalyzeRejectsInvalidNamespace(t *testing.T) {
+	s := newTestServer(t)
+	for _, ns := range []string{"--kubeconfig=/root/.kube/config", "a b", "UPPER", "../x"} {
+		body, _ := json.Marshal(map[string]string{"namespace": ns})
+		r := httptest.NewRequest(http.MethodPost, "/api/clusters/c1/istio/analyze", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		s.istioAnalyze(w, r, nil)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%q: got %d (%s)", ns, w.Code, w.Body.String())
+		}
 	}
 }

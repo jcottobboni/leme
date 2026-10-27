@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/istio"
 	"github.com/jcottobboni/leme/engine/internal/security"
@@ -33,6 +35,11 @@ func (s *Server) istioAnalyze(w http.ResponseWriter, r *http.Request, sess *clus
 		Namespace string `json:"namespace"`
 	}
 	if !decode(w, r, &req) {
+		return
+	}
+	// The namespace reaches istioctl's command line: only a DNS-1123 label (or "" for all).
+	if req.Namespace != "" && len(validation.IsDNS1123Label(req.Namespace)) > 0 {
+		httpError(w, http.StatusBadRequest, "invalid namespace")
 		return
 	}
 	bin, err := security.LookTool("istioctl")
