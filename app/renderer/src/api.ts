@@ -406,3 +406,34 @@ function enc(s: string) {
 export function refOf(r: Resource, name: string, namespace?: string): Ref {
   return { group: r.group, version: r.version, resource: r.resource, name, namespace: r.namespaced ? namespace : undefined }
 }
+
+// M7 (front O): change history and diff between clusters/namespaces. Aggregated logs are a WebSocket
+// (`/api/clusters/{id}/logs/multi`, see features/logs/MultiLogsPanel).
+export interface HistoryOp { op: 'add' | 'remove' | 'replace'; path: string; value?: unknown; old?: unknown }
+export interface HistoryEntry {
+  id: number
+  time: string
+  type: 'created' | 'updated' | 'deleted'
+  group: string
+  version: string
+  resource: string
+  kind: string
+  namespace?: string
+  name: string
+  uid?: string
+  resourceVersion?: string
+  ops?: HistoryOp[]
+  /** Secret/ConfigMap: only the changed paths were recorded, never the values. */
+  keysOnly?: boolean
+  truncated?: boolean
+}
+export interface HistoryPage { entries: HistoryEntry[]; next?: number; retentionDays: number }
+export interface HistoryQuery { group?: string; resource?: string; namespace?: string; name?: string; type?: string; before?: number; limit?: number }
+export interface DiffSide { cluster: string; group: string; resource: string; namespace?: string; name: string }
+export interface DiffSideResult { yaml: string; found: boolean; kind?: string; error?: string }
+export interface DiffResult { left: DiffSideResult; right: DiffSideResult; equal: boolean; hiddenDiffer?: string[]; namespaceIgnored?: boolean; changes?: HistoryOp[] }
+
+export const api7 = {
+  history: (id: string, q: HistoryQuery) => call<HistoryPage>('GET', `/api/clusters/${id}/history?` + qs({ ...q })),
+  diff: (left: DiffSide, right: DiffSide) => call<DiffResult>('POST', '/api/diff', { left, right }),
+}

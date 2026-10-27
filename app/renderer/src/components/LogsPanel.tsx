@@ -3,42 +3,9 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import { api, openSocket } from '../api'
 import { findResource } from '../store'
 import { Xterm, type XtermHandle } from './Xterm'
+import { BUFFER_MAX, LogRing } from './logRing'
 
-// Follow mode can stream for hours: the download buffer keeps only the most recent ~5 MB.
-const BUFFER_MAX = 5 * 1024 * 1024
-
-/** Append-only text buffer capped by size: the oldest chunks are dropped (and counted) past `max` characters. */
-export class LogRing {
-  private chunks: string[] = []
-  private head = 0
-  size = 0
-  dropped = 0
-  constructor(private max = BUFFER_MAX) {}
-  push(text: string) {
-    this.chunks.push(text)
-    this.size += text.length
-    while (this.size > this.max && this.head < this.chunks.length - 1) {
-      const old = this.chunks[this.head]
-      this.chunks[this.head++] = ''
-      this.size -= old.length
-      this.dropped += old.length
-    }
-    // Compact the array now and then instead of shifting on every drop.
-    if (this.head > 1024 && this.head * 2 > this.chunks.length) {
-      this.chunks = this.chunks.slice(this.head)
-      this.head = 0
-    }
-  }
-  clear() {
-    this.chunks = []
-    this.head = 0
-    this.size = 0
-    this.dropped = 0
-  }
-  parts(): string[] {
-    return this.chunks.slice(this.head)
-  }
-}
+export { LogRing } from './logRing'
 
 export interface LogsParams {
   clusterId: string

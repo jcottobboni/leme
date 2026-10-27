@@ -3,6 +3,7 @@ import {
   Hammer, Image, Key, Layers, Layers2, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, MoveHorizontal, Network, Package, Plus, Route, Ruler, ScrollText, Server, Settings2,
   Shield, ShieldCheck, Share2, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Webhook, Workflow, Wrench,
 } from 'lucide-react'
+import { GitCompareArrows, History, Logs } from 'lucide-react' // M7 panels
 import type { Resource } from '../../api'
 
 /** English plural used for resource-type labels (Pods, Ingresses, NetworkPolicies, Endpoints). */
@@ -48,6 +49,7 @@ export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
   rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, projtopo: Boxes, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
   traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints,
+  multilogs: Logs, diff: GitCompareArrows, changes: History,
 }
 
 export interface NavTool {

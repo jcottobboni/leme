@@ -79,6 +79,9 @@ func TestCompareObjectsNormalizesAndMasks(t *testing.T) {
 	if diff.Equal || diff.NamespaceIgnored || !strings.Contains(diff.Left.YAML, "nginx:1.27") || !strings.Contains(diff.Right.YAML, "nginx:1.28") {
 		t.Fatalf("clusters: %+v", diff)
 	}
+	if len(diff.Changes) != 1 || diff.Changes[0].Path != "/spec/template/spec/containers/0/image" {
+		t.Fatalf("changes: %+v", diff.Changes)
+	}
 	// Missing on one side, unknown cluster.
 	if r := compareObjects(ctx, get, dep("a", "demo"), dep("b", "nope")); r.Right.Found || r.Equal || r.Right.Error != "" {
 		t.Fatalf("missing: %+v", r)

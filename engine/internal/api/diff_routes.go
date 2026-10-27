@@ -36,7 +36,12 @@ type diffSideResult struct {
 	Found bool   `json:"found"`
 	Kind  string `json:"kind,omitempty"`
 	Error string `json:"error,omitempty"`
+
+	norm map[string]any // the normalized (and masked) object, for Changes
 }
+
+// maxDiffChanges bounds the summary of changed paths.
+const maxDiffChanges = 200
 
 type diffResult struct {
 	Left  diffSideResult `json:"left"`
@@ -45,6 +50,9 @@ type diffResult struct {
 	Equal bool `json:"equal"`
 	// HiddenDiffer lists the Secret keys present on both sides whose (masked) values differ.
 	HiddenDiffer []string `json:"hiddenDiffer,omitempty"`
+	// Changes are the JSON Patch operations from left to right (normalized objects, values masked
+	// like the YAML), at most 200.
+	Changes []objdiff.Op `json:"changes,omitempty"`
 	// NamespaceIgnored: the sides are in different namespaces, so metadata.namespace is not compared.
 	NamespaceIgnored bool `json:"namespaceIgnored,omitempty"`
 }
@@ -74,6 +82,10 @@ func compareObjects(ctx context.Context, get func(string) (*cluster.Session, boo
 	if lu != nil && ru != nil {
 		out.HiddenDiffer = hiddenDiffer(lu, ru)
 		out.Equal = lres.YAML == rres.YAML && len(out.HiddenDiffer) == 0
+		out.Changes = objdiff.Diff(lres.norm, rres.norm)
+		if len(out.Changes) > maxDiffChanges {
+			out.Changes = out.Changes[:maxDiffChanges]
+		}
 	}
 	return out
 }
@@ -107,7 +119,7 @@ func diffFetch(ctx context.Context, get func(string) (*cluster.Session, bool), d
 	if err != nil {
 		return nil, diffSideResult{Kind: res.Kind, Error: err.Error()}
 	}
-	return u, diffSideResult{YAML: string(y), Found: true, Kind: res.Kind}
+	return u, diffSideResult{YAML: string(y), Found: true, Kind: res.Kind, norm: n.Object}
 }
 
 // isSecret: a core Secret (a CRD named Secret in another group is not masked by this rule).
