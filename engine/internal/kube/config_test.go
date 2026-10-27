@@ -34,10 +34,18 @@ func TestIsLocal(t *testing.T) {
 		want         bool
 	}{
 		{"kind-dev", "https://127.0.0.1:40000", true},
-		{"anything", "https://localhost:6443", true},
 		{"minikube", "https://192.168.49.2:8443", true},
+		{"minikube", "https://127.0.0.1:32771", true},
+		{"colima", "https://172.17.0.2:6443", true},
+		{"docker-desktop", "https://kubernetes.docker.internal:6443", true},
 		{"hr-dsv/api:6443/alice", "https://api-ocp-dev-acme-example:6443", false},
 		{"kind-fake", "https://10.1.2.3:6443", false},
+		// Loopback alone may be an SSH tunnel or kubectl proxy to a remote cluster.
+		{"anything", "https://localhost:6443", false},
+		{"remote-via-tunnel", "https://127.0.0.1:6443", false},
+		// 172.* outside 172.16.0.0/12 is public address space.
+		{"minikube-x", "https://172.217.1.1:6443", false},
+		{"kind-x", "https://kind.example.com:6443", false},
 	}
 	for _, c := range cases {
 		if got := IsLocal(c.name, c.server); got != c.want {
