@@ -392,6 +392,7 @@ func (e *Env) diagnose(ctx context.Context, args json.RawMessage) (string, error
 		return "", err
 	}
 	var fs []analyze.Finding
+	var listErrs map[string]string
 	if a.Kind != "" || a.Name != "" {
 		r, err := findResource(s, a.Group, a.Kind)
 		if err != nil {
@@ -401,7 +402,7 @@ func (e *Env) diagnose(ctx context.Context, args json.RawMessage) (string, error
 		if err != nil {
 			return "", err
 		}
-	} else if fs, err = analyze.Namespace(ctx, s, a.Namespace); err != nil {
+	} else if fs, listErrs, err = analyze.Namespace(ctx, s, a.Namespace); err != nil {
 		return "", err
 	}
 	for i := range fs {
@@ -414,7 +415,12 @@ func (e *Env) diagnose(ctx context.Context, args json.RawMessage) (string, error
 	if fs == nil {
 		fs = []analyze.Finding{}
 	}
-	return jsonText(map[string]any{"count": len(fs), "findings": fs})
+	out := map[string]any{"count": len(fs), "findings": fs}
+	if len(listErrs) > 0 {
+		// What could not be listed was not diagnosed: say so instead of implying it is fine.
+		out["notDiagnosed"] = listErrs
+	}
+	return jsonText(out)
 }
 
 func (e *Env) canI(ctx context.Context, args json.RawMessage) (string, error) {

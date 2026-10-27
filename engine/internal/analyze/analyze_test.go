@@ -2,16 +2,19 @@ package analyze
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynfake "k8s.io/client-go/dynamic/fake"
 	kfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/kube"
@@ -260,7 +263,7 @@ func TestNamespaceAndOrder(t *testing.T) {
 		o("v1", "Pod", "other", "other-bad", m{"status": waiting("ErrImagePull", "x")}),
 	}
 	s := session(objs...)
-	fs, err := Namespace(context.Background(), s, "demo")
+	fs, _, err := Namespace(context.Background(), s, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +275,10 @@ func TestNamespaceAndOrder(t *testing.T) {
 			t.Errorf("leaked finding from another namespace: %+v", f)
 		}
 	}
-	all, _ := Namespace(context.Background(), s, "")
+	all, errs, _ := Namespace(context.Background(), s, "")
+	if len(errs) != 0 {
+		t.Errorf("unexpected list errors: %v", errs)
+	}
 	if len(all) < 4 || all[0].ID != "node-not-ready" {
 		t.Fatalf("cluster scope must be ordered by severity, got %s", ids(all))
 	}
@@ -280,6 +286,25 @@ func TestNamespaceAndOrder(t *testing.T) {
 		if sevRank[all[i-1].Severity] > sevRank[all[i].Severity] {
 			t.Fatalf("not sorted: %s", ids(all))
 		}
+	}
+}
+
+// A kind that cannot be listed (RBAC) is reported instead of silently counting as "no problem".
+func TestNamespaceReportsListErrors(t *testing.T) {
+	s := session(pod("bad", waiting("ImagePullBackOff", "x"), nil))
+	dyn := s.Dynamic.(*dynfake.FakeDynamicClient)
+	dyn.PrependReactor("list", "deployments", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, "", errors.New("no RBAC"))
+	})
+	fs, errs, err := Namespace(context.Background(), s, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(fs, "image-pull") == nil {
+		t.Errorf("other kinds must still be diagnosed: %s", ids(fs))
+	}
+	if msg := errs["apps/deployments"]; !strings.Contains(msg, "forbidden") || len(errs) != 1 {
+		t.Fatalf("errors: %v", errs)
 	}
 }
 
@@ -330,7 +355,7 @@ func TestNamespacePerformance(t *testing.T) {
 	objs = append(objs, o("v1", "Service", "demo", "svc", m{"spec": m{"selector": m{"app": "x"}}}))
 	s := session(objs...)
 	start := time.Now()
-	fs, err := Namespace(context.Background(), s, "demo")
+	fs, _, err := Namespace(context.Background(), s, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -184,7 +184,7 @@ func (s *Server) copilotPrompt(ctx context.Context, sess *cluster.Session, req *
 		if req.AllowLogs {
 			s.writeLogs(ctx, sess, &b, u, res.Kind, req.LogLines)
 		}
-	} else if f, err := analyze.Namespace(ctx, sess, ""); err == nil {
+	} else if f, _, err := analyze.Namespace(ctx, sess, ""); err == nil {
 		if len(f) > 30 {
 			f = f[:30]
 		}
@@ -377,6 +377,7 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 					return "", err
 				}
 				var f []analyze.Finding
+				var listErrs map[string]string
 				var err error
 				if v.Kind != "" && v.Name != "" {
 					res, rerr := resolveKind(sess, v.Group, v.Kind)
@@ -385,13 +386,14 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 					}
 					f, err = analyze.Object(ctx, sess, analyze.Ref{Group: res.Group, Kind: res.Kind, Namespace: v.Namespace, Name: v.Name})
 				} else {
-					f, err = analyze.Namespace(ctx, sess, v.Namespace)
+					f, listErrs, err = analyze.Namespace(ctx, sess, v.Namespace)
 				}
 				if err != nil {
 					return "", err
 				}
 				var b strings.Builder
 				writeFindings(&b, an, f)
+				writeListErrors(&b, listErrs)
 				return b.String(), nil
 			}),
 		tool(ai.ToolDef{Name: "can_i", Description: "Verifica se o usuário atual pode executar um verbo sobre um recurso (SelfSubjectAccessReview).",

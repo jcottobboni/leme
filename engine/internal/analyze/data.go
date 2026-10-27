@@ -24,6 +24,7 @@ type scope struct {
 
 	mu     sync.Mutex
 	lists  map[string][]*unstructured.Unstructured
+	errs   map[string]error // failed lists by "group/resource", kept so they are reported and not retried
 	events map[evKey][]event
 	loaded bool
 	owned  map[string][]*unstructured.Unstructured
@@ -39,7 +40,21 @@ type event struct {
 }
 
 func newScope(ctx context.Context, s *cluster.Session, ns string) *scope {
-	return &scope{ctx: ctx, s: s, ns: ns, lists: map[string][]*unstructured.Unstructured{}}
+	return &scope{ctx: ctx, s: s, ns: ns, lists: map[string][]*unstructured.Unstructured{}, errs: map[string]error{}}
+}
+
+// errors returns the failed lists ("group/resource" -> message), nil when none failed.
+func (c *scope) errors() map[string]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.errs) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(c.errs))
+	for k, err := range c.errs {
+		out[k] = err.Error()
+	}
+	return out
 }
 
 // list returns the objects of a resource in the scope; a resource the cluster does not serve is empty.
@@ -47,6 +62,9 @@ func (c *scope) list(group, resource string) ([]*unstructured.Unstructured, erro
 	key := group + "/" + resource
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err, ok := c.errs[key]; ok {
+		return nil, err
+	}
 	if v, ok := c.lists[key]; ok {
 		return v, nil
 	}
@@ -64,11 +82,13 @@ func (c *scope) list(group, resource string) ([]*unstructured.Unstructured, erro
 		var err error
 		out, err = c.s.Informers.List(c.ctx, cluster.Key{GVR: res.GVR(), Namespace: ns})
 		if err != nil {
+			c.errs[key] = err
 			return nil, err
 		}
 	} else {
 		l, err := c.s.Dynamic.Resource(res.GVR()).Namespace(ns).List(c.ctx, metav1.ListOptions{})
 		if err != nil {
+			c.errs[key] = err
 			return nil, err
 		}
 		for i := range l.Items {
