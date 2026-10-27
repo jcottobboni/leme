@@ -22,26 +22,6 @@ type Resources struct {
 	Pods   int64 `json:"pods,omitempty"`
 }
 
-// HealthCount counts objects per health.
-type HealthCount struct {
-	Total int `json:"total"`
-	OK    int `json:"ok"`
-	Warn  int `json:"warn"`
-	Error int `json:"error"`
-}
-
-func (h *HealthCount) add(health string) {
-	h.Total++
-	switch health {
-	case "ok":
-		h.OK++
-	case "warn":
-		h.Warn++
-	case "error":
-		h.Error++
-	}
-}
-
 // NodeSummary is one node row of the overview.
 type NodeSummary struct {
 	Name        string    `json:"name"`
@@ -77,19 +57,19 @@ type NamespaceStat struct {
 
 // Overview summarizes a cluster (or one namespace when cluster-wide lists are forbidden).
 type Overview struct {
-	Scope          string                 `json:"scope"` // "cluster" or the namespace
-	Nodes          []NodeSummary          `json:"nodes"`
-	Capacity       Resources              `json:"capacity"`
-	Allocatable    Resources              `json:"allocatable"`
-	Requests       Resources              `json:"requests"`
-	Limits         Resources              `json:"limits"`
-	Usage          *Usage                 `json:"usage,omitempty"`
-	Pods           map[string]int         `json:"pods"` // by phase
-	Workloads      map[string]HealthCount `json:"workloads"`
-	Namespaces     int                    `json:"namespaces"`
-	Warnings       []Warning              `json:"warnings"`
-	NamespaceStats []NamespaceStat        `json:"namespaceStats"`
-	Errors         map[string]string      `json:"errors,omitempty"`
+	Scope          string                         `json:"scope"` // "cluster" or the namespace
+	Nodes          []NodeSummary                  `json:"nodes"`
+	Capacity       Resources                      `json:"capacity"`
+	Allocatable    Resources                      `json:"allocatable"`
+	Requests       Resources                      `json:"requests"`
+	Limits         Resources                      `json:"limits"`
+	Usage          *Usage                         `json:"usage,omitempty"`
+	Pods           map[string]int                 `json:"pods"` // by phase
+	Workloads      map[string]project.HealthCount `json:"workloads"`
+	Namespaces     int                            `json:"namespaces"`
+	Warnings       []Warning                      `json:"warnings"`
+	NamespaceStats []NamespaceStat                `json:"namespaceStats"`
+	Errors         map[string]string              `json:"errors,omitempty"`
 }
 
 func podResources(p *corev1.Pod) (req, lim Resources) {
@@ -151,7 +131,7 @@ func aggregateNamespaces(pods []*corev1.Pod, usage map[string]Usage) []Namespace
 func GetOverview(ctx context.Context, s *cluster.Session, fallbackNS string) *Overview {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	o := &Overview{Scope: "cluster", Pods: map[string]int{}, Workloads: map[string]HealthCount{}, Errors: map[string]string{}}
+	o := &Overview{Scope: "cluster", Pods: map[string]int{}, Workloads: map[string]project.HealthCount{}, Errors: map[string]string{}}
 	list := func(group, resource, ns string) ([]*unstructured.Unstructured, error) {
 		r, ok := s.Lookup(group, resource)
 		if !ok {
@@ -212,9 +192,9 @@ func GetOverview(ctx context.Context, s *cluster.Session, fallbackNS string) *Ov
 				o.Errors[wk.resource] = err.Error()
 				return
 			}
-			var hc HealthCount
+			var hc project.HealthCount
 			for _, u := range objs {
-				hc.add(project.Project(u).Health)
+				hc.Add(project.Project(u).Health)
 			}
 			o.Workloads[wk.kind] = hc
 		})

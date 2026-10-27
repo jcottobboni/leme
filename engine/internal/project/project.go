@@ -31,6 +31,28 @@ type Row struct {
 	Cells     map[string]any    `json:"cells"`
 }
 
+// HealthCount counts objects (or pods) per health; neutral ones only add to Total. The overview
+// and the cluster map share it.
+type HealthCount struct {
+	Total int `json:"total"`
+	OK    int `json:"ok"`
+	Warn  int `json:"warn"`
+	Error int `json:"error"`
+}
+
+// Add counts one object of the given health.
+func (h *HealthCount) Add(health string) {
+	h.Total++
+	switch health {
+	case "ok":
+		h.OK++
+	case "warn":
+		h.Warn++
+	case "error":
+		h.Error++
+	}
+}
+
 type projector struct {
 	columns []Column
 	fn      func(u *unstructured.Unstructured, r *Row)

@@ -20,39 +20,19 @@ const MaxWorkloads = 25000
 // It matches the default WebGL threshold of the UI.
 const CompactAbove = 1500
 
-// HealthCount counts pods per health (neutral ones only add to Total).
-type HealthCount struct {
-	Total int `json:"total"`
-	OK    int `json:"ok"`
-	Warn  int `json:"warn"`
-	Error int `json:"error"`
-}
-
-func (h *HealthCount) add(health string) {
-	h.Total++
-	switch health {
-	case "ok":
-		h.OK++
-	case "warn":
-		h.Warn++
-	case "error":
-		h.Error++
-	}
-}
-
 // Workload is one tile of the map.
 type Workload struct {
-	Group    string      `json:"group"`
-	Kind     string      `json:"kind"`
-	Name     string      `json:"name"`
-	Health   string      `json:"health"`
-	Status   string      `json:"status,omitempty"`
-	Ready    string      `json:"ready,omitempty"`
-	Pods     HealthCount `json:"pods"`
-	Services []string    `json:"services,omitempty"`
-	PVCs     int         `json:"pvcs,omitempty"`
-	Restarts int         `json:"restarts,omitempty"` // container restarts summed over the pods
-	Hosts    []string    `json:"hosts,omitempty"`    // Ingress hosts routing to one of its services
+	Group    string              `json:"group"`
+	Kind     string              `json:"kind"`
+	Name     string              `json:"name"`
+	Health   string              `json:"health"`
+	Status   string              `json:"status,omitempty"`
+	Ready    string              `json:"ready,omitempty"`
+	Pods     project.HealthCount `json:"pods"`
+	Services []string            `json:"services,omitempty"`
+	PVCs     int                 `json:"pvcs,omitempty"`
+	Restarts int                 `json:"restarts,omitempty"` // container restarts summed over the pods
+	Hosts    []string            `json:"hosts,omitempty"`    // Ingress hosts routing to one of its services
 }
 
 // App groups workloads of a namespace.
@@ -63,13 +43,13 @@ type App struct {
 
 // Namespace is one island.
 type Namespace struct {
-	Name      string      `json:"name"`
-	Status    string      `json:"status,omitempty"`
-	Pods      HealthCount `json:"pods"`
-	Apps      []App       `json:"apps"`
-	Services  int         `json:"services"`
-	Ingresses int         `json:"ingresses"`
-	PVCs      int         `json:"pvcs"`
+	Name      string              `json:"name"`
+	Status    string              `json:"status,omitempty"`
+	Pods      project.HealthCount `json:"pods"`
+	Apps      []App               `json:"apps"`
+	Services  int                 `json:"services"`
+	Ingresses int                 `json:"ingresses"`
+	PVCs      int                 `json:"pvcs"`
 }
 
 // ClusterMap is the endpoint payload.
@@ -217,16 +197,16 @@ func Build(in Input) *ClusterMap {
 		}
 	}
 
-	nsPods := map[string]*HealthCount{}
+	nsPods := map[string]*project.HealthCount{}
 	for _, p := range in.Pods {
 		ns := p.GetNamespace()
 		row := project.Project(p)
 		hc := nsPods[ns]
 		if hc == nil {
-			hc = &HealthCount{}
+			hc = &project.HealthCount{}
 			nsPods[ns] = hc
 		}
-		hc.add(row.Health)
+		hc.Add(row.Health)
 
 		var w *wl
 		if kind, name, av := ownerOf(p); kind != "" && !(kind == "Node" && kinds.GroupOf(av) == "") {
@@ -242,9 +222,9 @@ func Build(in Input) *ClusterMap {
 			}
 		} else {
 			w = add("", p, "Pod")
-			w.w.Pods = HealthCount{} // the pod itself is its only pod, counted below
+			w.w.Pods = project.HealthCount{} // the pod itself is its only pod, counted below
 		}
-		w.w.Pods.add(row.Health)
+		w.w.Pods.Add(row.Health)
 		if w.labels == nil {
 			w.labels = p.GetLabels()
 		}
