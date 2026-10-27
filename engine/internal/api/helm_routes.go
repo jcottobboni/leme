@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
@@ -74,6 +76,9 @@ func (s *Server) helmUpgrade(w http.ResponseWriter, r *http.Request, sess *clust
 	defer cancel()
 	ns, name := r.PathValue("ns"), r.PathValue("name")
 	res, err := s.helm.Upgrade(ctx, sess, ns, name, req)
+	if !req.DryRun {
+		s.auditUI(sess, "helm-upgrade", helmRelease(ns, name), strings.TrimSpace(req.Chart+" "+req.Version), err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return
@@ -94,6 +99,9 @@ func (s *Server) helmRollback(w http.ResponseWriter, r *http.Request, sess *clus
 	}
 	ns, name := r.PathValue("ns"), r.PathValue("name")
 	res, err := s.helm.Rollback(sess, ns, name, req.Revision, req.DryRun)
+	if !req.DryRun {
+		s.auditUI(sess, "helm-rollback", helmRelease(ns, name), fmt.Sprintf("revision=%d", req.Revision), err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return
@@ -113,6 +121,9 @@ func (s *Server) helmUninstall(w http.ResponseWriter, r *http.Request, sess *clu
 	}
 	ns, name := r.PathValue("ns"), r.PathValue("name")
 	res, err := s.helm.Uninstall(sess, ns, name, req.DryRun)
+	if !req.DryRun {
+		s.auditUI(sess, "helm-uninstall", helmRelease(ns, name), "", err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return
@@ -131,6 +142,9 @@ func (s *Server) helmInstall(w http.ResponseWriter, r *http.Request, sess *clust
 	ctx, cancel := mutationContext(sess)
 	defer cancel()
 	res, err := s.helm.Install(ctx, sess, req)
+	if !req.DryRun {
+		s.auditUI(sess, "helm-install", helmRelease(req.Namespace, req.Name), strings.TrimSpace(req.Chart+" "+req.Version), err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return

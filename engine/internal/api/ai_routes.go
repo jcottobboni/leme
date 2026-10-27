@@ -433,7 +433,7 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request, sess *cluster.Se
 	if res != nil {
 		send(chatEvent{Type: "usage", Input: res.InputTokens, Output: res.OutputTokens})
 	}
-	_ = s.audit.Add(entry)
+	s.auditAdd(entry)
 	finish()
 }
 
@@ -450,7 +450,7 @@ func (s *Server) applyChange(w http.ResponseWriter, r *http.Request, sess *clust
 	}
 	if err != nil {
 		entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
-		_ = s.audit.Add(entry)
+		s.auditAdd(entry)
 		if errors.Is(err, cluster.ErrReadOnly) {
 			httpError(w, http.StatusForbidden, err.Error())
 			return
@@ -459,7 +459,7 @@ func (s *Server) applyChange(w http.ResponseWriter, r *http.Request, sess *clust
 		return
 	}
 	entry.Result = "ok"
-	_ = s.audit.Add(entry)
+	s.auditAdd(entry)
 	s.log.Info("change applied", "context", sess.Context.Name, "object", p.Ref.String(), "source", p.Source)
 	writeJSON(w, map[string]any{"applied": true, "ref": p.Ref})
 }

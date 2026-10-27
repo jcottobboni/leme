@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
@@ -29,6 +30,9 @@ func (s *Server) rolloutUndo(w http.ResponseWriter, r *http.Request, sess *clust
 		return
 	}
 	res, err := ops.RolloutUndo(r.Context(), sess, req.Namespace, req.Name, req.Revision, req.DryRun)
+	if !req.DryRun {
+		s.auditUI(sess, "rollout-undo", "Deployment/"+req.Namespace+"/"+req.Name, fmt.Sprintf("revision=%d", req.Revision), err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return

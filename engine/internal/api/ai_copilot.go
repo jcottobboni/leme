@@ -434,11 +434,11 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 				entry := audit.Entry{Source: "copilot", Action: "propose", Context: sess.Context.Name, Object: ref.String()}
 				if err != nil {
 					entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
-					_ = s.audit.Add(entry)
+					s.auditAdd(entry)
 					return "", err
 				}
 				entry.Result = "ok"
-				_ = s.audit.Add(entry)
+				s.auditAdd(entry)
 				send(chatEvent{Type: "proposal", Proposal: p})
 				status := "O dry-run no servidor foi aceito."
 				switch {

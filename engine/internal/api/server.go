@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -304,6 +305,9 @@ func (s *Server) apply(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 		return
 	}
 	res, err := ops.Apply(r.Context(), sess, body.YAML, body.DryRun)
+	if !body.DryRun {
+		s.auditUI(sess, "apply", yamlObjectName(body.YAML, ""), "", err)
+	}
 	if err != nil {
 		kubeError(w, err)
 		return
@@ -319,7 +323,9 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, sess *clus
 	if !decode(w, r, &ref) {
 		return
 	}
-	if err := ops.Delete(r.Context(), sess, ref); err != nil {
+	err := ops.Delete(r.Context(), sess, ref)
+	s.auditUI(sess, "delete", objectName(sess, ref.Group, ref.Resource, ref.Namespace, ref.Name), "", err)
+	if err != nil {
 		kubeError(w, err)
 		return
 	}
@@ -335,7 +341,9 @@ func (s *Server) scale(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	if !decode(w, r, &body) {
 		return
 	}
-	if err := ops.Scale(r.Context(), sess, body.Ref, body.Replicas); err != nil {
+	err := ops.Scale(r.Context(), sess, body.Ref, body.Replicas)
+	s.auditUI(sess, "scale", objectName(sess, body.Group, body.Resource, body.Namespace, body.Name), fmt.Sprintf("replicas=%d", body.Replicas), err)
+	if err != nil {
 		kubeError(w, err)
 		return
 	}
@@ -347,7 +355,9 @@ func (s *Server) restart(w http.ResponseWriter, r *http.Request, sess *cluster.S
 	if !decode(w, r, &ref) {
 		return
 	}
-	if err := ops.Restart(r.Context(), sess, ref); err != nil {
+	err := ops.Restart(r.Context(), sess, ref)
+	s.auditUI(sess, "restart", objectName(sess, ref.Group, ref.Resource, ref.Namespace, ref.Name), "", err)
+	if err != nil {
 		kubeError(w, err)
 		return
 	}

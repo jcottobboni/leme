@@ -17,6 +17,7 @@ func (s *Server) osRollout(w http.ResponseWriter, r *http.Request, sess *cluster
 		return
 	}
 	v, err := ops.RolloutLatest(r.Context(), sess, req.Namespace, req.Name)
+	s.auditUI(sess, "rollout-latest", "DeploymentConfig/"+req.Namespace+"/"+req.Name, "", err)
 	if err != nil {
 		kubeError(w, err)
 		return
@@ -31,6 +32,7 @@ func (s *Server) osStartBuild(w http.ResponseWriter, r *http.Request, sess *clus
 		return
 	}
 	b, err := ops.StartBuild(r.Context(), sess, req.Namespace, req.Name)
+	s.auditUI(sess, "start-build", "BuildConfig/"+req.Namespace+"/"+req.Name, "", err)
 	if err != nil {
 		kubeError(w, err)
 		return
