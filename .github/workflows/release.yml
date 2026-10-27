@@ -65,6 +65,25 @@ jobs:
           npx vite build
           node ../scripts/go-licenses.mjs ../engine/bin/leme.exe ../engine/bin/THIRD_PARTY_LICENSES.txt
           npx electron-builder --win nsis --x64 --publish never
+      - name: Install the package and start it (engine must come up)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem app/release/*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Leme'
+          foreach ($f in 'Leme.exe', 'resources\engine\leme.exe', 'resources\licenses\LICENSE', 'resources\licenses\THIRD_PARTY_LICENSES-engine.txt', 'resources\renderer-dist\THIRD_PARTY_LICENSES.txt') {
+            if (-not (Test-Path (Join-Path $dir $f))) { throw "missing $f" }
+          }
+          $env:KUBECONFIG = "$PWD\app\e2e\fixtures\sweep-fakes.kubeconfig"
+          $app = Start-Process (Join-Path $dir 'Leme.exe') -PassThru
+          $engine = $null
+          for ($i = 0; $i -lt 30 -and -not $engine; $i++) {
+            Start-Sleep 1
+            $engine = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*\resources\engine\leme.exe' }
+          }
+          if (-not $engine) { throw 'engine did not start' }
+          "engine running: $($engine.Path)"
+          Stop-Process -Id $app.Id -Force
       - uses: actions/upload-artifact@v4
         with:
           name: windows
