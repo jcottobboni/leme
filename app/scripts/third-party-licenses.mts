@@ -30,6 +30,10 @@ export function thirdPartyLicenses(): Plugin {
         // Monaco bundles code from other projects and ships their notices alongside its own.
         if (existsSync(path.join(root, 'ThirdPartyNotices.txt'))) files.push('ThirdPartyNotices.txt')
         const texts = files.map((f) => readFileSync(path.join(root, f), 'utf8').trim())
+        // A few packages publish without their license file: the text is vendored in scripts/licenses/<name>.txt
+        // ("/" in scoped names becomes "__").
+        const vendored = new URL(`./licenses/${pkg.name.replace('/', '__')}.txt`, import.meta.url)
+        if (!texts.length && existsSync(vendored)) texts.push(readFileSync(vendored, 'utf8').trim())
         if (!texts.length) this.error(`no license file in ${pkg.name}@${pkg.version}`)
         parts.push([`${pkg.name}@${pkg.version} — ${pkg.license ?? 'see below'}${repo ? `\n${repo}` : ''}`, ...texts].join('\n\n'))
       }
