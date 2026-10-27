@@ -444,6 +444,7 @@ var categories = map[string]string{
 	"Service": "Network", "Ingress": "Network", "IngressClass": "Network", "Endpoints": "Network",
 	"EndpointSlice": "Network", "NetworkPolicy": "Network", "Route": "Network",
 	"Gateway": "Network", "GatewayClass": "Network", "HTTPRoute": "Network", "GRPCRoute": "Network", "ReferenceGrant": "Network",
+	"TCPRoute": "Network", "TLSRoute": "Network", "UDPRoute": "Network", "BackendTLSPolicy": "Network", "ListenerSet": "Network",
 	"ConfigMap": "Config", "Secret": "Config", "ResourceQuota": "Config", "LimitRange": "Config",
 	"MutatingWebhookConfiguration": "Config", "ValidatingWebhookConfiguration": "Config",
 	"PersistentVolumeClaim": "Storage", "PersistentVolume": "Storage", "StorageClass": "Storage",

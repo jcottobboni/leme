@@ -15,7 +15,9 @@ import (
 
 // namespacedKeys are the namespaced resources ("group/resource") the topology is built from.
 var namespacedKeys = []string{"/pods", "apps/replicasets", "apps/deployments", "apps/statefulsets", "apps/daemonsets", "batch/jobs", "batch/cronjobs",
-	"/services", "networking.k8s.io/ingresses", "gateway.networking.k8s.io/httproutes", "route.openshift.io/routes",
+	"/services", "networking.k8s.io/ingresses", "route.openshift.io/routes",
+	"gateway.networking.k8s.io/gateways", "gateway.networking.k8s.io/httproutes", "gateway.networking.k8s.io/grpcroutes",
+	"gateway.networking.k8s.io/tlsroutes", "gateway.networking.k8s.io/tcproutes", "gateway.networking.k8s.io/udproutes",
 	"/replicationcontrollers", "apps.openshift.io/deploymentconfigs", "build.openshift.io/buildconfigs", "build.openshift.io/builds", "image.openshift.io/imagestreams",
 	"/persistentvolumeclaims", "autoscaling/horizontalpodautoscalers", "/serviceaccounts", "rbac.authorization.k8s.io/rolebindings"}
 
@@ -72,6 +74,7 @@ func Collect(ctx context.Context, sess *cluster.Session, ns string) (Input, map[
 	names("configmaps", func(m map[string]bool) { in.ConfigMaps = m })
 	names("secrets", func(m map[string]bool) { in.Secrets = m })
 	wg.Wait()
+	in.ForeignRoutes = foreignRoutes(ctx, sess, ns, in.Objects[gatewaysKey])
 	return in, errs
 }
 
