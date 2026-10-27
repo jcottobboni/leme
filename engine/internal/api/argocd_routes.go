@@ -142,7 +142,7 @@ func remoteNote(d argocd.Destination) string {
 func (s *Server) argoApply(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
 	tok := r.PathValue("token")
 	// Applying is the user's click in the app: audited as a UI change of the Argo CD Application.
-	entry := audit.Entry{Source: audit.SourceUI, Action: "argocd-apply", Context: sess.Context.Name}
+	entry := audit.Entry{Source: argoSource, Action: "apply", Context: sess.Context.Name}
 	deny := func(err error) {
 		entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
 		s.auditAdd(entry)

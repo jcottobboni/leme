@@ -105,7 +105,7 @@ func TestArgoSyncProposeAndApply(t *testing.T) {
 			actions = append(actions, e.Source+":"+e.Action)
 		}
 	}
-	if strings.Join(actions, ",") != "ui:argocd-apply,argocd:propose" {
+	if strings.Join(actions, ",") != "argocd:apply,argocd:propose" {
 		t.Fatalf("audit: %+v", entries)
 	}
 	// A second sync while the requested operation is pending is refused.

@@ -3,6 +3,43 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.6.0] - 2026-10-27
+
+M6 "pente fino": correctness, robustness, performance and a layout pass, from a review of the
+whole code base, 77 screenshots and a comparison with other Kubernetes desktop tools.
+
+### Fixed
+- Kind-specific rules apply only to Kubernetes and OpenShift API groups everywhere (navigator,
+  columns, actions, tabs, diagnosis, security, topology, map, timeline, MCP): a CRD named like a
+  built-in kind no longer gets false findings or built-in actions. The MCP refuses an ambiguous kind
+  without a group and lists the candidates.
+- Workload status comes from the conditions, in Portuguese: Disponível, Progredindo, **Travado**
+  (progress deadline exceeded), Degradado, Pausado, Sem réplicas. A stuck rollout no longer shows as
+  healthy, and Problems reports "Rollout travado".
+- The timeline groups events by their real owners (DaemonSet pods were shown as Jobs or
+  Deployments) and cluster-scoped objects under "(cluster)"; a race when a collector expired.
+- Namespace diagnosis reports the kinds it could not list instead of "no problems".
+- A port-forward that dies leaves the list; network errors answer 502/504 instead of 400.
+- The details drawer no longer re-fetches the object on every grid update; logs in follow mode keep
+  the last 5 MB; closing the main window quits the app even with Grafana or pop-out windows open.
+
+### Changed
+- One header for every panel, whose actions move into a "⋯" menu when they do not fit.
+- Grids keep the checkbox and Name columns on the left and the actions on the right while scrolling;
+  double click a column edge to fit it.
+- Topology, NetworkPolicy and RBAC follow the global namespace (or open on the busiest namespace).
+- Empty states that teach (traffic sources with copyable commands, Istio summary, cluster-admin
+  banner in RBAC), clearer object details (relative dates, status pills, event filter), metric axes
+  with units, Portuguese wording throughout, keyboard navigation in the navigator.
+- Initial download of the UI went from 4.3 MB to under 0.8 MB: panels, the YAML editor, terminals,
+  graphs and charts load on demand; hidden tabs stop polling.
+- Every write made from the UI (apply, delete, scale, restart, rollbacks, Helm, Argo CD) is audited
+  with source `ui`; the audit file rotates at 10 MB.
+
+### Added
+- CRD printer columns (`additionalPrinterColumns`) in the grids, and favorite CRDs pinned to the top
+  of Custom Resources.
+
 ## [0.5.3] - 2026-10-27
 
 ### Added

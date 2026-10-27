@@ -108,7 +108,7 @@ test('CA03: Application do fixture aparece com sync/health, origem, destino, rec
   await expect(row).toContainText('guestbook')
   // Search and filters.
   await panel.getByTestId('argo-search').fill('nao-existe')
-  await expect(panel).toContainText('Nenhuma Application com estes filtros')
+  await expect(panel).toContainText('Nenhuma aplicação com estes filtros')
   await panel.getByTestId('argo-search').fill('guestbook')
   await panel.getByTestId('argo-filter-sync').selectOption('Synced')
   await expect(row).toHaveCount(0)

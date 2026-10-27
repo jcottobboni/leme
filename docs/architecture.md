@@ -25,9 +25,12 @@
                │ 127.0.0.1:<random port> + token       │ logs, exec, timeline)
 ┌──────────────┴──────────────────────────────────────┴──────────────────┐
 │ engine (Go, single binary, started by the shell, dies with it)         │
-│ kube       kubeconfig contexts, local/production detection, OAuth      │
+│ kube       kubeconfig contexts and app-added files/folders, local and  │
+│            production detection (also by shared API server), OAuth     │
 │ cluster    sessions, informer manager (per cluster × resource, lazy)   │
-│ project    row projections and columns per kind (Table-like rows)      │
+│ kinds      single rule for built-in groups, workloads, pod templates   │
+│ project    row projections and columns per kind; workload state from   │
+│            conditions; CRD printer columns                             │
 │ ops        objects, logs, exec, port-forward, rollout, overview,       │
 │            search, metrics-server, OpenShift actions                   │
 │ helm       Helm v4 SDK: repos, charts, releases, dry-run               │
@@ -35,12 +38,13 @@
 │ prom       Prometheus via API server service proxy or direct URL       │
 │ graph      object relation graph (owners, selectors, volumes, env,     │
 │            ingress/routes, service accounts, nodes)                    │
-│ clustermap namespaces → apps → workloads with health                   │
-│ timeline   events.k8s.io watch, grouping, retention while open         │
+│ clustermap namespaces → apps → workloads with health; project topology │
+│ timeline   events watch, grouping by real owners, retention while open │
 │ security   own rules, RBAC risks, Polaris/Kubescape/Trivy runners      │
 │ netpol     NetworkPolicy evaluation, flows and simulator               │
 │ analyze    deterministic diagnosis rules (M4)                          │
-│ ai, anonymize, redact, change, audit, mcp   Copilot and agents (M4)    │
+│ ai, anonymize, redact, change, mcp   Copilot and agents (M4)           │
+│ audit      JSONL of every write (UI, Copilot, agents, Argo CD), rotated │
 │ traffic    observed edges from Caretta/Hubble metrics in Prometheus    │
 │ argocd     Applications/AppProjects; sync and refresh as proposals     │
 │ grafana    Grafana/Prometheus detection and local port-forwards        │
@@ -65,7 +69,8 @@ The same engine runs without Electron: `leme serve` serves the UI to a browser.
 | Problem | Approach |
 |---|---|
 | 10k pods flooding the UI | The engine keeps full objects; the UI receives row projections (a few hundred bytes) in deltas batched every ~200 ms |
-| Kinds without a projector (CRDs) | Generic rows (name, namespace, age); CRD printer columns are on the roadmap |
+| Kinds without a projector (CRDs) | Generic rows (name, namespace, age) plus the CRD's `additionalPrinterColumns` |
+| Kind-specific behavior | Only for Kubernetes/OpenShift API groups (`kinds.Builtin`): a CRD named like a built-in kind (Longhorn `Node`) gets generic treatment |
 | Too many watches | Informers start when a screen needs them and stop when idle; namespace-scoped lists reuse an existing cluster-wide cache |
 | Cache memory | `managedFields` and last-applied annotations stripped; metadata-only informers where enough |
 | Object details | Full object fetched only when opened |
@@ -84,6 +89,10 @@ namespace topology in 0.9 s cold / 0.1 s warm; namespace security report in 0.75
   no cluster reconnects on its own.
 - **Grids** (`components/ResourceGrid.tsx`): live rows over WebSocket, virtualized, proportional
   columns, details drawer, row and bulk actions.
+- **Panels**: every dock panel is lazy (its own chunk), renders inside an error boundary and gets a
+  visibility context; polling (`useAsync`, `usePolling`) pauses while the panel or window is hidden.
+  Monaco, xterm, xyflow and uPlot load only when a view needs them (initial JS under 1.2 MB).
+- **Headers**: one `PanelHeader` (icon, title, scope, actions) whose actions overflow into "⋯".
 - **State**: zustand stores; UI preferences and cluster profiles in `localStorage`.
 - **Theme**: CSS tokens for dark and light, followed by dockview, Monaco and the charts.
 
