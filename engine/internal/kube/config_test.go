@@ -16,10 +16,15 @@ func TestIsProduction(t *testing.T) {
 		{"https://10.0.0.1:6443", []string{"acme-prd2"}, true},
 		{"https://10.0.0.1:6443", []string{"admin", "payroll-prod", "admin-user", "default"}, true},
 		{"https://10.0.0.1:6443", []string{"ctx", "c", "u", "app-producao"}, true},
+		{"https://10.0.0.1:6443", []string{"ocpprd"}, true},
+		{"https://10.0.0.1:6443", []string{"k8sprod01"}, true},
+		{"https://10.0.0.1:6443", []string{"app-produccion"}, true},
+		{"https://api.k8sprd.example:6443", []string{"ctx"}, true},
 		{"https://api-ocp-dev-acme-example:6443", []string{"hr-dsv/api-ocp-dev:6443/alice"}, false},
 		{"https://127.0.0.1:41234", []string{"kind-leme-dev"}, false},
 		{"https://10.0.0.2", []string{"product-catalog-dev"}, false},
 		{"https://10.0.0.3", []string{"sprdx", "delivery"}, false},
+		{"https://10.0.0.4", []string{"products", "reproducible", "olive"}, false},
 	}
 	for _, c := range cases {
 		if got := IsProduction(c.server, c.names...); got != c.want {

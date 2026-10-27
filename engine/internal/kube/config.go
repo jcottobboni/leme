@@ -132,7 +132,9 @@ func ContextID(name string) string {
 }
 
 // prodPattern matches prod markers as whole words; a trailing digit still counts (prod01, prd2).
-var prodPattern = regexp.MustCompile(`(?i)(^|[^a-z])(prd|prod|production|producao|produção|produçao|live)([^a-z]|$)`)
+// The short markers prd and prod also count at the end of a word (ocpprd, k8sprod01), since
+// cluster names often glue them to a prefix; a following letter still rules them out (product, sprdx).
+var prodPattern = regexp.MustCompile(`(?i)(^|[^a-z])(production|producao|produção|produçao|produccion|producción|live)([^a-z]|$)|(prd|prod)([^a-z]|$)`)
 
 // IsProduction flags a context as production when the API server host or any of the
 // given names (context, cluster, user, namespace) carries a production marker.
