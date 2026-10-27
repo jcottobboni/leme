@@ -9,6 +9,10 @@ import { openSecurity } from '../security/SecurityPanel'
 import { openNetpol } from '../netpol/NetpolPanel'
 import { openProblems } from '../analyze/ProblemsPanel'
 import { openCopilot } from '../ai/CopilotPanel'
+import { openTraffic } from '../traffic/TrafficPanel'
+import { openArgo } from '../argocd/ArgoPanel'
+import { openGrafana } from '../grafana/GrafanaPanel'
+import { openIstio } from '../istio/IstioPanel'
 
 export function openHelm(clusterId: string, opts?: OpenOptions) {
   openPanel(`helm-releases:${clusterId}`, 'helmReleases', 'Helm releases', { clusterId }, opts)
@@ -27,6 +31,10 @@ export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?
   { id: 'rbac', label: 'RBAC e permissões', open: (id, o) => openRbac(id, o) },
   { id: 'security', label: 'Segurança', open: (id, o) => openSecurity(id, o) },
   { id: 'netpol', label: 'Políticas de rede', open: (id, o) => openNetpol(id, o) },
+  { id: 'traffic', label: 'Tráfego observado', open: (id, o) => openTraffic(id, o) },
+  { id: 'argocd', label: 'Argo CD', open: (id, o) => openArgo(id, o) },
+  { id: 'grafana', label: 'Grafana e Prometheus', open: (id, o) => openGrafana(id, o) },
+  { id: 'istio', label: 'Istio', open: (id, o) => openIstio(id, o) },
   { id: 'create', label: 'Novo recurso (YAML)', open: (id) => openCreate(id, 'blank', useApp.getState().namespace[id] || 'default') },
 ]
 

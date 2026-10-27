@@ -107,6 +107,78 @@ ipcMain.handle('ai-key:set', async (e, provider, baseURL, key) => {
 })
 ipcMain.handle('ai-key:status', (e) => (fromApp(e) ? { keychain: keychainAvailable() } : {}))
 
+// Embedded web UIs (M5: Grafana, Prometheus) reached through an active port-forward of the engine.
+// Same isolation as the detached windows plus: no preload, an in-memory session per window (logins
+// never persist), navigation pinned to the forward's origin, no popups, no permissions.
+const embedWindows = new Set()
+ipcMain.handle('embed:open', async (e, rawURL, rawTitle) => {
+  if (!fromApp(e) || !engineURL) return { ok: false, error: 'not allowed' }
+  let u
+  try {
+    u = new URL(String(rawURL))
+  } catch {
+    return { ok: false, error: 'invalid URL' }
+  }
+  if (u.protocol !== 'http:' || u.hostname !== '127.0.0.1' || !u.port || u.username || u.password) return { ok: false, error: 'only local port-forward URLs can be opened' }
+  // The port must belong to a forward the engine is running right now.
+  let forwards = []
+  try {
+    const res = await fetch(`${engineURL}/api/portforwards`, { headers: { Authorization: `Bearer ${engineToken}` } })
+    forwards = res.ok ? await res.json() : []
+  } catch {
+    /* engine unreachable: refuse */
+  }
+  if (!Array.isArray(forwards) || !forwards.some((f) => String(f.localPort) === u.port)) return { ok: false, error: 'no active port-forward on that port' }
+  const origin = u.origin
+  const title = String(rawTitle || 'Leme').slice(0, 120)
+  const child = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    backgroundColor: '#0e1013',
+    title,
+    icon: path.join(__dirname, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      spellcheck: false,
+      partition: `embed-${crypto.randomBytes(8).toString('hex')}`, // no "persist:" prefix: in memory only
+    },
+  })
+  const wc = child.webContents
+  const inside = (url) => {
+    try {
+      return new URL(url).origin === origin
+    } catch {
+      return false
+    }
+  }
+  const pin = (ev, url) => {
+    if (!inside(url)) ev.preventDefault()
+  }
+  wc.on('will-navigate', pin)
+  wc.on('will-redirect', pin)
+  wc.on('will-frame-navigate', (ev) => {
+    if (!inside(ev.url)) ev.preventDefault()
+  })
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }))
+  wc.on('page-title-updated', (ev) => {
+    ev.preventDefault()
+    child.setTitle(title)
+  })
+  wc.session.setPermissionRequestHandler((_wc, _permission, cb) => cb(false))
+  wc.session.setPermissionCheckHandler(() => false)
+  wc.session.on('will-download', (ev) => ev.preventDefault())
+  embedWindows.add(child)
+  child.on('closed', () => embedWindows.delete(child))
+  child.loadURL(u.toString()).catch(() => {
+    /* the window shows Chromium's error page */
+  })
+  return { ok: true }
+})
+
 ipcMain.on('ui-state:set', (e, key, value) => {
   if (!fromApp(e) || !UI_KEYS.has(key)) return
   const state = loadUiState()

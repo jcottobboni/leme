@@ -97,10 +97,24 @@ type Store struct {
 // NewStore returns an empty store.
 func NewStore() *Store { return &Store{m: map[string]*Proposal{}} }
 
+// AllowFunc decides which group/kind a caller may propose changes to.
+type AllowFunc func(group, kind string) error
+
 // Propose validates a JSON merge patch against the current object. Server-side dry-run only runs
 // when canWrite is true (read-only clusters never receive write requests, not even dry-runs).
+// The kinds are limited to Allowed (the AI and agent list).
 func (st *Store) Propose(ctx context.Context, s *cluster.Session, ref Ref, patch map[string]any, summary, source string, canWrite bool) (*Proposal, error) {
-	if err := Allowed(ref.Group, ref.Kind); err != nil {
+	return st.ProposeWith(ctx, s, ref, patch, summary, source, canWrite, Allowed)
+}
+
+// ProposeWith is Propose with a caller-specific kind policy. It exists for engine features that
+// build the patch themselves (M5 argocd: sync/refresh of argoproj.io/Application); the patch never
+// comes from the UI, an AI or an agent, and the AI/MCP list is not widened.
+func (st *Store) ProposeWith(ctx context.Context, s *cluster.Session, ref Ref, patch map[string]any, summary, source string, canWrite bool, allow AllowFunc) (*Proposal, error) {
+	if allow == nil {
+		allow = Allowed
+	}
+	if err := allow(ref.Group, ref.Kind); err != nil {
 		return nil, err
 	}
 	if ref.Name == "" {

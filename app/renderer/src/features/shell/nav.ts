@@ -1,5 +1,5 @@
 import {
-  Activity, AppWindow, ArrowUpWideNarrow, Boxes, Box, Briefcase, Clock, Cloud, Cog, Copy, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
+  Activity, AppWindow, ArrowLeftRight, ChartColumn, Blocks, GitPullRequestArrow, ArrowUpWideNarrow, Boxes, Box, Briefcase, Clock, Cloud, Cog, Copy, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
   Hammer, Image, Key, Layers, Layers2, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, MoveHorizontal, Network, Package, Plus, Route, Ruler, ScrollText, Server, Settings2,
   Shield, ShieldCheck, Share2, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Webhook, Workflow, Wrench,
 } from 'lucide-react'
@@ -33,6 +33,7 @@ export function kindIcon(kind?: string): LucideIcon {
 export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
   rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
+  traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints,
 }
 
 export interface NavTool {
@@ -115,6 +116,13 @@ export function buildSections(resources: Resource[], filter: string): NavSection
     { id: 'Helm', label: 'Helm', icon: Package, tools: tools([
       { id: 'helm', label: 'Releases', icon: Package },
       { id: 'charts', label: 'Charts', icon: GitBranch },
+    ]), kinds: [] },
+    // M5 optional integrations: always listed; each panel explains what is missing when absent.
+    { id: 'Integrations', label: 'Integrações', icon: Blocks, tools: tools([
+      { id: 'traffic', label: 'Tráfego observado', icon: ArrowLeftRight },
+      { id: 'argocd', label: 'Argo CD', icon: GitPullRequestArrow },
+      { id: 'grafana', label: 'Grafana e Prometheus', icon: ChartColumn },
+      { id: 'istio', label: 'Istio', icon: Waypoints },
     ]), kinds: [] },
     { id: 'Custom Resources', label: 'Custom Resources', icon: FileCode, kinds: [], groups },
     { id: 'Other', label: 'Outros recursos', icon: Boxes, kinds: kindsOf('Cluster').filter((r) => !CLUSTER_MAIN.has(r.kind)), defaultCollapsed: true },

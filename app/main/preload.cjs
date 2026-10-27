@@ -12,4 +12,8 @@ contextBridge.exposeInMainWorld('leme', {
     set: (provider, baseURL, key) => ipcRenderer.invoke('ai-key:set', String(provider), String(baseURL || ''), String(key || '')),
     status: () => ipcRenderer.invoke('ai-key:status'),
   },
+  // Opens a port-forwarded web UI in an isolated window (validated in the main process).
+  embed: {
+    open: (url, title) => ipcRenderer.invoke('embed:open', String(url), String(title || '')),
+  },
 })

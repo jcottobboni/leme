@@ -19,6 +19,7 @@ const TOOL_PANEL: Record<string, (id: string) => string> = {
   overview: (id) => `overview:${id}`, topology: (id) => `topology:${id}`, map: (id) => `map:${id}`, timeline: (id) => `timeline:${id}`, rbac: (id) => `rbac:${id}`,
   security: (id) => `security:${id}`, netpol: (id) => `netpol:${id}`, helm: (id) => `helm-releases:${id}`, charts: () => 'helm-charts',
   problems: (id) => `problems:${id}`, copilot: (id) => `copilot:${id}`,
+  traffic: (id) => `traffic:${id}`, argocd: (id) => `argocd:${id}`, grafana: (id) => `grafana:${id}`, istio: (id) => `istio:${id}`,
 }
 
 export function providerLabel(p: string) {

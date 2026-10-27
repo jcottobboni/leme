@@ -29,6 +29,11 @@ import { NetpolPanel } from './features/netpol/NetpolPanel'
 import { BuildLogPanel } from './features/openshift/BuildLogPanel'
 import { ProblemsPanel } from './features/analyze/ProblemsPanel'
 import { CopilotPanel } from './features/ai/CopilotPanel'
+// M5 extension points: each feature replaces its own panel.
+import { TrafficPanel } from './features/traffic/TrafficPanel'
+import { ArgoPanel } from './features/argocd/ArgoPanel'
+import { GrafanaPanel } from './features/grafana/GrafanaPanel'
+import { IstioPanel } from './features/istio/IstioPanel'
 import { ClusterTab, HeaderActions, restoreLayout, saveLayout } from './features/workspace/Dock'
 
 function Welcome(_: IDockviewPanelProps) {
@@ -65,6 +70,10 @@ const components = {
   buildLog: BuildLogPanel,
   problems: ProblemsPanel,
   copilot: CopilotPanel,
+  traffic: TrafficPanel,
+  argocd: ArgoPanel,
+  grafana: GrafanaPanel,
+  istio: IstioPanel,
 } as Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>
 
 // Panels that start streams or shells are never restored from a saved layout.

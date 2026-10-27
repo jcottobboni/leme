@@ -103,6 +103,11 @@ func (s *Server) routes() {
 	s.analyzeRoutes(m)
 	s.agentRoutes(m)
 	s.aiRoutes(m)
+	// M5 extension points: one file per feature (traffic, argocd, grafana, istio).
+	s.trafficRoutes(m)
+	s.argocdRoutes(m)
+	s.grafanaRoutes(m)
+	s.istioRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 
