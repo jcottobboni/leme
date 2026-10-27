@@ -71,6 +71,17 @@ It does not protect against an attacker who already controls your user account o
   cluster domain, and service-proxy paths are validated so they cannot escape `/proxy`.
 - Settings are stored with `0600` permissions.
 
+## Local data
+
+- **Change history** ("Histórico" and "Mudanças"): the engine records changes it observes through the
+  informers already open for your views (no extra watches) in `<config dir>/history/<cluster>.jsonl`
+  (0600), kept 7 days and at most 50 MB per cluster. Secrets and ConfigMaps record only which keys
+  changed, never values; env values and credential-like fields of other objects are masked.
+- **Audit log** (`audit.jsonl`, 0600, rotated at 10 MB): every write made from the UI, the Copilot,
+  MCP agents, Argo CD and Flux, with the object and the result, never the content.
+- **Compare ("Comparar com…")** is read-only: both sides are normalized by the engine and Secret
+  values stay masked on both sides; only the names of keys whose values differ are shown.
+
 ## AI Copilot and MCP agents
 
 - **Off by default.** Nothing is sent to an AI provider until you enable the Copilot, and each
