@@ -56,7 +56,9 @@ test('CA05: -l app=web filtra no engine, !web e /regex/ filtram a grade, regex i
   await search.fill('-l app=web')
   await expect(g.getByTestId('row-broken')).toHaveCount(0)
   await expect(g.getByTestId('row-web')).toBeVisible()
-  await expect(g.locator('.count-pill')).toHaveText('1 item')
+  // (Other suites may add their own app=web copies in other namespaces: count them, never assume.)
+  const n = kubectl('get', 'deploy', '-A', '-l', 'app=web', '-o', 'name').trim().split('\n').filter(Boolean).length
+  await expect(g.locator('.count-pill')).toHaveText(`${n} ${n === 1 ? 'item' : 'itens'}`)
   await expect(g.getByTestId('fchip-label')).toContainText('app=web')
 
   // Negation: everything except web.
