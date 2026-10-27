@@ -25,6 +25,7 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/change"
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/helm"
+	"github.com/jcottobboni/leme/engine/internal/history"
 	"github.com/jcottobboni/leme/engine/internal/kube"
 	"github.com/jcottobboni/leme/engine/internal/ops"
 	"github.com/jcottobboni/leme/engine/internal/settings"
@@ -41,6 +42,7 @@ type Server struct {
 	audit    *audit.Log
 	changes  *change.Store
 	ai       *aiState
+	history  *history.Store // M7: persistent change history
 	token    string
 	port     string // the bound port, for the CSP of the bundled UI
 	origins  map[string]bool
@@ -68,6 +70,7 @@ func New(mgr *cluster.Manager, o Options) *Server {
 	if o.StaticDir != "" {
 		s.static = os.DirFS(o.StaticDir)
 	}
+	s.history = history.Open(o.ConfigDir)
 	s.routes()
 	return s
 }
@@ -116,6 +119,12 @@ func (s *Server) routes() {
 	s.argocdRoutes(m)
 	s.grafanaRoutes(m)
 	s.istioRoutes(m)
+	// M7: aggregated logs, diff between clusters/namespaces, change history.
+	s.multiLogRoutes(m)
+	s.diffRoutes(m)
+	s.historyRoutes(m)
+	// M7: Flux CD (RF04).
+	s.fluxRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 
@@ -249,6 +258,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	s.attachHistory(sess)
 	version := ""
 	if raw, err := sess.Typed.Discovery().RESTClient().Get().AbsPath("/version").Do(ctx).Raw(); err == nil {
 		var v struct {

@@ -117,22 +117,36 @@ func (s *Server) aiRoutes(m *http.ServeMux) {
 	m.HandleFunc("PUT /api/ai/settings", s.aiSetSettings)
 	m.HandleFunc("POST /api/ai/keys", s.aiSetKey)
 	m.HandleFunc("POST /api/ai/test", s.aiTest)
+	m.HandleFunc("GET /api/ai/models", s.aiModels)
 	m.HandleFunc("GET /api/audit", s.auditList)
 	m.HandleFunc("POST /api/clusters/{id}/ai/preview", s.withSession(s.aiPreview))
 	m.HandleFunc("GET /api/clusters/{id}/ai/chat", s.withSession(s.aiChat))
 	m.HandleFunc("POST /api/clusters/{id}/changes/{token}/apply", s.withSession(s.applyChange))
 }
 
-func isLocalEndpoint(provider, baseURL string) bool {
-	if baseURL == "" {
-		return provider == ai.Ollama
+// isLocalEndpoint: loopback endpoints (127.0.0.0/8, ::1, localhost) run on this machine, so the
+// cloud consent does not apply (see ai.IsLocal).
+func isLocalEndpoint(provider, baseURL string) bool { return ai.IsLocal(provider, baseURL) }
+
+// aiModels lists the models installed in a local Ollama (M7 RF07). The engine reads them, never
+// the renderer, and only from a loopback endpoint: `baseURL` (query) or the saved one.
+func (s *Server) aiModels(w http.ResponseWriter, r *http.Request) {
+	base := r.URL.Query().Get("baseURL")
+	if base == "" {
+		if a := s.settings.AI(); a.Provider == ai.Ollama {
+			base = a.BaseURL
+		}
 	}
-	u, err := url.Parse(baseURL)
+	models, err := ai.ListOllamaModels(r.Context(), base)
 	if err != nil {
-		return false
+		code := http.StatusBadGateway
+		if errors.Is(err, ai.ErrNotLocal) {
+			code = http.StatusBadRequest
+		}
+		httpError(w, code, err.Error())
+		return
 	}
-	h := u.Hostname()
-	return h == "localhost" || h == "127.0.0.1" || h == "::1"
+	writeJSON(w, map[string]any{"models": models})
 }
 
 // anonymizeOn: on by default for cloud providers, off for local models; the user can override.
@@ -157,7 +171,7 @@ func (s *Server) aiSettings(w http.ResponseWriter, r *http.Request) {
 		keys[p] = s.ai.key(p, base) != "" || p == ai.Ollama
 	}
 	writeJSON(w, map[string]any{
-		"ai": a, "keys": keys, "defaultModels": ai.DefaultModel,
+		"ai": a, "keys": keys, "defaultModels": ai.DefaultModel, "ollamaBaseURL": ai.OllamaBaseURL,
 		"anonymize": anonymizeOn(a), "local": isLocalEndpoint(a.Provider, a.BaseURL),
 		"consented": isLocalEndpoint(a.Provider, a.BaseURL) || slices.Contains(a.Consented, endpointKey(a.Provider, a.BaseURL)),
 	})

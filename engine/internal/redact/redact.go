@@ -82,6 +82,13 @@ var safeAnnotations = map[string]bool{
 	"kubernetes.io/description": true, "openshift.io/description": true,
 }
 
+// SecretAnnotationVisible reports whether an annotation of a Secret may be shown without revealing:
+// the descriptive allowlist above plus Helm ownership metadata. Every other annotation of a Secret
+// may hold secret material (kapp's original manifest, openshift.io/token-secret.value, ...).
+func SecretAnnotationVisible(k string) bool {
+	return safeAnnotations[k] || strings.HasPrefix(k, "meta.helm.sh/")
+}
+
 func embedsManifest(v string) bool {
 	t := strings.TrimSpace(v)
 	return (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "apiVersion:")) && (strings.Contains(t, `"data"`) || strings.Contains(t, `"stringData"`) || strings.Contains(t, "\ndata:") || strings.Contains(t, "stringData:"))

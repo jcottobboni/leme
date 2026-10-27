@@ -66,6 +66,8 @@ type Input struct {
 	ConfigMaps, Secrets map[string]bool
 	// Nodes are cluster nodes (may be empty when not permitted).
 	Nodes []*unstructured.Unstructured
+	// ForeignRoutes are Gateway API routes of other namespaces attached to a Gateway of this one.
+	ForeignRoutes []*unstructured.Unstructured
 }
 
 // AggregateAbove collapses a controller's pods into one node when it owns more than this many.
@@ -217,41 +219,8 @@ func Build(in Input) *Graph {
 			}
 		}
 	}
-	// Gateway API HTTPRoute → Service, Gateway → HTTPRoute.
-	for _, rt := range b.list("gateway.networking.k8s.io/httproutes") {
-		from := id("HTTPRoute", ns, rt.GetName())
-		parents, _, _ := unstructured.NestedSlice(rt.Object, "spec", "parentRefs")
-		for _, p := range parents {
-			pm := asMap(p)
-			name, _, _ := unstructured.NestedString(pm, "name")
-			pns, _, _ := unstructured.NestedString(pm, "namespace")
-			if pns == "" {
-				pns = ns
-			}
-			if name != "" {
-				b.edge(b.ref("gateway.networking.k8s.io", "Gateway", pns, name, nil), from, "attaches")
-			}
-		}
-		rules, _, _ := unstructured.NestedSlice(rt.Object, "spec", "rules")
-		for _, r := range rules {
-			refs, _, _ := unstructured.NestedSlice(asMap(r), "backendRefs")
-			for _, br := range refs {
-				bm := asMap(br)
-				kind, _, _ := unstructured.NestedString(bm, "kind")
-				if kind != "" && kind != "Service" {
-					continue
-				}
-				name, _, _ := unstructured.NestedString(bm, "name")
-				bns, _, _ := unstructured.NestedString(bm, "namespace")
-				if bns == "" {
-					bns = ns
-				}
-				if name != "" {
-					b.edge(from, b.ref("", "Service", bns, name, nil), "routes")
-				}
-			}
-		}
-	}
+	// Gateway API: GatewayClass ← Gateway → Route (parentRefs) → Service (backendRefs).
+	b.gatewayAPI()
 	// OpenShift Route → Service.
 	for _, rt := range b.list("route.openshift.io/routes") {
 		from := id("Route", ns, rt.GetName())
@@ -499,7 +468,8 @@ func sortGraph(g *Graph) {
 // dependencies are things workloads use. They are often shared by unrelated workloads, so from them the
 // traversal only follows outgoing edges (PVC → PV → StorageClass, ServiceAccount → RoleBinding → Role).
 var dependencies = map[string]bool{"ConfigMap": true, "Secret": true, "Node": true, "ServiceAccount": true, "StorageClass": true,
-	"PersistentVolume": true, "PersistentVolumeClaim": true, "RoleBinding": true, "Role": true, "ClusterRole": true, "Gateway": true}
+	"PersistentVolume": true, "PersistentVolumeClaim": true, "RoleBinding": true, "Role": true, "ClusterRole": true, "Gateway": true,
+	"GatewayClass": true}
 
 // Neighborhood keeps the part of g connected to root within depth hops.
 func Neighborhood(g *Graph, root string, depth int) *Graph {

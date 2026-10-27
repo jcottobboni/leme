@@ -13,11 +13,15 @@ import { ObjectSecurity } from '../features/security/ObjectSecurity'
 import { DiagnosisTab } from '../features/analyze/DiagnosisTab'
 import { openCopilot } from '../features/ai/CopilotPanel'
 import { api3 } from '../api'
-import { Copy, ExternalLink, FilePen, Hammer, PanelTopOpen, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+import { Copy, ExternalLink, FilePen, GitCompareArrows, Hammer, Logs, PanelTopOpen, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+import { openMultiLogs } from '../features/logs/open'
 
 // Heavy views (xyflow graph, uPlot charts) load only when their tab opens.
 const TopologyView = lazy(() => import('../features/topology/Topology').then((m) => ({ default: m.TopologyView })))
 const MetricsView = lazy(() => import('../features/metrics/Metrics').then((m) => ({ default: m.MetricsView })))
+// M7: change history tab and "Comparar com…" (own chunks).
+const HistoryTab = lazy(() => import('../features/history/HistoryTab').then((m) => ({ default: m.HistoryTab })))
+const CompareDialog = lazy(() => import('../features/diff/CompareDialog').then((m) => ({ default: m.CompareDialog })))
 
 export interface ObjectParams {
   clusterId: string
@@ -29,7 +33,7 @@ export interface ObjectParams {
   name: string
 }
 
-type Tab = 'overview' | 'yaml' | 'events' | 'diagnosis' | 'topology' | 'metrics' | 'revisions' | 'security'
+type Tab = 'overview' | 'yaml' | 'events' | 'diagnosis' | 'topology' | 'metrics' | 'revisions' | 'security' | 'history'
 
 
 export function openObject(clusterId: string, group: string, kind: string, name: string, namespace?: string, opts?: OpenOptions) {
@@ -83,6 +87,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
   const [review, setReview] = useState<{ original: string; proposed: string }>()
   const [confirm, setConfirm] = useState<'delete' | 'restart' | 'apply' | 'scale' | 'rollout-latest' | 'start-build'>()
   const [busy, setBusy] = useState(false)
+  const [comparing, setComparing] = useState(false)
 
   const load = useCallback(
     async (reveal = false) => {
@@ -181,6 +186,10 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
                 onClick={() => openPanel(`term:${clusterId}:${namespace}/${name}:${Date.now()}`, 'terminal', `sh ${name}`, { clusterId, namespace, pod: name })} />
             </>
           )}
+          {b.workload && namespace && (
+            <Act compact={compact} icon={Logs} label="Logs (todos os pods)" title="Logs de todos os pods deste workload, juntos"
+              onClick={() => openMultiLogs({ clusterId, namespace, group: params.group, resource: params.resource, kind: params.kind, name })} />
+          )}
           {b.portForward && <ForwardButton compact={compact} clusterId={clusterId} kind={kind} namespace={namespace!} name={name} obj={obj} disabled={readOnly} />}
           {b.scalable && <Act compact={compact} icon={Scaling} label="Escalar" disabled={readOnly} onClick={() => setConfirm('scale')} />}
           {b.restartable && <Act compact={compact} icon={RotateCw} label="Reiniciar" disabled={readOnly} onClick={() => setConfirm('restart')} />}
@@ -188,6 +197,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           {b.startBuild && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
           {b.buildLogs && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
           {b.details === 'route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
+          <Act compact={compact} icon={GitCompareArrows} label="Comparar com…" title="Comparar com outro cluster ou namespace" onClick={() => setComparing(true)} />
           <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind: params.kind, namespace, name })} />
           <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} title={readOnly ? 'Cluster em somente leitura' : 'Editar YAML'}
             onClick={() => { setTab('yaml'); if (view?.masked) toast('info', 'Revele os valores do Secret antes de editar'); else if (view) setDraft(view.yaml) }} />
@@ -198,9 +208,9 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         </div>
       </div>
       <div className="tabs" role="tablist">
-        {(['overview', 'yaml', 'events', 'diagnosis', ...(namespace ? ['topology'] : []), ...(b.metrics ? ['metrics'] : []), ...(b.revisions ? ['revisions'] : []), ...(b.security && namespace ? ['security'] : [])] as Tab[]).map((t) => (
+        {(['overview', 'yaml', 'events', 'diagnosis', ...(namespace ? ['topology'] : []), ...(b.metrics ? ['metrics'] : []), ...(b.revisions ? ['revisions'] : []), ...(b.security && namespace ? ['security'] : []), 'history'] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} data-testid={`tab-${t}`}>
-            {{ overview: 'Visão geral', yaml: 'YAML', events: 'Eventos', diagnosis: 'Diagnóstico', topology: 'Topologia', metrics: 'Métricas', revisions: 'Revisões', security: 'Segurança' }[t]}
+            {{ overview: 'Visão geral', yaml: 'YAML', events: 'Eventos', diagnosis: 'Diagnóstico', topology: 'Topologia', metrics: 'Métricas', revisions: 'Revisões', security: 'Segurança', history: 'Histórico' }[t]}
           </button>
         ))}
       </div>
@@ -238,10 +248,16 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         <Suspense fallback={<div className="pad"><span className="spinner" /></div>}>
           {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} group={params.group} kind={params.kind} name={name} />}
           {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
+          {tab === 'history' && <HistoryTab clusterId={clusterId} group={params.group} resource={params.resource} namespace={namespace} name={name} />}
         </Suspense>
         {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
         {tab === 'revisions' && namespace && <Revisions clusterId={clusterId} namespace={namespace} name={name} readOnly={readOnly} />}
       </div>
+      {comparing && (
+        <Suspense fallback={null}>
+          <CompareDialog clusterId={clusterId} group={params.group} resource={params.resource} kind={params.kind} namespace={namespace} name={name} onClose={() => setComparing(false)} />
+        </Suspense>
+      )}
       {confirm === 'delete' && (
         <ConfirmDialog title={`Excluir ${kind}`} danger confirmLabel="Excluir" body={<p>Excluir <b>{namespace ? `${namespace}/` : ''}{name}</b>? Esta ação não pode ser desfeita.</p>}
           onCancel={() => setConfirm(undefined)} onConfirm={() => act(() => api.remove(clusterId, ref), `${name} excluído`)} />

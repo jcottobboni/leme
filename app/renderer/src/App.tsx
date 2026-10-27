@@ -51,6 +51,11 @@ const TrafficPanel = lazyPanel(() => import('./features/traffic/TrafficPanel'), 
 const ArgoPanel = lazyPanel(() => import('./features/argocd/ArgoPanel'), 'ArgoPanel')
 const GrafanaPanel = lazyPanel(() => import('./features/grafana/GrafanaPanel'), 'GrafanaPanel')
 const IstioPanel = lazyPanel(() => import('./features/istio/IstioPanel'), 'IstioPanel')
+// M7 (front O): aggregated logs and diff between clusters/namespaces.
+const MultiLogsPanel = lazyPanel(() => import('./features/logs/MultiLogsPanel'), 'MultiLogsPanel')
+const DiffPanel = lazyPanel(() => import('./features/diff/DiffPanel'), 'DiffPanel')
+// M7: Flux CD.
+const FluxPanel = lazyPanel(() => import('./features/flux/FluxPanel'), 'FluxPanel')
 
 function Welcome(_: IDockviewPanelProps) {
   return <Home />
@@ -108,11 +113,14 @@ const components = Object.fromEntries(
     argocd: ArgoPanel,
     grafana: GrafanaPanel,
     istio: IstioPanel,
+    multilogs: gated(MultiLogsPanel),
+    diff: DiffPanel,
+    flux: FluxPanel,
   } as Record<string, PanelComponent>).map(([k, C]) => [k, panel(C, k)]),
 )
 
 // Panels that start streams or shells are never restored from a saved layout.
-const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog'])
+const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog', 'multilogs'])
 
 const TOAST_ICONS = { ok: CircleCheck, error: CircleAlert, info: Info }
 

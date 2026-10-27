@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jcottobboni/leme/engine/internal/kinds"
+	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
 func refOf(u *unstructured.Unstructured) Ref {
@@ -22,6 +23,9 @@ func (c *scope) diagnose(u *unstructured.Unstructured, deep bool) []Finding {
 		// A CRD may reuse a built-in kind name (Longhorn Node, Knative Route, Volcano Job): the
 		// built-in rules would read fields it does not have and report false problems.
 		return nil
+	}
+	if g == project.GatewayGroup {
+		return c.gatewayAPIFindings(u)
 	}
 	switch u.GetKind() {
 	case "Pod":

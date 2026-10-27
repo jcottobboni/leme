@@ -1,0 +1,19 @@
+/* Diff between clusters/namespaces (M7). */
+.cmp-form { display: grid; gap: 12px; margin-bottom: 4px; }
+.cmp-form select, .cmp-form .input { width: 100%; }
+.diff-panel { min-height: 0; }
+.diff-sides { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.diff-side { padding: 6px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; display: flex; gap: 8px; align-items: center; min-width: 0; }
+.diff-side + .diff-side { border-left: 1px solid var(--line); }
+.diff-tag { font-weight: 700; font-size: 11px; color: var(--accent); border: 1px solid var(--select-line); border-radius: 4px; padding: 0 5px; flex-shrink: 0; }
+.diff-changes { padding: 6px 12px; border-bottom: 1px solid var(--line); max-height: 140px; overflow: auto; }
+.diff-changes.closed { max-height: none; }
+.diff-changes ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.diff-changes .hist-op { display: inline-block; width: 12px; font-weight: 700; }
+.diff-changes .hist-add, .diff-changes .hist-new { color: var(--ok-text); }
+.diff-changes .hist-remove { color: var(--error-text); }
+.diff-changes .hist-replace { color: var(--warn-text); }
+.diff-changes .hist-old { color: var(--error-text); text-decoration: line-through; }
+.diff-note { padding: 4px 12px; }
+.diff-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.diff-editor .monaco { flex: 1; min-height: 200px; }

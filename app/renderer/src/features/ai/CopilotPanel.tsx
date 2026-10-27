@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { Check, Eye, Send, Settings2, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide-react'
+import { Check, Download, Eye, FileCode2, FileDiff, Send, Settings2, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide-react'
+import { openMenu } from '../shell/menu'
 import { clusterName, openPanel, useApp, type OpenOptions } from '../../store'
 import { ClusterGate } from '../common'
 import { Modal } from '../../components/Dialogs'
@@ -257,6 +258,28 @@ function Copilot({ clusterId, initialRef }: { clusterId: string; initialRef?: Co
   )
 }
 
+function saveText(name: string, text: string) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/yaml' }))
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 0)
+}
+
+/** "Exportar proposta" (M7 RF07): the final YAML and the merge patch, for teams that apply through GitOps.
+ * The content is what the engine sent with the proposal; nothing is fetched again and masked values stay masked. */
+export function exportProposal(p: Proposal, what: 'yaml' | 'patch') {
+  const r = p.ref
+  const base = [r.kind.toLowerCase(), r.namespace, r.name].filter(Boolean).join('-').replace(/[^\w.-]+/g, '_')
+  const target = `${r.kind.toLowerCase()}${r.group ? `.${r.group}` : ''} ${r.name}${r.namespace ? ` -n ${r.namespace}` : ''}`
+  const head = [`# Proposta do Leme: ${p.summary || `${r.kind} ${r.name}`}`, `# Objeto: ${r.kind} ${r.namespace ? `${r.namespace}/` : ''}${r.name}`]
+  if (what === 'yaml') {
+    saveText(`${base}.yaml`, [...head, '# YAML final, sem status nem campos que o servidor controla (uid, resourceVersion…).', p.manifest ?? p.after].join('\n'))
+  } else {
+    saveText(`${base}.patch.yaml`, [...head, '# JSON merge patch (RFC 7386). Para aplicar sem o Leme:', `#   kubectl patch ${target} --type merge --patch-file ${base}.patch.yaml`, p.patch ?? ''].join('\n'))
+  }
+}
+
 function ProposalCard({ p, state, error, readOnly, onApply, onDiscard }: { p: Proposal; state: string; error?: string; readOnly: boolean; onApply: () => void; onDiscard: () => void }) {
   const [ack, setAck] = useState(false)
   const risky = (p.risks?.length ?? 0) > 0
@@ -291,6 +314,12 @@ function ProposalCard({ p, state, error, readOnly, onApply, onDiscard }: { p: Pr
             {blocked && <span className="muted small">{blocked}</span>}
           </>
         )}
+        <span className="spacer" />
+        <button title="Baixar o YAML final ou o patch, para aplicar via GitOps" data-testid="copilot-export"
+          onClick={(e) => openMenu(e, [
+            { label: 'YAML final (.yaml)', icon: FileCode2, onClick: () => exportProposal(p, 'yaml') },
+            { label: 'Patch merge (.patch.yaml)', icon: FileDiff, disabled: !p.patch, onClick: () => exportProposal(p, 'patch') },
+          ])}><Download size={13} /> Exportar proposta</button>
         {error && <span className="s-warn small">{error}</span>}
       </div>
     </div>

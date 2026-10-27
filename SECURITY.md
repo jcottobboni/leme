@@ -71,10 +71,32 @@ It does not protect against an attacker who already controls your user account o
   cluster domain, and service-proxy paths are validated so they cannot escape `/proxy`.
 - Settings are stored with `0600` permissions.
 
+## Local data
+
+- **Change history** ("Histórico" and "Mudanças"): the engine records changes it observes through the
+  informers already open for your views (no extra watches) in `<config dir>/history/<cluster>.jsonl`
+  (0600), kept 7 days and at most 50 MB per cluster. Secrets and ConfigMaps record only which keys
+  changed, never values; env values and credential-like fields of other objects are masked.
+- **Audit log** (`audit.jsonl`, 0600, rotated at 10 MB): every write made from the UI, the Copilot,
+  MCP agents, Argo CD and Flux, with the object and the result, never the content.
+- **Compare ("Comparar com…")** is read-only: both sides are normalized by the engine and Secret
+  values stay masked on both sides; only the names of keys whose values differ are shown.
+
 ## AI Copilot and MCP agents
 
 - **Off by default.** Nothing is sent to an AI provider until you enable the Copilot, and each
   cloud endpoint asks for consent once. Local endpoints (Ollama, localhost) never leave the machine.
+- **Local models (Ollama):** an endpoint counts as local only when its host is loopback
+  (`127.0.0.0/8`, `::1` or `localhost`; names are never resolved, so look-alikes such as
+  `127.0.0.1.example.com` are cloud). Only then is the cloud consent skipped; anonymization stays
+  available (off by default). The installed models are listed by the engine (`GET /api/tags`) and
+  only from a loopback endpoint, without following redirects. An Ollama on another host is treated
+  as a cloud provider.
+- **Exported proposals** ("Exportar proposta") are built from the same proposal the UI shows: the
+  final manifest (without server-owned fields) and the merge patch. Nothing is fetched again and
+  values masked for agents stay masked.
+- **Grid JSONPath columns** are evaluated by the engine on a masked copy of Secrets, with limits on
+  the number and length of expressions, on the values per cell and on the time per evaluation.
 - **What leaves:** sanitized YAML of the object in focus (no Secret values, no ConfigMap values,
   no env values, no managedFields; fields named like credentials, private keys such as a Route's
   TLS key, `--password=` arguments, tokens and annotations of Secrets are masked at any depth),
@@ -103,12 +125,20 @@ It does not protect against an attacker who already controls your user account o
 - **Audit:** every question, proposal and apply (Copilot and MCP) is recorded locally in
   `audit.jsonl` (0600) without prompts, answers or object contents.
 
-## Integrations (Argo CD, Grafana, Istio, traffic)
+## Integrations (Argo CD, Flux, Grafana, Istio, traffic)
 
 - **Argo CD:** Leme reads `Application`/`AppProject` objects with your kubeconfig and never talks to
   the Argo CD API or asks for its credentials. Sync and Refresh are change proposals (diff, server
   dry-run, confirmation, resourceVersion check) under the same write lock; a sync whose destination
   is another cluster also asks for the Application name. MCP agents cannot apply them.
+- **Flux CD:** Leme reads Kustomizations, HelmReleases and sources with your kubeconfig and never
+  runs the `flux` CLI. Its only writes are reconcile (the `reconcile.fluxcd.io/requestedAt`
+  annotation), suspend and resume (`spec.suspend`) on those six Flux kinds. The engine builds the
+  patch from the action name (the UI sends nothing else), and each one is a change proposal: diff,
+  server dry-run when writable, RBAC check, confirmation and a single-use token bound to the
+  resourceVersion, under the same write lock (read-only and production until unlocked answer 403).
+  Proposals and applies are audited with source `flux`; the Copilot cannot propose them and MCP
+  agents cannot apply them. What the Flux controller applies afterwards comes from Git, OCI or the chart, not from Leme.
 - **Grafana and Prometheus:** only services detected by the engine can be opened, through a local
   port-forward (which needs the write lock, like any port-forward). The window is sandboxed, without
   preload, with a fresh in-memory session and navigation pinned to the forwarded address. Leme

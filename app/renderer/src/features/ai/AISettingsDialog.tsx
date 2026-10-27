@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Check, KeyRound, PlugZap } from 'lucide-react'
+import { Check, HardDrive, KeyRound, PlugZap, RefreshCw } from 'lucide-react'
 import { Modal } from '../../components/Dialogs'
-import { aiApi, keyBridge, type AIConfig, type AISettings, type AuditEntry, type Provider } from './api'
+import { aiApi, keyBridge, type AIConfig, type AISettings, type AuditEntry, type LocalModel, type Provider } from './api'
 import './ai.css'
 
 const PROVIDERS: [Provider, string, string][] = [
@@ -11,14 +11,28 @@ const PROVIDERS: [Provider, string, string][] = [
 ]
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 
-/** Same rule as the engine: local models need no consent and default to no anonymization. */
-export function isLocalEndpoint(c: AIConfig) {
-  if (!c.baseURL) return c.provider === 'ollama'
+export const OLLAMA_BASE_URL = 'http://127.0.0.1:11434/v1'
+
+/** Same rule as the engine (ai.IsLoopback): 127.0.0.0/8, ::1 or localhost. */
+export function isLoopbackURL(url: string) {
   try {
-    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(c.baseURL).hostname)
+    const h = new URL(url).hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '')
+    if (h === 'localhost' || h === '::1' || h === '::ffff:7f00:1') return true
+    const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h)
+    return !!m && m[1] === '127' && m.slice(2).every((x) => +x <= 255)
   } catch {
     return false
   }
+}
+
+/** Same rule as the engine: local models need no consent and default to no anonymization. */
+export function isLocalEndpoint(c: AIConfig) {
+  if (!c.baseURL) return c.provider === 'ollama'
+  return isLoopbackURL(c.baseURL)
+}
+
+function gb(n?: number) {
+  return n ? ` · ${(n / 1e9).toFixed(1)} GB` : ''
 }
 
 /** Copilot settings: provider, model, endpoint, write-only API key, anonymization, audit log. */
@@ -32,6 +46,7 @@ export function AISettingsDialog({ onClose }: { onClose: (changed: boolean) => v
   const [error, setError] = useState('')
   const [audit, setAudit] = useState<AuditEntry[]>()
   const [keychain, setKeychain] = useState<boolean>()
+  const [models, setModels] = useState<{ list?: LocalModel[]; error?: string; busy?: boolean }>({})
 
   useEffect(() => {
     aiApi.settings().then((r) => (setS(r), setCfg(r.ai))).catch((e) => setError(String(e.message ?? e)))
@@ -39,6 +54,18 @@ export function AISettingsDialog({ onClose }: { onClose: (changed: boolean) => v
   }, [])
 
   const set = (p: Partial<AIConfig>) => setCfg((c) => ({ ...c, ...p }))
+  // Ollama: the engine lists the installed models (GET /api/tags), only from a loopback endpoint.
+  const ollamaURL = cfg.provider === 'ollama' ? cfg.baseURL || s?.ollamaBaseURL || OLLAMA_BASE_URL : ''
+  const loadModels = (url = ollamaURL) => {
+    if (!url || !isLoopbackURL(url)) return setModels({})
+    setModels((m) => ({ ...m, busy: true, error: undefined }))
+    aiApi.models(url).then((r) => setModels({ list: r.models }), (e) => setModels({ error: (e as Error).message }))
+  }
+  useEffect(() => {
+    if (!ollamaURL) return setModels({})
+    const t = setTimeout(() => loadModels(ollamaURL), 300)
+    return () => clearTimeout(t)
+  }, [ollamaURL]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = async (next = cfg) => {
     setBusy(true)
     setError('')
@@ -95,7 +122,7 @@ export function AISettingsDialog({ onClose }: { onClose: (changed: boolean) => v
         <div className="field">Provedor
           <div className="ai-providers">
             {PROVIDERS.map(([id, label, hint]) => (
-              <button key={id} className={cfg.provider === id ? 'on' : ''} data-testid={`ai-provider-${id}`} onClick={() => set({ provider: id, model: '', baseURL: '' })}>
+              <button key={id} className={cfg.provider === id ? 'on' : ''} data-testid={`ai-provider-${id}`} onClick={() => set({ provider: id, model: '', baseURL: id === 'ollama' ? s?.ollamaBaseURL || OLLAMA_BASE_URL : '' })}>
                 <b>{label}</b>
                 <span className="muted small">{hint}</span>
               </button>
@@ -114,12 +141,30 @@ export function AISettingsDialog({ onClose }: { onClose: (changed: boolean) => v
             </label>
           )}
         </div>
+        {cfg.provider === 'ollama' && (
+          <div className="field">Modelos instalados
+            <div className="row">
+              <select className="grow" data-testid="ai-ollama-models" value={models.list?.some((m) => m.name === cfg.model) ? cfg.model : ''} disabled={!models.list?.length}
+                onChange={(e) => e.target.value && set({ model: e.target.value })}>
+                <option value="">{models.busy ? 'Lendo os modelos…' : models.list ? (models.list.length ? 'Escolha um modelo instalado' : 'Nenhum modelo instalado (ollama pull …)') : 'Lista indisponível'}</option>
+                {models.list?.map((m) => <option key={m.name} value={m.name}>{m.name}{m.parameters ? ` · ${m.parameters}` : ''}{gb(m.size)}</option>)}
+              </select>
+              <button onClick={() => loadModels()} disabled={models.busy || !isLoopbackURL(ollamaURL)} title="Ler de novo a lista do Ollama" data-testid="ai-ollama-refresh"><RefreshCw size={14} /> Atualizar</button>
+            </div>
+            {models.error && <span className="s-warn small" data-testid="ai-ollama-error">{models.error}</span>}
+          </div>
+        )}
         {(needsURL || cfg.baseURL) && (
-          <label className="field">Endereço da API {cfg.provider === 'ollama' && <span className="muted small">(padrão http://localhost:11434/v1)</span>}
-            <input className="input" data-testid="ai-baseurl" value={cfg.baseURL ?? ''} placeholder={cfg.provider === 'openai' ? 'https://api.openai.com/v1' : cfg.provider === 'ollama' ? 'http://localhost:11434/v1' : ''}
+          <label className="field">Endereço da API {cfg.provider === 'ollama' && <span className="muted small">(padrão {s?.ollamaBaseURL || OLLAMA_BASE_URL})</span>}
+            <input className="input" data-testid="ai-baseurl" value={cfg.baseURL ?? ''} placeholder={cfg.provider === 'openai' ? 'https://api.openai.com/v1' : cfg.provider === 'ollama' ? s?.ollamaBaseURL || OLLAMA_BASE_URL : ''}
               onChange={(e) => set({ baseURL: e.target.value })} />
           </label>
         )}
+        {isLocalEndpoint(cfg) ? (
+          <div className="banner ai-ok ai-local" data-testid="ai-local-note"><HardDrive size={14} /> Modelo local (endereço de loopback): nada sai do computador e não há consentimento de nuvem. A anonimização continua disponível.</div>
+        ) : cfg.provider === 'ollama' && cfg.baseURL ? (
+          <div className="banner warn" data-testid="ai-remote-note">Endereço fora desta máquina: tratado como provedor de nuvem (pede consentimento antes do primeiro envio).</div>
+        ) : null}
         {cfg.provider !== 'ollama' && (
           <div className="field">Chave de API
             <div className="row">

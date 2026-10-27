@@ -49,6 +49,8 @@
 │ argocd     Applications/AppProjects; sync and refresh as proposals     │
 │ grafana    Grafana/Prometheus detection and local port-forwards        │
 │ istio      mTLS resolution, routes, offline istioctl analyze           │
+│ objdiff    normalized YAML and JSON Patch for "Comparar com…"          │
+│ history    local change history from open informers (JSONL, 0600)      │
 │ settings   JSON settings (0600)                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```

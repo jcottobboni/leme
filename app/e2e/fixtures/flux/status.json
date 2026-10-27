@@ -1,0 +1,63 @@
+{
+  "_comment": "Status written by the e2e test (no controller): one merge patch per object, applied with kubectl patch --subresource=status. Keys are resource/namespace/name.",
+  "gitrepositories.source.toolkit.fluxcd.io/m7-flux/m7-flux-repo": {
+    "status": {
+      "observedGeneration": 1,
+      "artifact": {
+        "path": "gitrepository/m7-flux/m7-flux-repo/4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d.tar.gz",
+        "url": "http://source-controller.flux-system.svc/gitrepository/m7-flux/m7-flux-repo/latest.tar.gz",
+        "revision": "main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d",
+        "digest": "sha256:9a8b7c6d5e4f30211a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081",
+        "lastUpdateTime": "2026-10-27T10:00:00Z"
+      },
+      "conditions": [
+        {"type": "Ready", "status": "True", "reason": "Succeeded", "message": "stored artifact for revision 'main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d'", "lastTransitionTime": "2026-10-27T10:00:00Z", "observedGeneration": 1}
+      ]
+    }
+  },
+  "helmrepositories.source.toolkit.fluxcd.io/m7-flux/m7-flux-charts": {
+    "status": {
+      "observedGeneration": 1,
+      "artifact": {
+        "path": "helmrepository/m7-flux/m7-flux-charts/index.yaml",
+        "url": "http://source-controller.flux-system.svc/helmrepository/m7-flux/m7-flux-charts/index.yaml",
+        "revision": "sha256:1f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c5b6a7988",
+        "digest": "sha256:1f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c5b6a7988",
+        "lastUpdateTime": "2026-10-27T09:30:00Z"
+      },
+      "conditions": [
+        {"type": "Ready", "status": "True", "reason": "Succeeded", "message": "stored artifact", "lastTransitionTime": "2026-10-27T09:30:00Z", "observedGeneration": 1}
+      ]
+    }
+  },
+  "kustomizations.kustomize.toolkit.fluxcd.io/m7-flux/m7-flux-apps": {
+    "status": {
+      "observedGeneration": 1,
+      "lastAppliedRevision": "main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d",
+      "lastAttemptedRevision": "main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d",
+      "conditions": [
+        {"type": "Ready", "status": "True", "reason": "ReconciliationSucceeded", "message": "Applied revision: main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d", "lastTransitionTime": "2026-10-27T10:01:00Z", "observedGeneration": 1}
+      ]
+    }
+  },
+  "kustomizations.kustomize.toolkit.fluxcd.io/m7-flux/m7-flux-broken": {
+    "status": {
+      "observedGeneration": 1,
+      "lastAttemptedRevision": "main@sha1:4f1c2b9e7d0a5c3b8e6f1a2d9c7b5e3f0a1b2c3d",
+      "conditions": [
+        {"type": "Ready", "status": "False", "reason": "ArtifactFailed", "message": "kustomization path not found: stat /tmp/kustomization/does-not-exist: no such file or directory", "lastTransitionTime": "2026-10-27T10:02:00Z", "observedGeneration": 1}
+      ]
+    }
+  },
+  "helmreleases.helm.toolkit.fluxcd.io/m7-flux/m7-flux-podinfo": {
+    "status": {
+      "observedGeneration": 1,
+      "history": [
+        {"chartName": "podinfo", "chartVersion": "6.9.2", "appVersion": "6.9.2", "name": "m7-flux-podinfo", "namespace": "m7-flux", "version": 1, "status": "deployed", "configDigest": "sha256:0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9", "firstDeployed": "2026-10-26T10:00:00Z", "lastDeployed": "2026-10-26T10:00:00Z", "digest": "sha256:1a2b3c4d5e6f70819203a4b5c6d7e8f91a2b3c4d5e6f70819203a4b5c6d7e8f9"}
+      ],
+      "conditions": [
+        {"type": "Ready", "status": "True", "reason": "InstallSucceeded", "message": "Helm install succeeded for release m7-flux/m7-flux-podinfo.v1 with chart podinfo@6.9.2", "lastTransitionTime": "2026-10-26T10:00:00Z", "observedGeneration": 1}
+      ]
+    }
+  }
+}

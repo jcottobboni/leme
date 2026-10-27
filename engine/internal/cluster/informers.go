@@ -52,6 +52,8 @@ type InformerManager struct {
 	mu      sync.Mutex
 	entries map[Key]*entry
 	closed  bool // after StopAll no informer may start (late requests of a disconnected session)
+
+	observer Observer // sees the changes of every informer (change history); see observer.go
 }
 
 // ErrClosed is returned when the session's caches were already stopped.
@@ -182,6 +184,7 @@ func (m *InformerManager) start(key Key) *entry {
 			}
 		},
 	})
+	m.observe(key, inf)
 	go inf.Run(e.stop)
 	return e
 }

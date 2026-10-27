@@ -134,7 +134,7 @@ export interface OpenOptions {
 }
 
 // Bottom-dock components: they always open below the main area.
-export const BOTTOM_COMPONENTS = new Set(['terminal', 'logs', 'buildLog', 'create'])
+export const BOTTOM_COMPONENTS = new Set(['terminal', 'logs', 'buildLog', 'create', 'multilogs'])
 
 export const useTabs = create<{ preview: Record<string, true>; bottomGroup?: string; closed: { id: string; component: string; title: string; params: Record<string, unknown> }[] }>(() => ({
   preview: {},
@@ -234,10 +234,13 @@ interface UiPrefs {
   topoLayouts: Record<string, Record<string, TopoPos>>
   /** Custom resource kinds pinned to the top of the navigator ("group/resource"). */
   favoriteCrds: string[]
+  /** M7: JSONPath columns per resource ("group/resource"); expr in the engine's braced form. */
+  jpCols: Record<string, JPColumn[]>
 }
+export interface JPColumn { expr: string; label: string }
 export interface TopoPos { x: number; y: number; w?: number; h?: number }
 function loadUi(): UiPrefs {
-  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500, mapHideEmpty: false, mapMinimap: true, topoFavorites: [], topoAppFavorites: [], topoLayouts: {}, favoriteCrds: [] }
+  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500, mapHideEmpty: false, mapMinimap: true, topoFavorites: [], topoAppFavorites: [], topoLayouts: {}, favoriteCrds: [], jpCols: {} }
   try {
     return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) ?? '{}') }
   } catch {
@@ -249,8 +252,8 @@ export const useUi = create<UiPrefs & { update: (p: Partial<UiPrefs>) => void }>
   update: (p) => {
     set(p)
     try {
-      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts, favoriteCrds } = get()
-      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts, favoriteCrds }))
+      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts, favoriteCrds, jpCols } = get()
+      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts, favoriteCrds, jpCols }))
     } catch {
       /* convenience only */
     }

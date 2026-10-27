@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
 // Severity of a finding.
@@ -106,6 +107,9 @@ func Namespace(ctx context.Context, s *cluster.Session, namespace string) (findi
 		{"", "services"}, {"networking.k8s.io", "ingresses"}, {"route.openshift.io", "routes"},
 		{"", "persistentvolumeclaims"}, {"autoscaling", "horizontalpodautoscalers"},
 		{"batch", "jobs"}, {"batch", "cronjobs"},
+	}
+	for _, r := range gatewayResources {
+		kinds = append(kinds, [2]string{project.GatewayGroup, r})
 	}
 	if namespace == "" {
 		kinds = append(kinds, [2]string{"", "nodes"})
