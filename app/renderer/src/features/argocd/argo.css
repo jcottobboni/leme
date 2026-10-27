@@ -8,7 +8,7 @@
 .argo-list { border-right: 1px solid var(--line); }
 .argo-body:not(.with-detail) .argo-list { border-right: none; }
 .argo-active td { background: var(--select); }
-.argo-ellipsis { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.argo-ellipsis { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .argo-running { display: inline-flex; margin-left: 6px; color: var(--warn-text); vertical-align: middle; }
 
 .argo-detail { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); }

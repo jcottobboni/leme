@@ -1,6 +1,6 @@
 /* Mapa do cluster. Everything scoped under .map-panel; tokens come from styles.css. */
 .map-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
-.map-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: nowrap; }
+.map-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; row-gap: 6px; }
 .map-bar .spacer { flex: 1; }
 .map-bar > button, .map-bar > .grid-title { flex: none; white-space: nowrap; }
 .map-search { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; height: 28px; flex: 0 1 260px; min-width: 140px; }

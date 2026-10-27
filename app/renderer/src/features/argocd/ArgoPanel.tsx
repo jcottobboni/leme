@@ -120,7 +120,7 @@ function AppRow({ a, active, onClick }: { a: ArgoApp; active: boolean; onClick: 
       <td><HealthBadge h={a.health} /></td>
       <td>{a.project || '—'}</td>
       <td className="argo-ellipsis" title={sourceText(src)}>{src ? <>{src.chart ?? src.path ?? src.repoURL} <span className="muted">{src.targetRevision}</span></> : '—'}{(a.sources?.length ?? 0) > 1 && <span className="muted small"> +{a.sources!.length - 1}</span>}</td>
-      <td>{a.destination.namespace || '—'} <span className="muted small">{a.local ? 'este cluster' : a.destination.name || a.destination.server}</span></td>
+      <td className="argo-ellipsis" title={`${a.destination.namespace || '—'} em ${a.local ? 'este cluster' : a.destination.name || a.destination.server}`}>{a.destination.namespace || '—'} <span className="muted small">{a.local ? 'este cluster' : a.destination.name || a.destination.server}</span></td>
     </tr>
   )
 }
