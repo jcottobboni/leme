@@ -494,8 +494,7 @@ func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*C
 	}
 	if m.m[sess] == nil {
 		m.m[sess] = map[string]*Collector{}
-		go func() {
-			<-sess.Life().Done()
+		sess.OnClose(func() {
 			m.mu.Lock()
 			cols := m.m[sess]
 			delete(m.m, sess)
@@ -507,7 +506,7 @@ func (m *Manager) Get(ctx context.Context, sess *cluster.Session, ns string) (*C
 				col.mu.Unlock()
 				col.close()
 			}
-		}()
+		})
 	}
 	// Owner informers only start once this collector is the registered one.
 	own := startOwners(sess, ns)

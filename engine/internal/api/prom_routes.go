@@ -14,22 +14,14 @@ import (
 
 // Prometheus: detection, configuration and charts.
 
+type promDetectKey struct{}
+
+// candidates returns the Prometheus endpoints detected in the cluster, re-detected after a minute.
 func (s *Server) candidates(ctx context.Context, sess *cluster.Session, refresh bool) []prom.Candidate {
-	s.m2.detectMu.Lock()
-	d, ok := s.m2.detected[sess]
-	s.m2.detectMu.Unlock()
-	if ok && !refresh && time.Since(d.at) < time.Minute {
-		return d.candidates
-	}
-	c, _ := prom.Detect(ctx, sess)
-	s.m2.detectMu.Lock()
-	for k := range s.m2.detected {
-		if k.Life().Err() != nil {
-			delete(s.m2.detected, k)
-		}
-	}
-	s.m2.detected[sess] = detection{at: time.Now(), candidates: c}
-	s.m2.detectMu.Unlock()
+	c, _ := cluster.Cached(sess, promDetectKey{}, time.Minute, refresh, func() ([]prom.Candidate, error) {
+		c, _ := prom.Detect(ctx, sess) // partial results are still useful; detection errors are not reported
+		return c, nil
+	})
 	return c
 }
 

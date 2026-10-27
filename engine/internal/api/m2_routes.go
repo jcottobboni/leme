@@ -2,12 +2,9 @@ package api
 
 import (
 	"net/http"
-	"sync"
 	"time"
 
-	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/ops"
-	"github.com/jcottobboni/leme/engine/internal/prom"
 	"github.com/jcottobboni/leme/engine/internal/rbac"
 	"github.com/jcottobboni/leme/engine/internal/timeline"
 )
@@ -17,18 +14,10 @@ type m2 struct {
 	rbacCache *rbac.Cache
 	searcher  *ops.Searcher
 	timelines *timeline.Manager
-
-	detectMu sync.Mutex
-	detected map[*cluster.Session]detection
-}
-
-type detection struct {
-	at         time.Time
-	candidates []prom.Candidate
 }
 
 func newM2() *m2 {
-	return &m2{rbacCache: rbac.NewCache(15 * time.Second), searcher: ops.NewSearcher(), timelines: timeline.NewManager(), detected: map[*cluster.Session]detection{}}
+	return &m2{rbacCache: rbac.NewCache(15 * time.Second), searcher: ops.NewSearcher(), timelines: timeline.NewManager()}
 }
 
 func (s *Server) m2Routes(m *http.ServeMux) {

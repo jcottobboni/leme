@@ -27,13 +27,12 @@ import (
 
 const opTimeout = 5 * time.Minute
 
+type discoKey struct{}
+
 // Service runs Helm actions. Repository configuration follows the Helm CLI (HELM_* env, ~/.config/helm).
 type Service struct {
 	settings *cli.EnvSettings
 	log      *slog.Logger
-
-	mu    sync.Mutex
-	disco map[*cluster.Session]*discoCache
 
 	regOnce sync.Once
 	reg     *registry.Client
@@ -43,23 +42,12 @@ type Service struct {
 
 // New creates the service.
 func New(log *slog.Logger) *Service {
-	return &Service{settings: cli.New(), log: log, disco: map[*cluster.Session]*discoCache{}}
+	return &Service{settings: cli.New(), log: log}
 }
 
 func (s *Service) config(sess *cluster.Session, namespace string) (*action.Configuration, error) {
-	s.mu.Lock()
-	d, ok := s.disco[sess]
-	if !ok {
-		// Forget caches of sessions that were disconnected.
-		for k := range s.disco {
-			if k.Life().Err() != nil {
-				delete(s.disco, k)
-			}
-		}
-		d = &discoCache{}
-		s.disco[sess] = d
-	}
-	s.mu.Unlock()
+	// Discovery and the REST mapper are shared by every Helm action of the session.
+	d, _ := cluster.Cached(sess, discoKey{}, 0, false, func() (*discoCache, error) { return &discoCache{}, nil })
 	cfg := action.NewConfiguration(action.ConfigurationSetLogger(slog.NewTextHandler(io.Discard, nil)))
 	g := &restGetter{cfg: sess.Config, cc: sess.ClientConfig(namespace), disco: d}
 	if err := cfg.Init(g, namespace, "secret"); err != nil {

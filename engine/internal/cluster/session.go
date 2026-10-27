@@ -61,6 +61,7 @@ type Session struct {
 	readOnly  bool
 	resources []Resource
 	byKey     map[string]Resource
+	cache     sessionCache
 
 	// life ends on Disconnect; write ends whenever the session is (re)locked.
 	life     context.Context
@@ -314,6 +315,7 @@ func (m *Manager) Disconnect(id string) {
 		if s.Informers != nil {
 			s.Informers.StopAll()
 		}
+		s.dropCache()
 	}
 }
 
