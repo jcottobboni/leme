@@ -7,13 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +42,7 @@ type Server struct {
 	changes  *change.Store
 	ai       *aiState
 	token    string
+	port     string // the bound port, for the CSP of the bundled UI
 	origins  map[string]bool
 	static   fs.FS
 	log      *slog.Logger
@@ -70,6 +74,7 @@ func New(mgr *cluster.Manager, o Options) *Server {
 
 // Allow registers the loopback origins for the bound port.
 func (s *Server) Allow(port string) {
+	s.port = port
 	s.origins["http://127.0.0.1:"+port] = true
 	s.origins["http://localhost:"+port] = true
 }
@@ -119,14 +124,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		host = r.Host
 	}
 	if host != "127.0.0.1" && host != "localhost" {
-		http.Error(w, "forbidden host", http.StatusForbidden)
+		httpError(w, http.StatusForbidden, "forbidden host")
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		if o := r.Header.Get("Origin"); o != "" && !s.origins[o] {
-			http.Error(w, "forbidden origin", http.StatusForbidden)
+			httpError(w, http.StatusForbidden, "forbidden origin")
 			return
 		}
 		if o := r.Header.Get("Origin"); o != "" {
@@ -140,7 +145,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !s.authorized(r) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			httpError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -180,10 +185,20 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(p, ".html") {
 		// popout.html receives DOM moved from the main window, so it gets the same policy.
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; worker-src 'self' blob:; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", s.csp())
 		w.Header().Set("Cache-Control", "no-store")
 	}
 	http.ServeFileFS(w, r, s.static, p)
+}
+
+// csp is the policy of the bundled UI pages. WebSockets may only reach this engine's own port.
+func (s *Server) csp() string {
+	connect := "connect-src 'self'"
+	if s.port != "" {
+		connect += " ws://127.0.0.1:" + s.port + " ws://localhost:" + s.port
+	}
+	return "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; " +
+		connect + "; worker-src 'self' blob:; frame-ancestors 'none'"
 }
 
 type sessionHandler func(w http.ResponseWriter, r *http.Request, sess *cluster.Session)
@@ -433,7 +448,29 @@ func kubeError(w http.ResponseWriter, err error) {
 		httpError(w, http.StatusNotFound, err.Error())
 	case errors.As(err, &st) && st.Status().Code >= 400:
 		httpError(w, int(st.Status().Code), st.Status().Message)
+	case isTimeout(err):
+		httpError(w, http.StatusGatewayTimeout, err.Error())
+	case isNetwork(err):
+		httpError(w, http.StatusBadGateway, err.Error())
 	default:
 		httpError(w, http.StatusBadRequest, err.Error())
 	}
+}
+
+// isTimeout reports a deadline or timeout talking to the cluster (not a bad request).
+func isTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return true
+	}
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
+}
+
+// isNetwork reports that the API server (or a proxied service) could not be reached.
+func isNetwork(err error) bool {
+	var ue *url.Error
+	var oe *net.OpError
+	var de *net.DNSError
+	return errors.As(err, &ue) || errors.As(err, &oe) || errors.As(err, &de) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.ErrUnexpectedEOF)
 }

@@ -1,13 +1,24 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/kube"
@@ -84,10 +95,52 @@ func TestTokenTransport(t *testing.T) {
 func TestStaticWithoutToken(t *testing.T) {
 	s := newTestServer(t)
 	w := do(s, http.MethodGet, "/", nil)
-	if w.Code != http.StatusOK || w.Header().Get("Content-Security-Policy") == "" {
-		t.Fatalf("static: code %d csp %q", w.Code, w.Header().Get("Content-Security-Policy"))
+	csp := w.Header().Get("Content-Security-Policy")
+	if w.Code != http.StatusOK || !strings.Contains(csp, "connect-src 'self' ws://127.0.0.1:1234 ws://localhost:1234;") || strings.Contains(csp, ":*") {
+		t.Fatalf("static: code %d csp %q", w.Code, csp)
 	}
 }
+
+// Refusals before routing are JSON like every other API error.
+func TestAuthErrorsAreJSON(t *testing.T) {
+	s := newTestServer(t)
+	for _, hdr := range []map[string]string{nil, {"Authorization": "Bearer secret", "Origin": "http://evil.example"}} {
+		w := do(s, http.MethodGet, "/api/clusters", hdr)
+		var body map[string]string
+		if w.Header().Get("Content-Type") != "application/json" || json.Unmarshal(w.Body.Bytes(), &body) != nil || body["error"] == "" {
+			t.Errorf("%d: %q %q", w.Code, w.Header().Get("Content-Type"), w.Body)
+		}
+	}
+}
+
+func TestKubeErrorStatus(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{context.DeadlineExceeded, http.StatusGatewayTimeout},
+		{fmt.Errorf("list: %w", context.DeadlineExceeded), http.StatusGatewayTimeout},
+		{&url.Error{Op: "Get", URL: "https://10.0.0.1:6443/api", Err: &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}}, http.StatusBadGateway},
+		{&url.Error{Op: "Get", URL: "https://x", Err: timeoutErr{}}, http.StatusGatewayTimeout},
+		{apierrors.NewNotFound(k8sschema.GroupResource{Resource: "pods"}, "p"), http.StatusNotFound},
+		{apierrors.NewTimeoutError("slow", 1), http.StatusGatewayTimeout},
+		{cluster.ErrReadOnly, http.StatusForbidden},
+		{errors.New("invalid YAML: x"), http.StatusBadRequest},
+	}
+	for _, c := range cases {
+		w := httptest.NewRecorder()
+		kubeError(w, c.err)
+		if w.Code != c.want {
+			t.Errorf("%v: got %d want %d", c.err, w.Code, c.want)
+		}
+	}
+}
+
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
 
 func TestMutationRequiresConnectedCluster(t *testing.T) {
 	s := newTestServer(t)
