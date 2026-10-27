@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/redact"
 	"github.com/jcottobboni/leme/engine/internal/security"
 )
 
@@ -134,7 +135,7 @@ func maskEnv(v any) {
 					for _, e := range list {
 						if m, ok := e.(map[string]any); ok {
 							if _, has := m["value"]; has {
-								m["value"] = "<redacted>"
+								m["value"] = redact.Mask
 							}
 						}
 					}

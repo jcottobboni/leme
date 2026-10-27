@@ -18,6 +18,7 @@ import (
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/kube"
+	"github.com/jcottobboni/leme/engine/internal/redact"
 )
 
 var (
@@ -199,7 +200,12 @@ func TestMaskedValuesAndRisks(t *testing.T) {
 		"containers": []any{map[string]any{"name": "nginx", "image": "nginx:1.27-alpine", "env": []any{map[string]any{"name": "DB_PASS", "value": "<redacted>"}}}},
 	}}}}
 	if _, err := st.Propose(ctx, s, ref, masked, "", "copilot", true); err == nil || !strings.Contains(err.Error(), "masked") {
-		t.Fatalf("a patch carrying the mask must be refused: %v", err)
+		t.Fatalf("a patch carrying the legacy mask must be refused: %v", err)
+	}
+	// The unified placeholder (also used for Secret values in the editor) is refused too.
+	unified := map[string]any{"metadata": map[string]any{"annotations": map[string]any{"db": redact.Mask}}}
+	if _, err := st.Propose(ctx, s, ref, unified, "", "mcp", true); err == nil || !strings.Contains(err.Error(), "masked") {
+		t.Fatalf("a patch carrying redact.Mask must be refused: %v", err)
 	}
 	p, err := st.Propose(ctx, s, ref, imagePatch, "", "mcp", true)
 	if err != nil || len(p.Risks) != 0 {

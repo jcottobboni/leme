@@ -20,10 +20,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/redact"
 )
-
-// HiddenValue replaces Secret values until the user explicitly reveals them.
-const HiddenValue = "<hidden>"
 
 const fieldManager = "leme"
 
@@ -73,7 +71,7 @@ func Get(ctx context.Context, s *cluster.Session, ref Ref, reveal bool) (*Object
 	return &ObjectView{Object: u.Object, YAML: string(y), Masked: masked}, nil
 }
 
-// MaskSecret replaces Secret values (and the last-applied copy) with HiddenValue; it reports whether anything was hidden.
+// MaskSecret replaces Secret values (and the last-applied copy) with redact.Mask; it reports whether anything was hidden.
 func MaskSecret(u *unstructured.Unstructured) bool {
 	masked := false
 	for _, field := range []string{"data", "stringData"} {
@@ -82,14 +80,14 @@ func MaskSecret(u *unstructured.Unstructured) bool {
 			continue
 		}
 		for k := range m {
-			m[k] = HiddenValue
+			m[k] = redact.Mask
 			masked = true
 		}
 		_ = unstructured.SetNestedMap(u.Object, m, field)
 	}
 	ann := u.GetAnnotations()
 	if _, ok := ann["kubectl.kubernetes.io/last-applied-configuration"]; ok {
-		ann["kubectl.kubernetes.io/last-applied-configuration"] = HiddenValue
+		ann["kubectl.kubernetes.io/last-applied-configuration"] = redact.Mask
 		u.SetAnnotations(ann)
 		masked = true
 	}
@@ -179,13 +177,13 @@ func Apply(ctx context.Context, s *cluster.Session, yamlText string, dryRun bool
 var multiDoc = regexp.MustCompile(`(?m)^---\s*\n\s*\S`)
 
 func containsHidden(u *unstructured.Unstructured) bool {
-	if u.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"] == HiddenValue {
+	if redact.IsMask(u.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"]) {
 		return true
 	}
 	for _, field := range []string{"data", "stringData"} {
 		m, _, _ := unstructured.NestedMap(u.Object, field)
 		for _, v := range m {
-			if v == HiddenValue {
+			if s, ok := v.(string); ok && redact.IsMask(s) {
 				return true
 			}
 		}

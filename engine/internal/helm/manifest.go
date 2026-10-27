@@ -10,6 +10,7 @@ import (
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/ops"
+	masking "github.com/jcottobboni/leme/engine/internal/redact"
 )
 
 var docSep = regexp.MustCompile(`(?m)^---[ \t]*$`)
@@ -58,7 +59,7 @@ func MaskManifest(manifest string) string {
 				continue
 			}
 			// Unparseable document that mentions Secret: hide it entirely rather than risk a leak.
-			docs[i] = "\n" + head + "# " + ops.HiddenValue + " (document could not be parsed)\n"
+			docs[i] = "\n" + head + "# " + masking.Mask + " (document could not be parsed)\n"
 			continue
 		}
 		if !maskObject(m) {
