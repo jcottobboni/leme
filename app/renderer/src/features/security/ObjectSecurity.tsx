@@ -6,7 +6,7 @@ import { age } from '../../format'
 
 /** "Segurança" tab of a workload: rule findings plus image vulnerabilities. */
 export function ObjectSecurity({ clusterId, group, kind, namespace, name }: { clusterId: string; group: string; kind: string; namespace: string; name: string }) {
-  const { data, error } = useAsync(() => api3.securityObject(clusterId, kind, namespace, name), [clusterId, kind, namespace, name])
+  const { data, error } = useAsync(() => api3.securityObject(clusterId, kind, namespace, name, group), [clusterId, group, kind, namespace, name])
   if (error) return <ErrorBanner error={error} />
   if (!data) return <div className="pad"><span className="spinner" /></div>
   return (

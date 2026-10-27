@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
-import { age } from '../../format'
+import { absDate, age } from '../../format'
 import { NamespaceSelect } from '../../components/ResourceGrid'
-import { ClusterGate, ErrorBanner, RefreshButton, useAsync } from '../common'
-import { Package } from 'lucide-react'
+import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { Package, Plus } from 'lucide-react'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { pressable } from '../../components/a11y'
 
 export function helmStatusHealth(s: string) {
   if (s === 'deployed') return 'ok'
@@ -29,14 +31,13 @@ function Releases({ clusterId }: { clusterId: string }) {
   const rows = useMemo(() => (data ?? []).filter((r) => !q || `${r.name} ${r.namespace} ${r.chart}`.toLowerCase().includes(q.toLowerCase())), [data, q])
   return (
     <div className="grid-panel">
-      <div className="toolbar">
-        <NamespaceSelect clusterId={clusterId} />
-        <input className="search" placeholder="Buscar release…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <span className="muted">{rows.length} releases</span>
-        <span className="spacer" />
-        <RefreshButton onClick={reload} loading={loading} />
-        <button className="primary" onClick={() => openCharts(clusterId)}>Instalar chart…</button>
-      </div>
+      <PanelHeader icon={Package} title="Releases do Helm" scope={<NamespaceSelect clusterId={clusterId} />} actions={[
+        { key: 'install', label: 'Instalar chart…', icon: Plus, primary: true, onClick: () => openCharts(clusterId) },
+        refreshAction(reload, loading),
+      ]}>
+        <input className="search" placeholder="Buscar release…" aria-label="Buscar release" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="muted">{rows.length} {rows.length === 1 ? 'release' : 'releases'}</span>
+      </PanelHeader>
       <ErrorBanner error={error} />
       {!loading && !rows.length ? (
         <div className="empty">
@@ -50,14 +51,14 @@ function Releases({ clusterId }: { clusterId: string }) {
           <thead><tr><th>Release</th><th>Namespace</th><th>Revisão</th><th>Status</th><th>Chart</th><th>App</th><th>Atualizado</th></tr></thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.namespace + '/' + r.name} className="clickable" data-testid={`release-${r.name}`} onClick={() => openRelease(clusterId, r.namespace, r.name)}>
+              <tr key={r.namespace + '/' + r.name} className="clickable" data-testid={`release-${r.name}`} {...pressable(() => openRelease(clusterId, r.namespace, r.name), null)}>
                 <td><span className={`dot d-${helmStatusHealth(r.status)}`} />{r.name}</td>
                 <td>{r.namespace}</td>
                 <td>{r.revision}</td>
-                <td><span className={`status s-${helmStatusHealth(r.status)}`}>{r.status}</span></td>
+                <td><span className={`pill pill-${helmStatusHealth(r.status)}`}>{r.status}</span></td>
                 <td>{r.chart}-{r.chartVersion}</td>
                 <td>{r.appVersion}</td>
-                <td>{age(r.updated)}</td>
+                <td title={absDate(r.updated)}>{age(r.updated)}</td>
               </tr>
             ))}
           </tbody>

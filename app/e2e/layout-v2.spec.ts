@@ -120,7 +120,8 @@ test('CA-V5: visão geral com donuts e medidores', async ({ page }) => {
   await page.getByTestId(`cluster-row-${KIND_CONTEXT}`).first().click()
   await page.getByTestId('tool-overview').click()
   await expect(page.getByTestId('ov-pods').locator('svg.donut')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByTestId('ov-Deployment').locator('svg.donut')).toBeVisible()
+  // A donut only when there is more than one state; a single state shows a bar and a sentence.
+  await expect(page.getByTestId('ov-Deployment').locator('svg.donut, .ov-single').first()).toBeVisible()
   await expect(page.getByTestId('gauge-CPU')).toContainText('Requests')
   await expect(page.getByTestId('gauge-Memória')).toContainText('Alocável')
 })

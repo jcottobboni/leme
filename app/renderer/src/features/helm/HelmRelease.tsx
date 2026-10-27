@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type HelmDetail } from '../../api'
 import { useApp } from '../../store'
-import { age } from '../../format'
+import { absDate, ago } from '../../format'
+import { pressable } from '../../components/a11y'
 import { YamlEditor } from '../../components/Monaco'
 import { ConfirmDialog } from '../../components/Dialogs'
 import { openObject } from '../../components/ObjectPanel'
@@ -57,19 +58,19 @@ function Release({ clusterId, namespace, name, onGone }: Params & { onGone: () =
     try {
       const res = await api.helmRollback(clusterId, namespace, name, revision, true)
       setReview({
-        title: `Rollback de ${name} para a revisão ${revision}`,
+        title: `Reverter ${name} para a revisão ${revision}`,
         previous: res.previous,
         next: res.manifest,
         confirmLabel: 'Fazer rollback',
         onConfirm: async () => {
           await api.helmRollback(clusterId, namespace, name, revision, false).then((r) => {
-            toast('ok', `Rollback feito (revisão ${r.revision})`)
+            toast('ok', `Reversão feita (revisão ${r.revision})`)
             reload()
-          }, fail('Rollback falhou'))
+          }, fail('Reversão falhou'))
         },
       })
     } catch (e) {
-      fail('Rollback')(e)
+      fail('Reversão')(e)
     }
   }
 
@@ -107,7 +108,7 @@ function Release({ clusterId, namespace, name, onGone }: Params & { onGone: () =
           <span className="kind-chip">Helm</span>
           <b>{d.name}</b>
           <span className="muted"> · {d.namespace} · rev {d.revision}</span>
-          <span className={`status s-${health}`}>{d.status}</span>
+          <span className={`pill pill-${health}`}>{d.status}</span>
         </div>
         <div className="obj-actions">
           <button disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : ''} onClick={() => setAsk('version')}>Mudar versão…</button>
@@ -164,12 +165,12 @@ function Release({ clusterId, namespace, name, onGone }: Params & { onGone: () =
               {d.history.map((h) => (
                 <tr key={h.revision} data-testid={`revision-${h.revision}`}>
                   <td>{h.revision}</td>
-                  <td><span className={`status s-${helmStatusHealth(h.status)}`}>{h.status}</span></td>
+                  <td><span className={`pill pill-${helmStatusHealth(h.status)}`}>{h.status}</span></td>
                   <td>{h.chart}-{h.chartVersion}</td>
                   <td>{h.appVersion}</td>
-                  <td>{age(h.updated)}</td>
+                  <td title={absDate(h.updated)}>{ago(h.updated)}</td>
                   <td className="wrap">{h.description}</td>
-                  <td>{h.revision !== d.revision && <button disabled={readOnly} onClick={() => previewRollback(h.revision)}>Rollback</button>}</td>
+                  <td>{h.revision !== d.revision && <button disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : `Voltar para a revisão ${h.revision} (helm rollback)`} onClick={() => previewRollback(h.revision)}>Reverter</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -211,7 +212,7 @@ function Summary({ d, clusterId, onReveal }: { d: HelmDetail; clusterId: string;
           <tbody>
             <tr><td>Chart</td><td>{d.chart} {d.chartVersion}</td></tr>
             <tr><td>Versão do app</td><td>{d.appVersion || '—'}</td></tr>
-            <tr><td>Atualizado</td><td>{d.updated} ({age(d.updated)})</td></tr>
+            <tr><td>Atualizado</td><td title={d.updated}>{ago(d.updated)} <span className="muted small">· {absDate(d.updated)}</span></td></tr>
             <tr><td>Descrição</td><td>{d.description}</td></tr>
           </tbody>
         </table>
@@ -236,7 +237,7 @@ function Summary({ d, clusterId, onReveal }: { d: HelmDetail; clusterId: string;
             {d.objects.map((o) => {
               const group = o.apiVersion.includes('/') ? o.apiVersion.split('/')[0] : ''
               return (
-                <tr key={o.kind + '/' + o.namespace + '/' + o.name} className="clickable" onClick={() => openObject(clusterId, group, o.kind, o.name, o.namespace)}>
+                <tr key={o.kind + '/' + o.namespace + '/' + o.name} className="clickable" {...pressable(() => openObject(clusterId, group, o.kind, o.name, o.namespace), null)}>
                   <td>{o.kind}</td>
                   <td>{o.name}</td>
                   <td>{o.namespace ?? '—'}</td>

@@ -2,6 +2,8 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { CircleCheck, Stethoscope } from 'lucide-react'
 import { SEVERITIES, SEV_LABEL, analyzeApi } from './api'
 import { FindingCard } from './Finding'
 import './analyze.css'
@@ -19,20 +21,16 @@ export function ProblemsPanel({ params }: IDockviewPanelProps<{ clusterId: strin
   return (
     <ClusterGate clusterId={clusterId}>
       <div className="object-panel" data-testid="problems">
-        <div className="toolbar">
-          <NamespaceSelect clusterId={clusterId} />
-          <button onClick={reload} disabled={loading}>Atualizar</button>
-          {loading && <span className="spinner" />}
-          <span className="muted">escopo: {ns || 'cluster inteiro'}</span>
+        <PanelHeader icon={Stethoscope} title="Problemas" scope={<NamespaceSelect clusterId={clusterId} />} actions={[refreshAction(reload, loading, { disabled: loading })]}>
           {data && (
             <span className="an-counts">
               {SEVERITIES.filter(counts).map((s) => <span key={s} className={`sev sev-${s}`}>{counts(s)} {SEV_LABEL[s].toLowerCase()}</span>)}
             </span>
           )}
-        </div>
+        </PanelHeader>
         <ErrorBanner error={error} />
         <div className="obj-body">
-          {data && data.length === 0 && <div className="an-empty">Nenhum problema encontrado</div>}
+          {data && data.length === 0 && <div className="empty an-empty"><CircleCheck size={24} className="s-ok" /><span>Nenhum problema encontrado {ns ? <>em <b>{ns}</b></> : 'no cluster'}.</span></div>}
           <div className="an-list">
             {SEVERITIES.filter(counts).map((s) => (
               <section key={s} className="an-group">

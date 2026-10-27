@@ -5,12 +5,15 @@ import {
   type Edge, type Node, type NodeChange, type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowDown, ArrowLeftRight, ArrowRight, Focus, Maximize, Minus, Plus, RefreshCw, X } from 'lucide-react'
+import { ArrowDown, ArrowLeftRight, ArrowRight, Focus, Group, Maximize, Minus, Plus, Settings2, Tag, Workflow, X } from 'lucide-react'
 import { api, type Graph, type GraphNode } from '../../api'
-import { openPanel, useApp, type OpenOptions } from '../../store'
+import { findByKind, openPanel, useApp, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { ClusterGate, ErrorBanner, Partial } from '../common'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { behaviorKind } from '../shell/nav'
+import { useWorkNamespace } from '../shell/useWorkNamespace'
 import { kindIcon } from '../shell/nav'
 import { useTheme } from '../shell/theme'
 import { layoutGraph, type Dir, type LayoutResult } from './layout'
@@ -22,9 +25,10 @@ import { sourceLabel } from '../traffic/api'
 import './topology.css'
 
 const DEPENDENCY_KINDS = ['ConfigMap', 'Secret', 'ServiceAccount', 'RoleBinding', 'Role', 'ClusterRole', 'Node', 'PersistentVolume', 'StorageClass']
-const OWNER_GROUPS: Record<string, string> = { ReplicaSet: 'apps', StatefulSet: 'apps', DaemonSet: 'apps', Job: 'batch', DeploymentConfig: 'apps.openshift.io' }
+const OWNER_GROUPS: Record<string, string> = { ReplicaSet: 'apps', StatefulSet: 'apps', DaemonSet: 'apps', Job: 'batch', DeploymentConfig: 'apps.openshift.io', ReplicationController: '' }
 
-const FIT_PADDING = { top: '120px', right: '24px', bottom: '56px', left: '24px' } as const
+// The summary sits above the canvas (not over it), so the fit only keeps room for the zoom controls.
+const FIT_PADDING = { top: '24px', right: '24px', bottom: '56px', left: '24px' } as const
 
 type CardData = { n: GraphNode; root: boolean; stats?: PodStats; dir: Dir }
 type RegionData = { app: string; count: number; w: number; h: number }
@@ -40,7 +44,7 @@ const statusText = (n: GraphNode, stats?: PodStats) => {
 
 const KindNode = memo(function KindNode({ data }: NodeProps<Node<CardData>>) {
   const { n, root, stats, dir } = data
-  const Icon = kindIcon(n.kind)
+  const Icon = kindIcon(behaviorKind(n.group ?? '', n.kind))
   const sq = stats ? squares(stats) : undefined
   const t = stats ? total(stats) : 0
   return (
@@ -80,10 +84,10 @@ const RegionNode = memo(function RegionNode({ data }: NodeProps<Node<RegionData>
 const nodeTypes = { kind: KindNode, region: RegionNode, trfExt: TrafficExtNode }
 const edgeTypes = { trf: TrafficEdgeView }
 
-type Focus = { kind: string; name: string; ns: string }
+type Focus = { group?: string; kind: string; name: string; ns: string }
 type Lay = { g: Graph; res: LayoutResult; stats: Map<string, PodStats>; dir: Dir }
 
-export function TopologyView(props: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
+export function TopologyView(props: { clusterId: string; namespace: string; group?: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
   return (
     <ReactFlowProvider>
       <TopologyInner {...props} />
@@ -91,7 +95,7 @@ export function TopologyView(props: { clusterId: string; namespace: string; kind
   )
 }
 
-function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: trafficInit }: { clusterId: string; namespace: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
+function TopologyInner({ clusterId, namespace, group: kindGroup, kind, name, leading, traffic: trafficInit }: { clusterId: string; namespace: string; group?: string; kind?: string; name?: string; leading?: ReactNode; traffic?: boolean }) {
   const theme = useTheme((s) => s.theme)
   const { fitView } = useReactFlow()
   const root = useRef<HTMLDivElement>(null)
@@ -120,15 +124,16 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
   const effKind = focus?.kind ?? kind
   const effName = focus?.name ?? name
   const effNs = focus?.ns ?? namespace
+  const effGroup = focus ? focus.group : kindGroup
 
-  useEffect(() => setFocus(undefined), [clusterId, namespace, kind, name])
+  useEffect(() => setFocus(undefined), [clusterId, namespace, kind, name, kindGroup])
 
   useEffect(() => {
     if (!effNs) return
     let stop = false
     setBusy(true)
     api
-      .graph(clusterId, effNs, effKind, effName)
+      .graph(clusterId, effNs, effKind, effName, effGroup)
       .then((g) => {
         if (stop) return
         setRaw({ ...g, nodes: g.nodes ?? [], edges: g.edges ?? [] })
@@ -139,7 +144,7 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
     return () => {
       stop = true
     }
-  }, [clusterId, effNs, effKind, effName, rev])
+  }, [clusterId, effNs, effKind, effName, effGroup, rev])
 
   const base = useMemo(() => (raw ? (showDeps ? raw : filterDeps(raw, raw.root)) : undefined), [raw, showDeps])
   const group = groupPref ?? (raw ? distinctApps(raw) >= 2 : false)
@@ -265,16 +270,28 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
     })
   }, [])
 
+  /** Group of the controller that owns an aggregate: the owner card in the graph, the built-in map, or the only kind with that name. */
+  const ownerOf = (n: GraphNode) => {
+    const [, k, ns, owner] = n.id.split('/')
+    const card = raw?.nodes.find((x) => !x.count && x.kind === k && x.name === owner && (x.namespace ?? '') === (ns ?? ''))
+    const group = card ? card.group : k in OWNER_GROUPS ? OWNER_GROUPS[k] : findByKind(clusterId, k)?.group
+    return { kind: k, ns, name: owner, group }
+  }
   const open = (n: GraphNode) => {
     if (n.count) {
-      // Aggregate: open the controller that owns these pods.
-      const [, k, ns, owner] = n.id.split('/')
-      openObject(clusterId, OWNER_GROUPS[k] ?? '', k, owner, ns)
+      // Aggregate: open the controller that owns these pods (it may be a CRD: Rollout, CloneSet…).
+      const o = ownerOf(n)
+      if (o.group === undefined || !findByKind(clusterId, o.kind, o.group)) {
+        useApp.getState().toast('error', `Não foi possível abrir ${o.kind}/${o.name}: o tipo não está disponível neste cluster.`)
+        return
+      }
+      openObject(clusterId, o.group, o.kind, o.name, o.ns)
     } else if (!n.missing) openObject(clusterId, n.group, n.kind, n.name, n.namespace)
   }
   const focusOn = (n: GraphNode) => {
     if (n.missing) return
-    const f: Focus = n.count ? { kind: n.id.split('/')[1], name: n.id.split('/')[3], ns: n.namespace || effNs } : { kind: n.kind, name: n.name, ns: n.namespace || effNs }
+    const o = n.count ? ownerOf(n) : undefined
+    const f: Focus = o ? { group: o.group, kind: o.kind, name: o.name, ns: n.namespace || effNs } : { group: n.group, kind: n.kind, name: n.name, ns: n.namespace || effNs }
     setSelected(undefined)
     setFocus(f)
   }
@@ -290,20 +307,32 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
 
   return (
     <div className="topology" ref={root} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selected && (e.stopPropagation(), setSelected(undefined))}>
-      <div className="toolbar tp-bar">
-        {leading}
-        <input className="search" placeholder="Destacar…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className={`tp-tog ${showDeps ? 'on' : ''}`} aria-pressed={showDeps} onClick={() => setShowDeps((v) => !v)}>config, RBAC e nodes</button>
-        <button className={`tp-tog ${labels ? 'on' : ''}`} aria-pressed={labels} onClick={() => setLabels((v) => !v)}>rótulos</button>
-        <button className={`tp-tog ${traffic ? 'on' : ''}`} aria-pressed={traffic} data-testid="topology-traffic" title="Conexões observadas (Caretta ou Hubble pelo Prometheus)" onClick={() => setTraffic((v) => !v)}><ArrowLeftRight size={13} /> Tráfego</button>
-        <button className={`tp-tog ${group ? 'on' : ''}`} aria-pressed={group} data-testid="group-toggle" title={apps ? `${apps} apps` : 'Nenhuma app identificada'} onClick={() => setGroupPref(!group)}>Agrupar por app</button>
-        <span className="tp-seg" role="group" aria-label="Direção">
-          <button className={dir === 'RIGHT' ? 'on' : ''} title="Horizontal" aria-label="Horizontal" onClick={() => setDir('RIGHT')}><ArrowRight size={14} /></button>
-          <button className={dir === 'DOWN' ? 'on' : ''} title="Vertical" aria-label="Vertical" onClick={() => setDir('DOWN')}><ArrowDown size={14} /></button>
-        </span>
-        {busy && <span className="spinner" />}
-        <span className="spacer" />
-        <button className="tp-btn" onClick={() => setRev((r) => r + 1)}><RefreshCw size={13} /> Recarregar</button>
+      <PanelHeader icon={Workflow} title="Topologia" scope={leading} className="tp-bar" actions={[
+        { key: 'traffic', label: 'Tráfego', icon: ArrowLeftRight, pressed: traffic, testid: 'topology-traffic', title: 'Conexões observadas (Caretta ou Hubble pelo Prometheus)', onClick: () => setTraffic((v) => !v) },
+        { key: 'group', label: 'Agrupar por app', icon: Group, pressed: group, testid: 'group-toggle', title: apps ? `${apps} apps identificadas pelos rótulos` : 'Nenhuma app identificada', onClick: () => setGroupPref(!group) },
+        { key: 'deps', label: 'Config, RBAC e nodes', icon: Settings2, pressed: showDeps, title: 'Mostrar ConfigMaps, Secrets, RBAC e nodes ligados aos workloads', onClick: () => setShowDeps((v) => !v) },
+        { key: 'labels', label: 'Rótulos nas setas', icon: Tag, pressed: labels, title: 'Mostrar o tipo de cada relação nas setas', onClick: () => setLabels((v) => !v) },
+        { key: 'dir', label: 'Direção', value: dir, onSelect: (v) => setDir(v as Dir), options: [
+          { value: 'RIGHT', label: 'Horizontal', icon: ArrowRight, title: 'Fluxo da esquerda para a direita' },
+          { value: 'DOWN', label: 'Vertical', icon: ArrowDown, title: 'Fluxo de cima para baixo' },
+        ] },
+        refreshAction(() => setRev((r) => r + 1), busy),
+      ]}>
+        <input className="search" placeholder="Destacar…" aria-label="Destacar objetos pelo nome" value={q} onChange={(e) => setQ(e.target.value)} />
+      </PanelHeader>
+      <div className="tp-strip" data-testid="topo-head">
+        <span className="tp-title"><span>{lay ? `${lay.g.nodes.length} objeto${lay.g.nodes.length === 1 ? '' : 's'}, ${lay.g.edges.length} relaç${lay.g.edges.length === 1 ? 'ão' : 'ões'}` : '…'}</span></span>
+        <div className="tp-chips">
+          {kinds.map(([k, c]) => {
+            const Icon = kindIcon(k)
+            return (
+              <button key={k} className={`tp-chip ${hidden.has(k) ? 'off' : ''}`} aria-pressed={!hidden.has(k)} data-testid={`kind-chip-${k}`} title={hidden.has(k) ? `Mostrar ${k}` : `Ocultar ${k}`} onClick={() => toggleKind(k)}>
+                <Icon size={12} />{k}<b>{c}</b>
+              </button>
+            )
+          })}
+          {focus && <button className="tp-chip focus" onClick={() => setFocus(undefined)} title="Voltar ao grafo completo"><Focus size={12} />{focus.kind}/{focus.name}<X size={12} /></button>}
+        </div>
       </div>
       <ErrorBanner error={err} />
       <Partial errors={raw?.errors} />
@@ -322,24 +351,10 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
             onlyRenderVisibleElements={nodes.length > 300} zoomOnDoubleClick={false}
           >
             <Background gap={24} size={1} />
-            <Panel position="top-left" className="tp-head" data-testid="topo-head">
-              <div className="tp-title"><b>Topologia</b><span>{lay ? `${lay.g.nodes.length} objeto${lay.g.nodes.length === 1 ? '' : 's'}, ${lay.g.edges.length} relaç${lay.g.edges.length === 1 ? 'ão' : 'ões'}` : '…'}</span></div>
-              <div className="tp-chips">
-                {kinds.map(([k, c]) => {
-                  const Icon = kindIcon(k)
-                  return (
-                    <button key={k} className={`tp-chip ${hidden.has(k) ? 'off' : ''}`} aria-pressed={!hidden.has(k)} data-testid={`kind-chip-${k}`} title={hidden.has(k) ? `Mostrar ${k}` : `Ocultar ${k}`} onClick={() => toggleKind(k)}>
-                      <Icon size={12} />{k}<b>{c}</b>
-                    </button>
-                  )
-                })}
-                {focus && <button className="tp-chip focus" onClick={() => setFocus(undefined)} title="Voltar ao grafo completo"><Focus size={12} />{focus.kind}/{focus.name}<X size={12} /></button>}
-              </div>
-            </Panel>
             {sel && (
               <Panel position="top-right" className="tp-info" data-testid="topo-info">
                 <div className="tp-info-head">
-                  <span className="tc-ico">{(() => { const I = kindIcon(sel.kind); return <I size={16} /> })()}</span>
+                  <span className="tc-ico">{(() => { const I = kindIcon(behaviorKind(sel.group ?? '', sel.kind)); return <I size={16} /> })()}</span>
                   <span className="tc-txt"><span className="tc-name">{sel.name}</span><span className="tc-sub">{sel.kind}{sel.namespace ? ` · ${sel.namespace}` : ''}</span></span>
                   <button className="tp-x" aria-label="Fechar" onClick={() => setSelected(undefined)}><X size={14} /></button>
                 </div>
@@ -361,7 +376,7 @@ function TopologyInner({ clusterId, namespace, kind, name, leading, traffic: tra
             )}
           </ReactFlow>
         )}
-        {raw && !raw.nodes.length && <div className="pad muted">Nada para mostrar neste namespace.</div>}
+        {raw && !raw.nodes.length && <div className="empty"><Workflow size={24} /><span>Nada para mostrar em <b>{effNs}</b>.</span><span className="muted small">Escolha outro namespace no seletor acima.</span></div>}
       </div>
     </div>
   )
@@ -411,9 +426,8 @@ export function TopologyPanel({ params }: IDockviewPanelProps<{ clusterId: strin
 }
 
 function NamespaceTopology({ clusterId, initial, traffic }: { clusterId: string; initial?: string; traffic?: boolean }) {
-  const selected = useApp((s) => s.namespace[clusterId] ?? '')
-  const fallback = useApp((s) => s.connected[clusterId]?.defaultNamespace || 'default')
-  const ns = selected || initial || fallback
+  const ns = useWorkNamespace(clusterId, initial)
+  if (!ns) return <div className="pad"><span className="spinner" /> Escolhendo o namespace com mais workloads…</div>
   return (
     <div className="object-panel">
       <TopologyView clusterId={clusterId} namespace={ns} traffic={traffic} leading={<NamespaceSelect clusterId={clusterId} effective={ns} />} />

@@ -5,6 +5,7 @@ import { api, type ChartHit, type ChartInfo } from '../../api'
 import { clusterName, useApp } from '../../store'
 import { YamlEditor } from '../../components/Monaco'
 import { ErrorBanner, Tabs, useAsync } from '../common'
+import { pressable } from '../../components/a11y'
 import { Review, type ReviewState } from './Review'
 import { openRelease } from './HelmReleases'
 
@@ -159,7 +160,7 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
         <ErrorBanner error={error} />
         <div className="list">
           {hits?.map((h) => (
-            <div key={h.ref} className={`list-item ${sel?.ref === h.ref ? 'selected' : ''}`} onClick={() => setSel(h)} data-testid={`chart-${h.ref}`}>
+            <div key={h.ref} className={`list-item ${sel?.ref === h.ref ? 'selected' : ''}`} {...pressable(() => setSel(h))} aria-pressed={sel?.ref === h.ref} data-testid={`chart-${h.ref}`}>
               <div><b>{h.ref}</b> <span className="muted small">{h.version}</span>{h.deprecated && <span className="badge badge-ro">deprecated</span>}</div>
               <div className="small muted ellipsis">{h.description}</div>
             </div>

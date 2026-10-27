@@ -217,7 +217,7 @@ test('CA06: sem os CRDs do Istio o painel explica', async ({ page }) => {
 test('Analyze sem istioctl mostra como instalar', async ({ page }) => {
   await page.route((u) => u.pathname === '/api/istio/tool', (route) => route.fulfill({ json: { installed: false, hint: 'Instale o istioctl' } }))
   const panel = await openIstioPanel(page)
-  await panel.getByRole('button', { name: 'Analyze', exact: true }).click()
+  await panel.getByRole('button', { name: 'Análise (istioctl)', exact: true }).click()
   await expect(panel.getByTestId('ist-install')).toContainText('istioctl não encontrado')
   await expect(panel.getByTestId('ist-install')).toContainText('~/.local/bin')
 })
@@ -225,7 +225,7 @@ test('Analyze sem istioctl mostra como instalar', async ({ page }) => {
 test('Analyze com istioctl (offline, isolado)', async ({ page }) => {
   test.skip(!istioctlDir && !onPath('istioctl'), 'istioctl indisponível')
   const panel = await openIstioPanel(page, 'm5-istio-strict')
-  await panel.getByRole('button', { name: 'Analyze', exact: true }).click()
+  await panel.getByRole('button', { name: 'Análise (istioctl)', exact: true }).click()
   await panel.getByTestId('ist-analyze-run').click()
   await expect(panel.getByTestId('ist-analyze-messages').or(panel.getByTestId('ist-analyze-empty'))).toBeVisible({ timeout: 120_000 })
   // The Gateway selects istio=ingressgateway pods that do not exist in the fixture.

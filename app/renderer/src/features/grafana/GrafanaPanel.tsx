@@ -4,7 +4,8 @@ import { AppWindow, ChartColumn, ExternalLink, KeyRound, Square } from 'lucide-r
 import { api } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
-import { ClusterGate, ErrorBanner, PanelHeader, RefreshButton, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import { embedInApp, openEmbed } from './embed'
 import { grafanaApi, KIND_LABEL, type GrafanaTarget } from './api'
 import './grafana.css'
@@ -109,10 +110,7 @@ export function GrafanaPanel({ params }: IDockviewPanelProps<{ clusterId: string
   return (
     <ClusterGate clusterId={clusterId}>
       <div className="object-panel gfn-panel" data-testid="grafana-panel">
-        <PanelHeader icon={<ChartColumn size={15} />} title="Grafana e Prometheus">
-          <span className="spacer" />
-          <RefreshButton onClick={reload} loading={loading} />
-        </PanelHeader>
+        <PanelHeader icon={ChartColumn} title="Grafana e Prometheus" actions={[refreshAction(reload, loading)]} />
         <ErrorBanner error={error} />
         <div className="obj-body">
           <div className="gfn-note muted">
