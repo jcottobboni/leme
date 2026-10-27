@@ -14,7 +14,7 @@ O nome vem do timoneiro: "Kubernetes" é a palavra grega *kybernḗtēs*, quem s
 O Leme é um cliente desktop de Kubernetes e OpenShift, sem agente no cluster, feito para quem opera muitos
 clusters e precisa ter certeza de que não vai quebrar produção.
 
-> **Status:** inicial (v0.3.x). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
+> **Status:** inicial (v0.5.x). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
 > inglês está no roadmap. [Read in English](README.md).
 
 ![Visão geral](docs/images/overview.png)
@@ -43,7 +43,7 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 | Workloads | Logs, shell (exec), port-forward, scale, restart, rollback com diff de revisões |
 | Visão geral | Capacidade (uso × requests × limits × alocável), workloads por saúde, tabela de namespaces, maiores consumidores, warnings |
 | Topologia | Grafo de objetos agrupado por app, filtros por tipo, destaque da vizinhança, modo foco |
-| Mapa do cluster | Namespaces como ilhas, apps como regiões, workloads como blocos, com saúde e busca |
+| Mapa do cluster | Namespaces como ilhas, apps como regiões, workloads como blocos, com saúde e busca; WebGL para clusters grandes (até 25.000 workloads) com arestas de tráfego |
 | Timeline | Eventos agrupados por namespace → workload → objeto, com densidade, filtros e zoom |
 | Métricas | Gráficos do Prometheus (CPU, memória, rede, disco) com linhas de capacidade, requests e limits |
 | Helm | Releases, values, manifest, histórico, upgrade, rollback, uninstall; repositórios e instalação de charts |
@@ -53,6 +53,10 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 | Diagnóstico | Analisador offline: evidência e sugestão para problemas comuns, por objeto e por cluster |
 | Copilot (opcional) | Claude, qualquer API compatível com OpenAI ou Ollama local; lê, explica e propõe correções como diff revisado; com anonimização, consentimento e auditoria |
 | Servidor MCP | `leme mcp` deixa agentes como o Claude Code lerem clusters pelo Leme; escrita só onde você permitir, em dois passos, auditada ([docs/mcp.md](docs/mcp.md)) |
+| Tráfego observado | Conexões entre workloads a partir de métricas do Caretta ou do Hubble no Prometheus, em painel, na Topologia e no mapa ([docs](docs/integrations/traffic.md)) |
+| Argo CD | Applications com sync/saúde, recursos e histórico; Sync e Refresh como mudanças revisadas e auditadas ([docs](docs/integrations/argocd.md)) |
+| Grafana / Prometheus | Detecta Grafana, Prometheus e Thanos e abre por port-forward local numa janela isolada ([docs](docs/integrations/grafana.md)) |
+| Istio | mTLS efetivo, rotas com pesos, DestinationRules, Gateways, `istioctl analyze` offline ([docs](docs/integrations/istio.md)) |
 
 ## Instalação
 

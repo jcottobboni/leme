@@ -14,7 +14,7 @@
 word that gave Kubernetes its name. It is an agentless desktop client for Kubernetes and OpenShift, built for people who operate many clusters
 and need to be sure they are not about to break production.
 
-> **Status:** early (v0.3.x). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
+> **Status:** early (v0.5.x). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
 > Portuguese; English is on the roadmap. [Leia em português](README.pt-BR.md).
 
 ![Overview](docs/images/overview.png)
@@ -42,7 +42,7 @@ and need to be sure they are not about to break production.
 | Workloads | Logs, shell (exec), port-forward, scale, restart, rollback with revision diff |
 | Overview | Capacity (usage × requests × limits × allocatable), workloads by health, namespaces table, top consumers, warnings |
 | Topology | Object graph grouped by app, type filters, neighborhood highlight, focus mode |
-| Cluster map | Namespaces as islands, apps as regions, workloads as tiles, with health and search |
+| Cluster map | Namespaces as islands, apps as regions, workloads as tiles, with health and search; WebGL for large clusters (up to 25,000 workloads) with traffic edges |
 | Timeline | Events grouped by namespace → workload → object, with density, filters and zoom |
 | Metrics | Prometheus charts (CPU, memory, network, disk) with capacity/requests/limits reference lines |
 | Helm | Releases, values, manifest, history, upgrade, rollback, uninstall; repositories and chart install |
@@ -52,6 +52,10 @@ and need to be sure they are not about to break production.
 | Diagnosis | Offline analyzer: evidence and suggestion for common problems, per object and per cluster |
 | Copilot (opt-in) | Claude, any OpenAI-compatible API or local Ollama; reads, explains and proposes fixes as reviewed diffs; anonymized, consented, audited |
 | MCP server | `leme mcp` lets agents like Claude Code read clusters through Leme; writes only where you allow them, two steps, audited ([docs/mcp.md](docs/mcp.md)) |
+| Observed traffic | Workload-to-workload connections from Caretta or Hubble metrics in Prometheus, in a panel, the Topology and the map ([docs](docs/integrations/traffic.md)) |
+| Argo CD | Applications with sync/health, resources, history; Sync and Refresh as reviewed, audited changes ([docs](docs/integrations/argocd.md)) |
+| Grafana / Prometheus | Detects Grafana, Prometheus and Thanos and opens them through a local port-forward in a sandboxed window ([docs](docs/integrations/grafana.md)) |
+| Istio | Effective mTLS, weighted routes, DestinationRules, Gateways, offline `istioctl analyze` ([docs](docs/integrations/istio.md)) |
 
 | Topology | Cluster map |
 |---|---|

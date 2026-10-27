@@ -3,6 +3,42 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.5.0] - 2026-10-27
+
+### Added
+- **Cluster map at scale:** above a threshold (default 1,500 workloads, in the map settings) the map
+  draws with WebGL (PixiJS, loaded on demand) with level of detail, culling and a layout in a Web
+  Worker; below it stays in SVG. Search, filters, tooltip, click and double click behave the same in
+  both. Without WebGL the map stays in SVG and says so. The engine now sends up to 25,000 workloads
+  and a compact response above 1,500 (status text and service names move to the object panel).
+- **Observed traffic:** connections between workloads from Caretta (bytes/s) or Hubble (flows/s)
+  metrics in the configured Prometheus. "Tráfego observado" panel with source → destination, port
+  and volume; dashed, animated edges in the Topology and in the cluster map. Nothing is installed
+  in the cluster. See docs/integrations/traffic.md.
+- **Argo CD:** Applications with sync and health, sources, destination, managed resources (linked to
+  the objects), conditions and deploy history. Sync and Refresh go through the reviewed change flow
+  (diff, dry-run, RBAC check, confirmation, audit with source `argocd`) on the Application only;
+  no Argo CD credentials are used. See docs/integrations/argocd.md.
+- **Grafana and Prometheus:** detects Grafana, Prometheus and Thanos Services and opens their web UI
+  through a local port-forward, in a sandboxed window on the desktop (new tab in `leme serve`). The
+  admin credential is only referenced, never read. See docs/integrations/grafana.md.
+- **Istio:** effective mTLS per namespace (with workload exceptions), VirtualService routes with
+  weights, DestinationRules, Gateways and an optional offline `istioctl analyze` over an exported,
+  masked copy of the configuration. Needs only the CRDs. See docs/integrations/istio.md.
+
+### Changed
+- Double click on a map tile opens the Topology of its namespace (it used to work only on islands and
+  apps).
+- `pixi.js` 8.22.0 (MIT) is bundled; THIRD_PARTY_NOTICES.md lists it. The license generator accepts a
+  vendored license text for packages published without one (`@pixi/colord`).
+
+### Fixed
+- Applying a change proposal kept the object's status only on kinds with a status subresource; on
+  others (the Argo CD Application CRD) the status, including the deploy history, was wiped. The live
+  status is now sent back.
+- Applies through the generic change route are audited under the proposal's source instead of always
+  `copilot`.
+
 ## [0.4.0] - 2026-10-27
 
 ### Added
