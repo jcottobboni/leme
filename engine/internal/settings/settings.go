@@ -61,6 +61,14 @@ type Data struct {
 	// Kubeconfigs lists kubeconfig files or folders added in the app, on top of $KUBECONFIG
 	// (or ~/.kube/config). Only paths are stored, never their contents.
 	Kubeconfigs []string `json:"kubeconfigs,omitempty"`
+	// Plugins holds the plugin preferences (M8).
+	Plugins *Plugins `json:"plugins,omitempty"`
+}
+
+// Plugins configures plugin loading.
+type Plugins struct {
+	// K9s reads k9s' plugins.yaml and plugin folder too (nil = yes).
+	K9s *bool `json:"k9s,omitempty"`
 }
 
 // Store reads and writes settings.json.
@@ -154,6 +162,25 @@ func (s *Store) SetKubeconfigs(paths []string) error {
 	defer s.mu.Unlock()
 	s.reload()
 	s.data.Kubeconfigs = append([]string(nil), paths...)
+	return s.save()
+}
+
+// PluginsK9s reports whether k9s' plugin files are read (default true).
+func (s *Store) PluginsK9s() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Plugins == nil || s.data.Plugins.K9s == nil || *s.data.Plugins.K9s
+}
+
+// SetPluginsK9s turns reading k9s' plugin files on or off.
+func (s *Store) SetPluginsK9s(v bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reload()
+	if s.data.Plugins == nil {
+		s.data.Plugins = &Plugins{}
+	}
+	s.data.Plugins.K9s = &v
 	return s.save()
 }
 

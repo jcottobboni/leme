@@ -51,6 +51,8 @@
 │ istio      mTLS resolution, routes, offline istioctl analyze           │
 │ objdiff    normalized YAML and JSON Patch for "Comparar com…"          │
 │ history    local change history from open informers (JSONL, 0600)      │
+│ plugins    YAML plugins (Leme and k9s): actions behind a read-only-    │
+│            aware HTTPS proxy, links, CEL views and diagnosis rules     │
 │ settings   JSON settings (0600)                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```

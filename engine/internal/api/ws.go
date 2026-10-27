@@ -18,6 +18,7 @@ import (
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/ops"
+	"github.com/jcottobboni/leme/engine/internal/plugins"
 	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
@@ -55,6 +56,7 @@ type gridSub struct {
 	printer *project.Printer // CRD printer columns; nil for built-in kinds
 	sel     labels.Selector  // M7: server-side label filter (`-l` in the grid search); nil = everything
 	jp      *jpCols          // M7: JSONPath columns the user added; nil = none
+	view    *plugins.View    // M8: CRD view of a plugin (columns, health); nil = none
 }
 
 func newGridSub(p *project.Printer) *gridSub {
@@ -71,6 +73,9 @@ func (g *gridSub) row(u *unstructured.Unstructured) project.Row {
 	r := project.Project(u)
 	if g.printer != nil {
 		g.printer.Apply(u, &r)
+	}
+	if g.view != nil {
+		g.view.Apply(u, &r)
 	}
 	if g.jp != nil {
 		g.jp.Apply(u, &r)
@@ -218,6 +223,7 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	printer := printerFor(ctx, sess, res)
 	sub := newGridSub(printer)
 	sub.sel, sub.jp = sel, jp
+	sub.view = s.plugins.Current().ViewFor(res.Group, res.Kind)
 	snapCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	objs, err := sess.Informers.Subscribe(snapCtx, key, sub)
 	cancel()
@@ -241,6 +247,9 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	cols := project.Columns(res.Group, res.Kind, res.Namespaced)
 	if printer != nil {
 		cols = printer.Columns()
+	}
+	if sub.view != nil {
+		cols = withJPColumns(cols, sub.view.Columns())
 	}
 	var colErrs map[string]string
 	if jp != nil {

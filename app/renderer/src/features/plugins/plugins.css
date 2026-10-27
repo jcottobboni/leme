@@ -1,0 +1,27 @@
+.plugin-cmd,
+.plugin-output {
+  font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  background: var(--track);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 6px 0;
+}
+.plugin-output { max-height: 55vh; overflow: auto; }
+.plugin-notes { margin: 8px 0 12px; padding-left: 18px; }
+.plugin-notes li { margin: 3px 0; }
+.plugin-containers { display: flex; flex-wrap: wrap; gap: 8px; }
+.plugins-panel { padding: 12px 16px; overflow: auto; height: 100%; }
+.plugins-panel h3 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.plugins-panel .file { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+.plugins-panel .file .path { font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+.plugins-panel .warn-list { color: var(--warn-text); font-size: 12px; margin: 4px 0 0; padding-left: 18px; }
+.plugins-panel .err { color: var(--error-text); font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
+.plugins-panel table { width: 100%; }
+.plugins-panel td.cmd { font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace; font-size: 11.5px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugins-empty { max-width: 640px; }
+.plugins-empty pre { font-size: 12px; }
+.plugins-panel .row-check { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }

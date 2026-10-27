@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('leme', {
   kubeconfig: {
     pick: (kind) => ipcRenderer.invoke('kubeconfig:pick', kind === 'dir' ? 'dir' : 'file'),
   },
+  // Opens the plugin folder in the file manager (the path is computed in the main process).
+  plugins: {
+    openFolder: () => ipcRenderer.invoke('plugins:open-folder'),
+  },
   // Opens a port-forwarded web UI in an isolated window (validated in the main process).
   embed: {
     open: (url, title) => ipcRenderer.invoke('embed:open', String(url), String(title || '')),

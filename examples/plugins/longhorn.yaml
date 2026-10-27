@@ -1,0 +1,18 @@
+# A view for Longhorn volumes: state and robustness in the grid, health from robustness.
+apiVersion: leme.dev/v1
+name: longhorn
+views:
+- group: longhorn.io
+  kind: Volume
+  columns:
+  - {name: Estado, jsonPath: .status.state}
+  - {name: Robustez, jsonPath: .status.robustness}
+  - {name: Réplicas, jsonPath: .spec.numberOfReplicas}
+  - {name: Node, jsonPath: .status.currentNodeID}
+  fields:
+  - {name: Tamanho (GiB), expr: 'int(object.spec.size) / 1073741824'}
+  - {name: Último backup, jsonPath: .status.lastBackupAt}
+  health:
+  - {when: 'object.status.robustness == "faulted"', status: error}
+  - {when: 'object.status.robustness == "degraded"', status: warn}
+  - {when: 'object.status.robustness == "healthy"', status: ok}

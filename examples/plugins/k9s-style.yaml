@@ -1,0 +1,17 @@
+# A plugin in the k9s format: Leme reads it as k9s would (background: false runs in a terminal).
+plugins:
+  stern:
+    shortCut: Ctrl-L
+    description: Logs com stern
+    scopes: [pods]
+    command: stern
+    background: false
+    args: [--tail, "50", $NAME, -n, $NAMESPACE, --context, $CONTEXT]
+  debug:
+    shortCut: Shift-D
+    description: Contêiner de debug
+    scopes: [containers]
+    command: kubectl
+    background: false
+    args: [debug, -it, -n, $NAMESPACE, $POD, --target, $CONTAINER, --image, busybox:1.37, --profile, general]
+    dangerous: true

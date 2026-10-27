@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { behaviorOf } from '../shell/kinds'
 import { Copy, Filter, Logs, PanelRightOpen, PanelTopOpen, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2 } from 'lucide-react'
 import { openMultiLogs } from '../logs/open'
-import { api, type Ref, type Resource, type Row } from '../../api'
+import { api, type Column, type Ref, type Resource, type Row } from '../../api'
+import { pluginMenuItems } from '../plugins/run'
+import { ensurePlugins, inputOf, usePlugins } from '../plugins/api'
 import { openPanel, useApp } from '../../store'
 import { ConfirmDialog, PromptDialog } from '../../components/Dialogs'
 import type { MenuItem } from '../shell/menu'
@@ -22,11 +24,14 @@ function desiredReplicas(row: Row) {
 type Pending = { kind: 'delete' | 'restart' | 'scale'; rows: Row[] }
 
 /** Row actions of a grid (context menu, kebab, bulk bar) and the dialogs they open. */
-export function useRowActions(clusterId: string, res: Resource | undefined, open: { drawer: (r: Row) => void; tab: (r: Row) => void }) {
+export function useRowActions(clusterId: string, res: Resource | undefined, open: { drawer: (r: Row) => void; tab: (r: Row) => void }, ctx?: { columns?: Column[]; filter?: string }) {
   const readOnly = useApp((s) => s.connected[clusterId]?.readOnly ?? true)
   const shell = useApp((s) => !!s.connected[clusterId]?.shell)
   const toast = useApp((s) => s.toast)
   const [pending, setPending] = useState<Pending>()
+  // Plugins are loaded before the first menu opens (menus are built synchronously).
+  usePlugins((s) => s.info)
+  useEffect(() => void ensurePlugins(), [])
 
   const menuFor = (row: Row): MenuItem[] => {
     if (!res) return []
@@ -48,6 +53,8 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
     if (b.scalable || b.restartable) items.push({ separator: true })
     if (b.scalable) items.push({ label: 'Escalar…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })
     if (b.restartable) items.push({ label: 'Reiniciar…', icon: RotateCw, disabled: readOnly, onClick: () => setPending({ kind: 'restart', rows: [row] }) })
+    // M8: plugin actions and links for this kind (k9s plugins included).
+    items.push(...pluginMenuItems(clusterId, res, () => inputOf(res, row, ctx?.columns, ctx?.filter)))
     items.push(
       { separator: true },
       { label: 'Copiar nome', icon: Copy, onClick: () => navigator.clipboard.writeText(row.name).then(() => toast('ok', 'Nome copiado')) },

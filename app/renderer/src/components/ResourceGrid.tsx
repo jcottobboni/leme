@@ -309,7 +309,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
     const p = objParams(r)
     if (p) openPanel(`obj:${clusterId}:${group}/${resource}:${r.namespace ?? ''}/${r.name}`, 'object', r.name, { ...p }, {})
   }
-  const actions = useRowActions(clusterId, res, { drawer: openDrawer, tab: openTab })
+  const actions = useRowActions(clusterId, res, { drawer: openDrawer, tab: openTab }, { columns, filter: q })
   const setNs = (ns: string) => useApp.getState().setNamespace(clusterId, ns)
 
   const toggle = (uid: string) => setChecked((s) => {

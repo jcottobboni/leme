@@ -134,7 +134,7 @@ export interface OpenOptions {
 }
 
 // Bottom-dock components: they always open below the main area.
-export const BOTTOM_COMPONENTS = new Set(['terminal', 'logs', 'buildLog', 'create', 'multilogs'])
+export const BOTTOM_COMPONENTS = new Set(['terminal', 'logs', 'buildLog', 'create', 'multilogs', 'pluginTerm'])
 
 export const useTabs = create<{ preview: Record<string, true>; bottomGroup?: string; closed: { id: string; component: string; title: string; params: Record<string, unknown> }[] }>(() => ({
   preview: {},

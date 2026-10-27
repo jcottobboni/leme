@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
@@ -44,6 +45,16 @@ type Finding struct {
 	Fixable     bool     `json:"fixable"`     // a patch to the object itself can fix it (Copilot can propose)
 }
 
+// Kind names an API kind by group (empty for core) and kind.
+type Kind struct{ Group, Kind string }
+
+// Extension adds findings from outside the built-in rules (the CEL rules of plugins). Check gets
+// every object of the kinds it declares, in the same scope as the built-in analysis.
+type Extension interface {
+	Kinds() []Kind
+	Check(u *unstructured.Unstructured) []Finding
+}
+
 var sevRank = map[string]int{Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4}
 
 func sortFindings(f []Finding) []Finding {
@@ -70,7 +81,7 @@ func sortFindings(f []Finding) []Finding {
 }
 
 // Object diagnoses one object and what directly belongs to it (e.g. a Deployment and its pods).
-func Object(ctx context.Context, s *cluster.Session, ref Ref) ([]Finding, error) {
+func Object(ctx context.Context, s *cluster.Session, ref Ref, ext ...Extension) ([]Finding, error) {
 	c := newScope(ctx, s, ref.Namespace)
 	res, ok := s.LookupKind(ref.Group, ref.Kind)
 	if !ok {
@@ -84,7 +95,11 @@ func Object(ctx context.Context, s *cluster.Session, ref Ref) ([]Finding, error)
 		if u.GetName() != ref.Name || (res.Namespaced && u.GetNamespace() != ref.Namespace) {
 			continue
 		}
-		return sortFindings(c.diagnose(u, true)), nil
+		out := c.diagnose(u, true)
+		for _, e := range ext {
+			out = append(out, e.Check(u)...)
+		}
+		return sortFindings(out), nil
 	}
 	return nil, apierrors.NewNotFound(schema.GroupResource{Group: ref.Group, Resource: res.Resource}, ref.Name)
 }
@@ -92,7 +107,7 @@ func Object(ctx context.Context, s *cluster.Session, ref Ref) ([]Finding, error)
 // Namespace diagnoses every object of a namespace ("" = whole cluster). Pods are required; the
 // other kinds that cannot be listed (RBAC, timeout) are skipped and returned in errs
 // ("group/resource" -> message), so "no findings" is never claimed for what was not seen.
-func Namespace(ctx context.Context, s *cluster.Session, namespace string) (findings []Finding, errs map[string]string, err error) {
+func Namespace(ctx context.Context, s *cluster.Session, namespace string, ext ...Extension) (findings []Finding, errs map[string]string, err error) {
 	c := newScope(ctx, s, namespace)
 	var out []Finding
 	pods, err := c.list("", "pods")
@@ -121,6 +136,21 @@ func Namespace(ctx context.Context, s *cluster.Session, namespace string) (findi
 		}
 		for _, u := range objs {
 			out = append(out, c.diagnose(u, false)...)
+		}
+	}
+	for _, e := range ext {
+		for _, k := range e.Kinds() {
+			res, ok := s.LookupKind(k.Group, k.Kind)
+			if !ok || (!res.Namespaced && namespace != "") {
+				continue
+			}
+			objs, err := c.list(k.Group, res.Resource) // memoized: kinds already listed above are free
+			if err != nil {
+				continue
+			}
+			for _, u := range objs {
+				out = append(out, e.Check(u)...)
+			}
 		}
 	}
 	return sortFindings(out), c.errors(), nil

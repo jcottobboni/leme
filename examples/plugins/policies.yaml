@@ -1,0 +1,26 @@
+# Diagnosis rules in CEL: they show up in Problemas, in the Diagnóstico tab and in the Copilot.
+apiVersion: leme.dev/v1
+name: policies
+rules:
+- id: no-limits
+  title: Contêiner sem limits
+  severity: medium
+  kinds: [apps/Deployment, apps/StatefulSet, apps/DaemonSet]
+  match: 'object.spec.template.spec.containers.exists(c, !has(c.resources) || !has(c.resources.limits))'
+  explanation: Sem limits, um contêiner pode consumir a CPU e a memória do node inteiro.
+  suggestion: Defina resources.limits de CPU e memória.
+  evidence: 'object.spec.template.spec.containers.filter(c, !has(c.resources) || !has(c.resources.limits)).map(c, "sem limits: " + c.name)'
+- id: latest-tag
+  title: Imagem com a tag latest
+  severity: low
+  kinds: [apps/Deployment, apps/StatefulSet]
+  match: 'object.spec.template.spec.containers.exists(c, c.image.endsWith(":latest") || !c.image.contains(":"))'
+  explanation: A tag latest muda sem aviso e torna o rollback imprevisível.
+  suggestion: Use uma tag de versão ou o digest da imagem.
+- id: ingress-no-tls
+  title: Ingress sem TLS
+  severity: medium
+  kinds: [networking.k8s.io/Ingress]
+  match: '!has(object.spec.tls) || size(object.spec.tls) == 0'
+  explanation: O tráfego chega ao Ingress sem criptografia.
+  suggestion: Configure spec.tls (por exemplo com cert-manager).

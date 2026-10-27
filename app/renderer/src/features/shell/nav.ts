@@ -5,6 +5,7 @@ import {
   DoorOpen, GitCompareArrows, Handshake, LockKeyhole, Signpost, Spline, Split, Unplug, Antenna,
 } from 'lucide-react'
 import { History, Logs, RefreshCcwDot } from 'lucide-react' // M7 panels
+import { Puzzle } from 'lucide-react' // M8 plugins
 import type { Resource } from '../../api'
 
 /** English plural used for resource-type labels (Pods, Ingresses, NetworkPolicies, Endpoints). */
@@ -52,7 +53,7 @@ export function kindIcon(kind?: string): LucideIcon {
 export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
   rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, projtopo: Boxes, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
-  traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints, flux: RefreshCcwDot,
+  traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints, flux: RefreshCcwDot, plugins: Puzzle, pluginTerm: Terminal,
   multilogs: Logs, diff: GitCompareArrows, changes: History,
 }
 
@@ -146,6 +147,7 @@ export function buildSections(resources: Resource[], filter: string): NavSection
       { id: 'grafana', label: 'Grafana e Prometheus', icon: ChartColumn },
       { id: 'istio', label: 'Istio', icon: Waypoints },
       { id: 'flux', label: 'Flux', icon: RefreshCcwDot },
+      { id: 'plugins', label: 'Plugins', icon: Puzzle },
     ]), kinds: [] },
     { id: 'Custom Resources', label: 'Custom Resources', icon: FileCode, kinds: [], groups },
     { id: 'Other', label: 'Outros recursos', icon: Boxes, kinds: kindsOf('Cluster').filter((r) => !CLUSTER_MAIN.has(r.kind)), defaultCollapsed: true },

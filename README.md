@@ -56,6 +56,7 @@ and need to be sure they are not about to break production.
 | Argo CD | Applications with sync/health, resources, history; Sync and Refresh as reviewed, audited changes ([docs](docs/integrations/argocd.md)) |
 | Grafana / Prometheus | Detects Grafana, Prometheus and Thanos and opens them through a local port-forward in a sandboxed window ([docs](docs/integrations/grafana.md)) |
 | Istio | Effective mTLS, weighted routes, DestinationRules, Gateways, offline `istioctl analyze` ([docs](docs/integrations/istio.md)) |
+| Plugins | YAML actions, links, CRD views and CEL diagnosis rules; reads k9s plugins as they are; trusted per command, cluster access through a read-only-aware proxy ([docs/plugins.md](docs/plugins.md)) |
 
 | Topology | Cluster map |
 |---|---|

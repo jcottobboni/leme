@@ -3,6 +3,38 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [0.8.0] - 2026-10-27
+
+M8 "plugins": extend Leme with YAML, and bring your k9s plugins along.
+
+### Added
+- **Plugins** in `<config>/plugins/*.yaml`, managed in Integrações → Plugins. See docs/plugins.md.
+  - **Actions:** a local command run on the selected object from the grid context menu, the object
+    detail ("Plugins") or Ctrl+K. Variables follow k9s (`$NAME`, `$NAMESPACE`, `$CONTEXT`,
+    `$COL-…`…). Three modes: a terminal panel (PTY on Linux and macOS), the output in a dialog, or
+    in the background.
+  - **Links:** URLs built from the object, http(s) only.
+  - **Views:** grid columns (JSONPath or CEL), detail fields and CEL health rules for any kind;
+    useful for CRDs (Longhorn, cert-manager, Velero…).
+  - **Rules:** diagnosis rules in CEL, shown in Problemas, in the Diagnóstico tab and in the Copilot.
+- **k9s compatibility:**
+  - k9s' `plugins.yaml` and plugin folder are read as they are (can be switched off), and community
+    k9s plugin files also work in Leme's folder;
+  - `dangerous` maps to `mutates` and `background: false` to the terminal mode;
+  - unsupported entries (`pipes`, k9s-only scopes) are skipped with a warning.
+- Examples in `examples/plugins/`: Rails helpers, a Longhorn view, CEL policies and a k9s-format
+  file.
+
+### Security
+- An action runs only after its exact definition (command line, scopes, title, mode) is approved; any change asks again.
+- Plugins never get your credentials. They get a temporary kubeconfig for a one-time HTTPS proxy on
+  127.0.0.1, pinned to the selected context.
+  - While the cluster is locked, the proxy lets only reads through (changes, exec without "Liberar
+    shell", and pod, service or node proxy get a 403).
+  - Mutating actions do not start on a locked cluster and end when it is locked again.
+- Values from the cluster or the UI cannot inject shell commands or options into a command line.
+- Runs, approvals and revocations are audited with source `plugin`, without the output.
+
 ## [0.7.0] - 2026-10-27
 
 M7 "evolução": the most requested features of other Kubernetes desktop tools, without paywall.
