@@ -11,6 +11,16 @@ import { findKind, findResource, openPanel, useApp, useUi, type OpenOptions, typ
 import { useWatch } from '../../useWatch'
 import { openObject } from '../../components/ObjectPanel'
 import { openMenu, type MenuItem } from '../shell/menu'
+
+/** Opens a URL taken from cluster data (Route host, vcs-uri annotation) only when it is http(s). */
+function openLink(url?: string) {
+  try {
+    const u = new URL(url ?? '')
+    if (u.protocol === 'http:' || u.protocol === 'https:') window.open(u.toString(), '_blank', 'noopener')
+  } catch {
+    /* not a URL: ignore */
+  }
+}
 import { useRowActions } from '../grid/actions'
 import { kindIcon } from '../shell/nav'
 import { useTheme } from '../shell/theme'
@@ -99,12 +109,12 @@ const WorkloadNode = memo(function WorkloadNode({ data }: NodeProps<Node<Workloa
           )}
         </div>
         {n.url && (
-          <button className="pt-deco tr nodrag" title={`Abrir ${n.url}`} onClick={(e) => (e.stopPropagation(), window.open(n.url, '_blank', 'noopener'))}>
+          <button className="pt-deco tr nodrag" title={`Abrir ${n.url}`} onClick={(e) => (e.stopPropagation(), openLink(n.url))}>
             <ExternalLink size={11} />
           </button>
         )}
         {n.vcs && (
-          <button className="pt-deco tl nodrag" title={`Código-fonte: ${n.vcs}`} onClick={(e) => (e.stopPropagation(), window.open(n.vcs, '_blank', 'noopener'))}>
+          <button className="pt-deco tl nodrag" title={`Código-fonte: ${n.vcs}`} onClick={(e) => (e.stopPropagation(), openLink(n.vcs))}>
             <GitBranch size={11} />
           </button>
         )}
@@ -312,7 +322,7 @@ function KebabHost({ clusterId, ns, target, onSelect }: { clusterId: string; ns:
   useEffect(() => {
     const n = target.n
     const extra: MenuItem[] = []
-    if (n.url) extra.push({ label: 'Abrir URL', icon: ExternalLink, onClick: () => window.open(n.url, '_blank', 'noopener') })
+    if (n.url) extra.push({ label: 'Abrir URL', icon: ExternalLink, onClick: () => openLink(n.url) })
     if (n.pods[0]) extra.push({ label: `Logs (${n.pods[0].name})`, icon: Info, onClick: () => openPanel(`logs:${clusterId}:${ns}/${n.pods[0].name}`, 'logs', `logs ${n.pods[0].name}`, { clusterId, namespace: ns, pod: n.pods[0].name }) })
     const items = res ? actions.menuFor(rowOf(n, ns)) : [{ label: 'Ver detalhes', onClick: () => onSelect(n) }]
     openMenu({ clientX: target.x, clientY: target.y, preventDefault() {}, stopPropagation() {} }, extra.length ? [...items, { separator: true }, ...extra] : items)
@@ -389,7 +399,7 @@ function SidePanel({ clusterId, ns, n, onClose, onKebab }: { clusterId: string; 
             {n.url && (
               <>
                 <h5>Rotas</h5>
-                <div className="pt-res"><ExternalLink size={13} /><a className="ellipsis" onClick={() => window.open(n.url, '_blank', 'noopener')}>{n.url}</a></div>
+                <div className="pt-res"><ExternalLink size={13} /><a className="ellipsis" onClick={() => openLink(n.url)}>{n.url}</a></div>
               </>
             )}
           </>
