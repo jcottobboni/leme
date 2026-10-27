@@ -1,0 +1,17 @@
+/* Base components of features/common.tsx and components/Dialogs.tsx (Loading, Empty, CodeBlock, TypedConfirm). */
+.ui-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px; min-height: 60px; }
+.ui-loading.inline { display: inline-flex; padding: 0; min-height: 0; justify-content: flex-start; }
+.ui-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 32px 20px; margin: 0 auto; max-width: 560px; color: var(--muted); }
+.ui-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.ui-empty-title { color: var(--text-strong); font-weight: 600; font-size: 14px; }
+.ui-empty-text { line-height: 1.5; }
+.ui-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+.ui-empty .ui-code { width: 100%; text-align: left; }
+.ui-code { position: relative; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.ui-code pre { margin: 0; padding: 10px 40px 10px 12px; overflow-x: auto; font-family: 'JetBrains Mono Variable', 'JetBrains Mono', monospace; font-size: 12px; color: var(--text); white-space: pre; }
+.ui-copy { position: absolute; top: 6px; right: 6px; }
+.vlist { overflow: auto; min-height: 0; }
+.vlist-head { position: sticky; top: 0; z-index: 1; background: var(--panel); }
+.monaco-loading { display: grid; place-items: center; }
+.typed-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.typed-confirm-target { user-select: all; }

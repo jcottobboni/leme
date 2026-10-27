@@ -1,7 +1,8 @@
 // Shared contract between the traffic feature (producer) and the map/topology renderers (consumers).
 // Owned by map-webgl (M5). Frozen: the traffic agent registers a provider here and never edits the
 // map files; the map reads edges through useTrafficEdges and never imports features/traffic.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePolling } from '../../hooks/usePolling'
 
 /** One side of an observed connection, at workload level (the same granularity as the map tiles). */
 export interface TrafficEndpoint {
@@ -60,38 +61,41 @@ export function topologyId(e: TrafficEndpoint) {
   return `${e.kind}/${e.namespace ?? ''}/${e.name}`
 }
 
-/** Polls the registered provider while enabled. Without a provider or when disabled: NO_TRAFFIC. */
+/** Polls the registered provider while enabled (paused while the panel is hidden). Without a provider or when disabled: NO_TRAFFIC. */
 export function useTrafficEdges(clusterId: string, namespace: string | undefined, enabled: boolean, every = 30_000) {
   const [data, setData] = useState<TrafficSnapshot>(NO_TRAFFIC)
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
   const seq = useRef(0)
-  useEffect(() => {
+  const active = enabled && !!provider
+  const run = useCallback(async () => {
+    const p = provider
+    if (!p) return
     const my = ++seq.current
-    if (!enabled || !provider) {
+    setLoading(true)
+    try {
+      const d = await p(clusterId, namespace || undefined)
+      if (my === seq.current) {
+        setData(d)
+        setError(undefined)
+      }
+    } catch (e) {
+      if (my === seq.current) setError((e as Error).message)
+    } finally {
+      if (my === seq.current) setLoading(false)
+    }
+  }, [clusterId, namespace])
+  const { markRun } = usePolling(run, active ? every : 0)
+  useEffect(() => {
+    if (!active) {
+      ++seq.current
       setData(NO_TRAFFIC)
       setError(undefined)
       setLoading(false)
       return
     }
-    const p = provider
-    const run = async () => {
-      setLoading(true)
-      try {
-        const d = await p(clusterId, namespace || undefined)
-        if (my === seq.current) {
-          setData(d)
-          setError(undefined)
-        }
-      } catch (e) {
-        if (my === seq.current) setError((e as Error).message)
-      } finally {
-        if (my === seq.current) setLoading(false)
-      }
-    }
+    markRun()
     run()
-    const t = setInterval(run, every)
-    return () => clearInterval(t)
-  }, [clusterId, namespace, enabled, every])
+  }, [active, run, markRun])
   return { data, error, loading }
 }

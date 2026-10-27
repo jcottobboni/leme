@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type ComponentType, type FunctionComponent } from 'react'
 import { CircleAlert, CircleCheck, Info, X } from 'lucide-react'
 import { DockviewReact, type DockviewReadyEvent, type IDockviewPanelProps } from 'dockview-react'
 import 'dockview-react/dist/styles/dockview.css'
@@ -9,41 +9,55 @@ import { Home, StatusBar, TopBar, trackActive, useShortcuts } from './features/s
 import { ContextMenuHost, DialogHost } from './features/shell/menu'
 import { useApplyTheme, useTheme } from './features/shell/theme'
 import { ResourceGrid } from './components/ResourceGrid'
+// Static on purpose: the grid's drawer already imports them (ObjectDetails, openCopilot), so a lazy import would not
+// split anything.
 import { ObjectPanel } from './components/ObjectPanel'
-import { LogsPanel } from './components/LogsPanel'
-import { TerminalPanel } from './components/TerminalPanel'
-import { ForwardsPanel } from './components/ForwardsPanel'
-import { ClusterGate } from './features/common'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { HelmReleasesPanel } from './features/helm/HelmReleases'
-import { HelmReleasePanel } from './features/helm/HelmRelease'
-import { HelmChartsPanel } from './features/helm/HelmCharts'
-import { RbacPanel } from './features/rbac/RbacPanel'
-import { CreatePanel } from './features/rbac/CreatePanel'
-import { OverviewPanel } from './features/overview/OverviewPanel'
-import { TopologyPanel } from './features/topology/Topology'
-import { MapPanel } from './features/map/MapPanel'
-import { ProjectTopologyPanel } from './features/projtopo/ProjectTopology'
-import { TimelinePanel } from './features/timeline/Timeline'
-import { Palette } from './features/search/Palette'
-import { SecurityPanel } from './features/security/SecurityPanel'
-import { NetpolPanel } from './features/netpol/NetpolPanel'
-import { BuildLogPanel } from './features/openshift/BuildLogPanel'
-import { ProblemsPanel } from './features/analyze/ProblemsPanel'
 import { CopilotPanel } from './features/ai/CopilotPanel'
-// M5 extension points: each feature replaces its own panel.
-import { TrafficPanel } from './features/traffic/TrafficPanel'
-import { ArgoPanel } from './features/argocd/ArgoPanel'
-import { GrafanaPanel } from './features/grafana/GrafanaPanel'
-import { IstioPanel } from './features/istio/IstioPanel'
+import { ClusterGate, Loading } from './features/common'
+import { Palette } from './features/search/Palette'
+import { PanelVisibilityProvider } from './hooks/visibility'
+import { ErrorBoundary } from './components/ErrorBoundary'
+// Registers the traffic source for the map and the topology at startup (the Traffic panel itself is lazy).
+import './features/traffic/provider'
 import { ClusterTab, HeaderActions, restoreLayout, saveLayout } from './features/workspace/Dock'
+
+type PanelComponent = ComponentType<IDockviewPanelProps<any>>
+
+/** A dock panel loaded on first use (its code, and heavy libraries such as xterm or xyflow, stay out of the initial bundle). */
+function lazyPanel<M>(load: () => Promise<M>, name: keyof M): PanelComponent {
+  return lazy(() => load().then((m) => ({ default: m[name] as unknown as PanelComponent })))
+}
+
+// Only the grid and the welcome page are in the initial bundle; every other panel is a chunk of its own.
+const LogsPanel = lazyPanel(() => import('./components/LogsPanel'), 'LogsPanel')
+const TerminalPanel = lazyPanel(() => import('./components/TerminalPanel'), 'TerminalPanel')
+const ForwardsPanel = lazyPanel(() => import('./components/ForwardsPanel'), 'ForwardsPanel')
+const HelmReleasesPanel = lazyPanel(() => import('./features/helm/HelmReleases'), 'HelmReleasesPanel')
+const HelmReleasePanel = lazyPanel(() => import('./features/helm/HelmRelease'), 'HelmReleasePanel')
+const HelmChartsPanel = lazyPanel(() => import('./features/helm/HelmCharts'), 'HelmChartsPanel')
+const RbacPanel = lazyPanel(() => import('./features/rbac/RbacPanel'), 'RbacPanel')
+const CreatePanel = lazyPanel(() => import('./features/rbac/CreatePanel'), 'CreatePanel')
+const OverviewPanel = lazyPanel(() => import('./features/overview/OverviewPanel'), 'OverviewPanel')
+const TopologyPanel = lazyPanel(() => import('./features/topology/Topology'), 'TopologyPanel')
+const MapPanel = lazyPanel(() => import('./features/map/MapPanel'), 'MapPanel')
+const ProjectTopologyPanel = lazyPanel(() => import('./features/projtopo/ProjectTopology'), 'ProjectTopologyPanel')
+const TimelinePanel = lazyPanel(() => import('./features/timeline/Timeline'), 'TimelinePanel')
+const SecurityPanel = lazyPanel(() => import('./features/security/SecurityPanel'), 'SecurityPanel')
+const NetpolPanel = lazyPanel(() => import('./features/netpol/NetpolPanel'), 'NetpolPanel')
+const BuildLogPanel = lazyPanel(() => import('./features/openshift/BuildLogPanel'), 'BuildLogPanel')
+const ProblemsPanel = lazyPanel(() => import('./features/analyze/ProblemsPanel'), 'ProblemsPanel')
+// M5 extension points: each feature replaces its own panel.
+const TrafficPanel = lazyPanel(() => import('./features/traffic/TrafficPanel'), 'TrafficPanel')
+const ArgoPanel = lazyPanel(() => import('./features/argocd/ArgoPanel'), 'ArgoPanel')
+const GrafanaPanel = lazyPanel(() => import('./features/grafana/GrafanaPanel'), 'GrafanaPanel')
+const IstioPanel = lazyPanel(() => import('./features/istio/IstioPanel'), 'IstioPanel')
 
 function Welcome(_: IDockviewPanelProps) {
   return <Home />
 }
 
 // Cluster-bound panels restored from a saved layout wait for the user to connect (nothing connects by itself).
-function gated<P extends { clusterId?: string }>(C: React.FunctionComponent<IDockviewPanelProps<P>>) {
+function gated<P extends { clusterId?: string }>(C: ComponentType<IDockviewPanelProps<P>>) {
   return (props: IDockviewPanelProps<P>) => (
     <ClusterGate clusterId={props.params?.clusterId}>
       <C {...props} />
@@ -51,40 +65,51 @@ function gated<P extends { clusterId?: string }>(C: React.FunctionComponent<IDoc
   )
 }
 
-// Each panel renders inside its own error boundary: a failure stays in that tab.
-function guard(map: Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>) {
-  return Object.fromEntries(Object.entries(map).map(([k, C]) => [k, (props: IDockviewPanelProps<any>) => (
-    <ErrorBoundary label={props.api?.title ?? k}><C {...props} /></ErrorBoundary>
-  )]))
+/**
+ * Every dock component: visibility context (pauses polling of hidden tabs), a loading state while its
+ * chunk loads, and an error boundary so a failure stays in that tab instead of blanking the window.
+ */
+function panel(C: PanelComponent, name: string): FunctionComponent<IDockviewPanelProps<any>> {
+  return (props: IDockviewPanelProps<any>) => (
+    <PanelVisibilityProvider api={props.api}>
+      <ErrorBoundary label={props.api?.title ?? name}>
+        <Suspense fallback={<Loading />}>
+          <C {...props} />
+        </Suspense>
+      </ErrorBoundary>
+    </PanelVisibilityProvider>
+  )
 }
 
-const components = guard({
-  welcome: Welcome,
-  grid: gated(ResourceGrid),
-  object: gated(ObjectPanel),
-  logs: gated(LogsPanel),
-  terminal: gated(TerminalPanel),
-  forwards: ForwardsPanel,
-  helmReleases: HelmReleasesPanel,
-  helmRelease: HelmReleasePanel,
-  helmCharts: HelmChartsPanel,
-  rbac: RbacPanel,
-  create: CreatePanel,
-  overview: OverviewPanel,
-  topology: TopologyPanel,
-  map: MapPanel,
-  projtopo: ProjectTopologyPanel,
-  timeline: TimelinePanel,
-  security: SecurityPanel,
-  netpol: NetpolPanel,
-  buildLog: BuildLogPanel,
-  problems: ProblemsPanel,
-  copilot: CopilotPanel,
-  traffic: TrafficPanel,
-  argocd: ArgoPanel,
-  grafana: GrafanaPanel,
-  istio: IstioPanel,
-} as Record<string, React.FunctionComponent<IDockviewPanelProps<any>>>)
+const components = Object.fromEntries(
+  Object.entries({
+    welcome: Welcome,
+    grid: gated(ResourceGrid),
+    object: gated(ObjectPanel),
+    logs: gated(LogsPanel),
+    terminal: gated(TerminalPanel),
+    forwards: ForwardsPanel,
+    helmReleases: HelmReleasesPanel,
+    helmRelease: HelmReleasePanel,
+    helmCharts: HelmChartsPanel,
+    rbac: RbacPanel,
+    create: CreatePanel,
+    overview: OverviewPanel,
+    topology: TopologyPanel,
+    map: MapPanel,
+    projtopo: ProjectTopologyPanel,
+    timeline: TimelinePanel,
+    security: SecurityPanel,
+    netpol: NetpolPanel,
+    buildLog: BuildLogPanel,
+    problems: ProblemsPanel,
+    copilot: CopilotPanel,
+    traffic: TrafficPanel,
+    argocd: ArgoPanel,
+    grafana: GrafanaPanel,
+    istio: IstioPanel,
+  } as Record<string, PanelComponent>).map(([k, C]) => [k, panel(C, k)]),
+)
 
 // Panels that start streams or shells are never restored from a saved layout.
 const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog'])
