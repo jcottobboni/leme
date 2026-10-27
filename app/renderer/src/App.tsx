@@ -22,6 +22,7 @@ import { CreatePanel } from './features/rbac/CreatePanel'
 import { OverviewPanel } from './features/overview/OverviewPanel'
 import { TopologyPanel } from './features/topology/Topology'
 import { MapPanel } from './features/map/MapPanel'
+import { ProjectTopologyPanel } from './features/projtopo/ProjectTopology'
 import { TimelinePanel } from './features/timeline/Timeline'
 import { Palette } from './features/search/Palette'
 import { SecurityPanel } from './features/security/SecurityPanel'
@@ -64,6 +65,7 @@ const components = {
   overview: OverviewPanel,
   topology: TopologyPanel,
   map: MapPanel,
+  projtopo: ProjectTopologyPanel,
   timeline: TimelinePanel,
   security: SecurityPanel,
   netpol: NetpolPanel,

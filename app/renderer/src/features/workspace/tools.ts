@@ -1,6 +1,7 @@
 import { openOverview } from '../overview/OverviewPanel'
 import { openTopology } from '../topology/Topology'
 import { openMap } from '../map/MapPanel'
+import { openProjectTopology } from '../projtopo/ProjectTopology'
 import { openTimeline } from '../timeline/Timeline'
 import { openRbac, openCreate } from '../rbac/RbacPanel'
 import { openPanel, useApp, type OpenOptions } from '../../store'
@@ -24,6 +25,7 @@ export const TOOLS: { id: string; label: string; open: (clusterId: string, opts?
   { id: 'problems', label: 'Problemas', open: (id, o) => openProblems(id, o) },
   { id: 'copilot', label: 'Copilot (IA)', open: (id, o) => openCopilot(id, undefined, o) },
   { id: 'topology', label: 'Topologia', open: (id, o) => openTopology(id, undefined, o) },
+  { id: 'projtopo', label: 'Topologia do projeto', open: (id, o) => openProjectTopology(id, o) },
   { id: 'map', label: 'Mapa do cluster', open: (id, o) => openMap(id, o) },
   { id: 'timeline', label: 'Timeline de eventos', open: (id, o) => openTimeline(id, o) },
   { id: 'helm', label: 'Helm releases', open: (id, o) => openHelm(id, o) },
