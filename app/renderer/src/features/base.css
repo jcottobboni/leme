@@ -13,3 +13,5 @@
 .vlist { overflow: auto; min-height: 0; }
 .vlist-head { position: sticky; top: 0; z-index: 1; background: var(--panel); }
 .monaco-loading { display: grid; place-items: center; }
+.typed-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.typed-confirm-target { user-select: all; }
