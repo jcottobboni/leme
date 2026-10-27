@@ -182,8 +182,8 @@ func TestMoreProjectors(t *testing.T) {
 func TestCRDWithBuiltinKindNameIsNotProjectedAsBuiltin(t *testing.T) {
 	crd := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "longhorn.io/v1beta2", "kind": "Node",
-		"metadata":   map[string]any{"name": "con4", "namespace": "longhorn-system"},
-		"status":     map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}},
+		"metadata": map[string]any{"name": "con4", "namespace": "longhorn-system"},
+		"status":   map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}},
 	}}
 	r := Project(crd)
 	if _, ok := r.Cells["roles"]; ok {
