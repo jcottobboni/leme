@@ -2,8 +2,8 @@ import type { ClusterMap, MapNamespace, MapWorkload } from '../../api'
 
 // World units. A workload tile is a pointy-top hexagon of radius TILE_R; hex cells leave room for the label below.
 export const TILE_R = 30
-const DX = 78
-const DY = 84
+export const DX = 78
+export const DY = 84
 const TILE_REACH = 44
 export const BLOB_AMP = 0.1
 
@@ -11,12 +11,12 @@ export interface TileL { id: number; x: number; y: number; w: MapWorkload; ns: s
 export interface AppL { id: number; x: number; y: number; r: number; name: string; ns: string; tiles: TileL[]; boxed: boolean; path: string }
 export interface IslandL {
   id: number; x: number; y: number; r: number; ns: MapNamespace; hue: number; path: string
-  font: number; labelY: number; apps: AppL[]; workloads: number
+  font: number; labelY: number; apps: AppL[]; workloads: number; empty: boolean
 }
 export interface Bounds { x0: number; y0: number; x1: number; y1: number }
 export interface Totals { namespaces: number; workloads: number; pods: number; apps: number; services: number }
 export interface Layout { islands: IslandL[]; tiles: TileL[]; appsFlat: AppL[]; bounds: Bounds; totals: Totals }
-export interface LayoutOpts { selected: Set<string>; hideSystem: boolean; onlyProblems: boolean }
+export interface LayoutOpts { selected: Set<string>; hideSystem: boolean; onlyProblems: boolean; hideEmpty?: boolean }
 
 export const isSystemNs = (n: string) => n.startsWith('kube-') || n.startsWith('openshift-') || n === 'openshift'
 export const hasProblem = (w: MapWorkload) => w.health === 'warn' || w.health === 'error' || w.pods.warn + w.pods.error > 0
@@ -199,7 +199,7 @@ export function layoutMap(map: ClusterMap, o: LayoutOpts): Layout {
     const kept = ns.apps
       .map((a) => ({ name: a.name, ws: o.onlyProblems ? a.workloads.filter(hasProblem) : a.workloads }))
       .filter((a) => a.ws.length)
-    if (o.onlyProblems && !kept.length) continue
+    if ((o.onlyProblems || o.hideEmpty) && !kept.length) continue
     const boxed = kept.filter((a) => a.ws.length > 1)
     const singles = kept.filter((a) => a.ws.length === 1)
     type Item = { r: number; app: AppL; cells: [number, number][]; encl: number }
@@ -220,9 +220,11 @@ export function layoutMap(map: ClusterMap, o: LayoutOpts): Layout {
     const enc = enclose(placed)
     const encR = Math.max(enc.r, 70)
     const f0 = Math.min(90, Math.max(18, 0.06 * (encR + 60)))
-    const pad = 26 + f0 * 1.2, shift = f0 * 1.0
-    const R = (encR + pad + shift) / (1 - BLOB_AMP)
-    const isl: IslandL = { id: islands.length, x: 0, y: 0, r: R, ns, hue: hueOf(ns.name), path: '', font: f0, labelY: -R + f0 * 1.45 + 6, apps: [], workloads: 0 }
+    const pad = 26 + f0 * 1.2, shift = f0 * 1.5
+    // An empty namespace is a small island: present (it exists) but not competing for space.
+    const empty = !kept.length
+    const R = empty ? 64 : (encR + pad + shift) / (1 - BLOB_AMP)
+    const isl: IslandL = { id: islands.length, x: 0, y: 0, r: R, ns, hue: hueOf(ns.name), path: '', font: empty ? 14 : f0, labelY: -R + f0 * 1.45 + 6, apps: [], workloads: 0, empty }
     // Item positions are relative to the island center (content shifted down to leave the header band).
     items.forEach((it, i) => {
       it.app.x = pos[i][0] - enc.cx

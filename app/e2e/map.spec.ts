@@ -82,3 +82,38 @@ test('CA-MAP3: níveis de zoom e ajustar ao conteúdo', async ({ page }) => {
   await page.getByTestId('map-fit').click()
   await expect(page.getByTestId('map-island-demo')).toBeVisible()
 })
+
+test('CA-MAP4: alerta no workload com problema, seleção, legenda, minimapa e namespaces vazios', async ({ page }) => {
+  await openMap(page)
+  // The broken workload carries the problem badge and the pulsing halo; a healthy one does not.
+  await expect(page.getByTestId('map-tile-broken')).toHaveClass(/p-error/)
+  await expect(page.getByTestId('map-tile-broken').locator('.badge.error')).toHaveCount(1)
+  await expect(page.getByTestId('map-tile-web').locator('.badge')).toHaveCount(0)
+  // Clicking opens the object; back on the map, the last workload opened keeps a selection ring until Escape.
+  await page.getByTestId('map-tile-web').click()
+  await page.locator('.dv-tab .ctab', { hasText: 'Mapa do cluster' }).first().click()
+  await expect(page.getByTestId('map-tile-web')).toHaveClass(/\bsel\b/)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('map-tile-web')).not.toHaveClass(/\bsel\b/)
+  await page.getByTestId('map-level-workloads').click()
+  // Legend and minimap.
+  await page.getByTestId('map-legend-toggle').click()
+  await expect(page.getByTestId('map-legend')).toContainText('DEPLOY')
+  await page.getByTestId('map-legend-toggle').click()
+  await expect(page.getByTestId('map-legend')).toHaveCount(0)
+  await expect(page.getByTestId('map-minimap')).toBeVisible()
+  const zoomBefore = await page.getByTestId('map-zoom').innerText()
+  const mini = await page.getByTestId('map-minimap').boundingBox()
+  await page.mouse.click(mini!.x + 8, mini!.y + 8)
+  await expect(page.getByTestId('map-zoom')).toHaveText(zoomBefore) // the minimap pans, it does not zoom
+  await page.getByTestId('map-minimap-toggle').click()
+  await expect(page.getByTestId('map-minimap')).toHaveCount(0)
+  await page.getByTestId('map-minimap-toggle').click()
+  // Namespaces without workloads are small dashed islands, and can be hidden.
+  await expect(page.locator('[data-testid="map-island-default"].empty')).toHaveCount(1)
+  await page.getByTestId('map-settings').click()
+  await page.getByTestId('map-hide-empty').check()
+  await expect(page.getByTestId('map-island-default')).toHaveCount(0)
+  await page.getByTestId('map-hide-empty').uncheck()
+  await expect(page.getByTestId('map-island-default')).toHaveCount(1)
+})

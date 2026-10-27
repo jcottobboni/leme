@@ -163,3 +163,30 @@ func TestCompact(t *testing.T) {
 		t.Fatalf("namespace counts stay: %+v", big.Namespaces[0])
 	}
 }
+
+func TestRestartsAndIngressHosts(t *testing.T) {
+	in := Input{
+		Deployments: []*unstructured.Unstructured{obj(t, `{kind: Deployment, metadata: {name: web, namespace: demo, uid: d1}, spec: {template: {metadata: {labels: {app: web}}}}}`)},
+		ReplicaSets: []*unstructured.Unstructured{obj(t, `{kind: ReplicaSet, metadata: {name: web-abc, namespace: demo, uid: r1, ownerReferences: [{apiVersion: apps/v1, kind: Deployment, name: web, controller: true}]}}`)},
+		Pods: []*unstructured.Unstructured{
+			obj(t, `{kind: Pod, metadata: {name: p1, namespace: demo, labels: {app: web}, ownerReferences: [{apiVersion: apps/v1, kind: ReplicaSet, name: web-abc, controller: true}]}, status: {phase: Running, initContainerStatuses: [{name: i, restartCount: 1}], containerStatuses: [{name: c, ready: true, restartCount: 3}]}}`),
+			obj(t, `{kind: Pod, metadata: {name: p2, namespace: demo, labels: {app: web}, ownerReferences: [{apiVersion: apps/v1, kind: ReplicaSet, name: web-abc, controller: true}]}, status: {phase: Running, containerStatuses: [{name: c, ready: true, restartCount: 2}]}}`),
+		},
+		Services: []*unstructured.Unstructured{
+			obj(t, `{kind: Service, metadata: {name: web-svc, namespace: demo}, spec: {selector: {app: web}}}`),
+			obj(t, `{kind: Service, metadata: {name: web-svc, namespace: other}, spec: {selector: {app: web}}}`),
+		},
+		Ingresses: []*unstructured.Unstructured{
+			obj(t, `{kind: Ingress, metadata: {name: i1, namespace: demo}, spec: {rules: [{host: shop.example.com, http: {paths: [{path: /, backend: {service: {name: web-svc, port: {number: 80}}}}]}}, {http: {paths: [{backend: {service: {name: web-svc}}}]}}]}}`),
+			obj(t, `{kind: Ingress, metadata: {name: i2, namespace: other}, spec: {defaultBackend: {service: {name: web-svc}}, rules: [{host: elsewhere.example.com, http: {paths: [{backend: {service: {name: web-svc}}}]}}]}}`),
+		},
+	}
+	m := Build(in)
+	w := m.Namespaces[0].Apps[0].Workloads[0]
+	if w.Name != "web" || w.Restarts != 6 {
+		t.Fatalf("restarts: %+v", w)
+	}
+	if strings.Join(w.Hosts, ",") != "*,shop.example.com" {
+		t.Fatalf("hosts must come only from the same namespace: %v", w.Hosts)
+	}
+}

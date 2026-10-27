@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClusterMap } from '../../api'
 import { layoutMap, type Layout, type LayoutOpts } from '../map/layout'
 
-export interface LayoutRequest { seq: number; map: ClusterMap; selected: string[]; hideSystem: boolean; onlyProblems: boolean }
+export interface LayoutRequest { seq: number; map: ClusterMap; selected: string[]; hideSystem: boolean; onlyProblems: boolean; hideEmpty?: boolean }
 export interface LayoutReply { seq: number; layout?: Layout; error?: string }
 
 let worker: Worker | null | undefined
@@ -50,7 +50,7 @@ export function useMapLayout(map: ClusterMap | undefined, o: LayoutOpts, backgro
     w.addEventListener('message', onMsg)
     w.addEventListener('error', onErr)
     try {
-      w.postMessage({ seq, map, selected: [...o.selected], hideSystem: o.hideSystem, onlyProblems: o.onlyProblems } satisfies LayoutRequest)
+      w.postMessage({ seq, map, selected: [...o.selected], hideSystem: o.hideSystem, onlyProblems: o.onlyProblems, hideEmpty: o.hideEmpty } satisfies LayoutRequest)
     } catch {
       local()
     }

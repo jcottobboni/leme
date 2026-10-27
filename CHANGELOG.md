@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
+## [Unreleased]
+
+### Changed
+- **Cluster map, visual refresh (SVG):** text and bars keep a readable screen size at every zoom (no
+  more giant or overlapping labels); pods are a honeycomb of small hexagons inside each workload,
+  problems at the center; workloads get a kind tag (DEPLOY, STS, CRON…), a pulsing alert badge when
+  they have problems and, zoomed in, chips for Services, Ingress hosts, PVCs and restarts. Namespaces
+  get a header pill with workload and pod counts and a soft glow; namespaces without workloads are
+  small dashed islands (they can be hidden in the map settings). Richer tooltip with a pod bar.
+
+### Added
+- Cluster map minimap (click or drag to move), legend, and a selection ring on the last workload
+  opened (Escape clears it). The dotted backdrop pans with the map.
+- The map response carries each workload's container restarts and the Ingress hosts routing to its
+  Services (omitted in the compact response of big maps).
+
 ## [0.5.0] - 2026-10-27
 
 ### Added

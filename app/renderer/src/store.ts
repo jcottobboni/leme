@@ -205,9 +205,12 @@ interface UiPrefs {
   hotbarLabels: boolean
   /** M5 map-webgl: workloads from which the cluster map switches from SVG to WebGL. */
   mapWebglThreshold: number
+  /** Cluster map: hide namespaces without workloads; show the minimap. */
+  mapHideEmpty: boolean
+  mapMinimap: boolean
 }
 function loadUi(): UiPrefs {
-  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500 }
+  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500, mapHideEmpty: false, mapMinimap: true }
   try {
     return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) ?? '{}') }
   } catch {
@@ -219,8 +222,8 @@ export const useUi = create<UiPrefs & { update: (p: Partial<UiPrefs>) => void }>
   update: (p) => {
     set(p)
     try {
-      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold } = get()
-      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold }))
+      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap } = get()
+      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap }))
     } catch {
       /* convenience only */
     }

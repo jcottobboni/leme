@@ -51,6 +51,8 @@ type Workload struct {
 	Pods     HealthCount `json:"pods"`
 	Services []string    `json:"services,omitempty"`
 	PVCs     int         `json:"pvcs,omitempty"`
+	Restarts int         `json:"restarts,omitempty"` // container restarts summed over the pods
+	Hosts    []string    `json:"hosts,omitempty"`    // Ingress hosts routing to one of its services
 }
 
 // App groups workloads of a namespace.
@@ -243,6 +245,7 @@ func Build(in Input) *ClusterMap {
 		if w.w.Kind == "Pod" {
 			w.w.Ready = str(row, "ready")
 		}
+		w.w.Restarts += restartsOf(p)
 		if v, _, _ := unstructured.NestedSlice(p.Object, "spec", "volumes"); v != nil {
 			volumeClaims(v, w.claims)
 		}
@@ -270,15 +273,24 @@ func Build(in Input) *ClusterMap {
 		a := get(u.GetName())
 		a.n.Status, _, _ = unstructured.NestedString(u.Object, "status", "phase")
 	}
+	hostsBySvc := ingressHosts(in.Ingresses)
 	for _, k := range order {
 		w := works[k]
+		hosts := map[string]bool{}
 		for _, s := range svcByNS[k.ns] {
 			sel, _, _ := unstructured.NestedStringMap(s.Object, "spec", "selector")
 			if selects(sel, w.labels) {
 				w.w.Services = append(w.w.Services, s.GetName())
+				for _, h := range hostsBySvc[k.ns+"/"+s.GetName()] {
+					hosts[h] = true
+				}
 			}
 		}
 		sort.Strings(w.w.Services)
+		for h := range hosts {
+			w.w.Hosts = append(w.w.Hosts, h)
+		}
+		sort.Strings(w.w.Hosts)
 		w.w.PVCs = len(w.claims)
 		app := project.AppOf(w.appLabel, annotationsOf(w.obj))
 		if app == "" {
@@ -334,6 +346,67 @@ func Build(in Input) *ClusterMap {
 	return out
 }
 
+func restartsOf(p *unstructured.Unstructured) int {
+	n := 0
+	for _, f := range []string{"initContainerStatuses", "containerStatuses"} {
+		cs, _, _ := unstructured.NestedSlice(p.Object, "status", f)
+		for _, c := range cs {
+			if m, ok := c.(map[string]any); ok {
+				if r, ok := m["restartCount"].(int64); ok {
+					n += int(r)
+				} else if r, ok := m["restartCount"].(float64); ok {
+					n += int(r)
+				}
+			}
+		}
+	}
+	return n
+}
+
+// ingressHosts maps "namespace/service" to the hosts of the Ingress rules (and default backend) routing to it;
+// a rule without a host counts as "*".
+func ingressHosts(ings []*unstructured.Unstructured) map[string][]string {
+	out := map[string][]string{}
+	add := func(ns string, backend map[string]any, host string) {
+		name, _, _ := unstructured.NestedString(backend, "service", "name")
+		if name == "" {
+			name, _, _ = unstructured.NestedString(backend, "serviceName") // extensions/v1beta1
+		}
+		if name == "" {
+			return
+		}
+		if host == "" {
+			host = "*"
+		}
+		k := ns + "/" + name
+		for _, h := range out[k] {
+			if h == host {
+				return
+			}
+		}
+		out[k] = append(out[k], host)
+	}
+	for _, ing := range ings {
+		ns := ing.GetNamespace()
+		if b, ok, _ := unstructured.NestedMap(ing.Object, "spec", "defaultBackend"); ok {
+			add(ns, b, "")
+		}
+		rules, _, _ := unstructured.NestedSlice(ing.Object, "spec", "rules")
+		for _, r := range rules {
+			rm, _ := r.(map[string]any)
+			host, _ := rm["host"].(string)
+			paths, _, _ := unstructured.NestedSlice(rm, "http", "paths")
+			for _, pth := range paths {
+				pm, _ := pth.(map[string]any)
+				if b, ok := pm["backend"].(map[string]any); ok {
+					add(ns, b, host)
+				}
+			}
+		}
+	}
+	return out
+}
+
 func annotationsOf(u *unstructured.Unstructured) map[string]string {
 	if u == nil {
 		return nil
@@ -353,6 +426,7 @@ func compact(m *ClusterMap, n int) {
 			for k := range ws {
 				ws[k].Status = ""
 				ws[k].Services = nil
+				ws[k].Hosts = nil
 			}
 		}
 	}

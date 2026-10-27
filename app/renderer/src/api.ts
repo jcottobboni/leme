@@ -176,7 +176,7 @@ export interface GraphEdge { from: string; to: string; rel: string }
 export interface Graph { root?: string; nodes: GraphNode[]; edges: GraphEdge[]; truncated?: boolean; errors?: Record<string, string> }
 
 // --- Cluster map (namespaces as islands, apps as regions) ---
-export interface MapWorkload { group: string; kind: string; name: string; health: Health; status?: string; ready?: string; pods: HealthCount; services?: string[]; pvcs?: number }
+export interface MapWorkload { group: string; kind: string; name: string; health: Health; status?: string; ready?: string; pods: HealthCount; services?: string[]; pvcs?: number; restarts?: number; hosts?: string[] }
 export interface MapApp { name: string; workloads: MapWorkload[] }
 export interface MapNamespace { name: string; status?: string; pods: HealthCount; apps: MapApp[]; services: number; ingresses: number; pvcs: number }
 export interface ClusterMap { scope: string; namespaces: MapNamespace[]; truncated?: boolean; compact?: boolean; errors?: Record<string, string> }
