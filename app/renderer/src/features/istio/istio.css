@@ -1,0 +1,29 @@
+/* Istio panel (feature istio). Every selector is prefixed with .ist- and uses theme tokens only. */
+.ist-mode { display: inline-block; font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 4px; letter-spacing: 0.3px; }
+.ist-strict { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok-text); }
+.ist-permissive { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-text); }
+.ist-disable { background: color-mix(in srgb, var(--error) 16%, transparent); color: var(--error-text); }
+.ist-unset { background: var(--chip-bg); color: var(--muted); }
+.ist-wrap { white-space: normal !important; }
+.ist-missing { color: var(--warn-text); font-size: 11px; }
+.ist-explain { max-width: 560px; line-height: 1.5; }
+.ist-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+.ist-meta .chip { margin-left: 4px; }
+.ist-route { border-top: 1px solid var(--line-soft); padding: 10px 0 4px; display: flex; flex-direction: column; gap: 6px; }
+.ist-route-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ist-bar { display: flex; height: 20px; border-radius: 5px; overflow: hidden; background: var(--track); border: 1px solid var(--line); }
+.ist-seg { min-width: 3px; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--on-accent); }
+.ist-seg + .ist-seg { border-left: 1px solid var(--panel); }
+.ist-seg-0 { background: var(--accent); }
+.ist-seg-1 { background: var(--info); }
+.ist-seg-2 { background: var(--ok); }
+.ist-seg-3 { background: var(--warn); }
+.ist-seg-4 { background: var(--prod); }
+.ist-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: middle; }
+.ist-dests td { padding: 3px 8px; }
+.ist-weight { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.ist-level { font-size: 11px; font-weight: 650; padding: 1px 6px; border-radius: 4px; background: var(--chip-bg); color: var(--chip-text); }
+.ist-level-error { background: color-mix(in srgb, var(--error) 16%, transparent); color: var(--error-text); }
+.ist-level-warning { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-text); }
+.ist-level-info { background: color-mix(in srgb, var(--info) 16%, transparent); color: var(--info-text); }
+.card h4.ist-card-title { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text-strong); }
