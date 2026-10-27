@@ -443,6 +443,10 @@ func (s *Server) applyChange(w http.ResponseWriter, r *http.Request, sess *clust
 	entry := audit.Entry{Source: "copilot", Action: "apply", Context: sess.Context.Name}
 	if p != nil {
 		entry.Object = p.Ref.String()
+		if p.Source != "" {
+			// Proposals from other integrations (Argo CD) are audited under their own source.
+			entry.Source = p.Source
+		}
 	}
 	if err != nil {
 		entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
