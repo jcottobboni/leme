@@ -54,6 +54,8 @@ const IstioPanel = lazyPanel(() => import('./features/istio/IstioPanel'), 'Istio
 // M7 (front O): aggregated logs and diff between clusters/namespaces.
 const MultiLogsPanel = lazyPanel(() => import('./features/logs/MultiLogsPanel'), 'MultiLogsPanel')
 const DiffPanel = lazyPanel(() => import('./features/diff/DiffPanel'), 'DiffPanel')
+// M7: Flux CD.
+const FluxPanel = lazyPanel(() => import('./features/flux/FluxPanel'), 'FluxPanel')
 
 function Welcome(_: IDockviewPanelProps) {
   return <Home />
@@ -113,6 +115,7 @@ const components = Object.fromEntries(
     istio: IstioPanel,
     multilogs: gated(MultiLogsPanel),
     diff: DiffPanel,
+    flux: FluxPanel,
   } as Record<string, PanelComponent>).map(([k, C]) => [k, panel(C, k)]),
 )
 

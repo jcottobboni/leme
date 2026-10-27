@@ -62,6 +62,9 @@ type projector struct {
 // columns and health rules only apply to built-in groups (see kinds.Builtin): a CRD may reuse a
 // built-in kind name and must not be shown as, or projected like, the built-in one.
 func Columns(group, kind string, namespaced bool) []Column {
+	if p, ok := projectorFor(group, kind); ok {
+		return p.columns
+	}
 	if p, ok := projectors[kind]; ok && kinds.Builtin(group) {
 		return p.columns
 	}
@@ -80,7 +83,10 @@ func Project(u *unstructured.Unstructured) Row {
 	if r.UID == "" {
 		r.UID = r.Namespace + "/" + r.Name
 	}
-	if p, ok := projectors[u.GetKind()]; ok && kinds.Builtin(kinds.GroupOf(u.GetAPIVersion())) {
+	group := kinds.GroupOf(u.GetAPIVersion())
+	if p, ok := projectorFor(group, u.GetKind()); ok {
+		p.fn(u, &r)
+	} else if p, ok := projectors[u.GetKind()]; ok && kinds.Builtin(group) {
 		p.fn(u, &r)
 	} else {
 		genericConditions(u, &r)

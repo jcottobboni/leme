@@ -2,8 +2,9 @@ import {
   Activity, AppWindow, ArrowLeftRight, ChartColumn, Blocks, GitPullRequestArrow, ArrowUpWideNarrow, Boxes, Box, Briefcase, Clock, Cloud, Cog, Copy, Cpu, Database, FileCode, FileKey, FileText, Folder, Gauge, GitBranch, Globe, HardDrive,
   Hammer, Image, Key, Layers, Layers2, LayoutDashboard, Link, Lock, Map as MapIcon, type LucideIcon, MoveHorizontal, Network, Package, Plus, Route, Ruler, ScrollText, Server, Settings2,
   Shield, ShieldCheck, Share2, Sparkles, Stethoscope, Terminal, Timer, Users, Waypoints, Webhook, Workflow, Wrench,
+  DoorOpen, GitCompareArrows, Handshake, LockKeyhole, Signpost, Spline, Split, Unplug, Antenna,
 } from 'lucide-react'
-import { GitCompareArrows, History, Logs } from 'lucide-react' // M7 panels
+import { History, Logs, RefreshCcwDot } from 'lucide-react' // M7 panels
 import type { Resource } from '../../api'
 
 /** English plural used for resource-type labels (Pods, Ingresses, NetworkPolicies, Endpoints). */
@@ -38,6 +39,9 @@ const KIND_ICONS: Record<string, LucideIcon> = {
   Node: Cpu, Namespace: Folder, Project: Folder, Event: Activity, CustomResourceDefinition: FileCode,
   Lease: Timer, PriorityClass: ArrowUpWideNarrow, RuntimeClass: Cog, MutatingWebhookConfiguration: Webhook, ValidatingWebhookConfiguration: Webhook,
   CSIDriver: HardDrive, CSINode: HardDrive, VolumeAttachment: Link,
+  // Gateway API (gateway.networking.k8s.io; Istio's Gateway is "Gateway.networking.istio.io" here).
+  Gateway: DoorOpen, GatewayClass: Antenna, HTTPRoute: Signpost, GRPCRoute: Spline, TLSRoute: LockKeyhole, TCPRoute: Unplug, UDPRoute: Split,
+  ReferenceGrant: Handshake, BackendTLSPolicy: LockKeyhole, ListenerSet: DoorOpen,
 }
 
 export function kindIcon(kind?: string): LucideIcon {
@@ -48,7 +52,7 @@ export function kindIcon(kind?: string): LucideIcon {
 export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
   rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, projtopo: Boxes, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
-  traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints,
+  traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints, flux: RefreshCcwDot,
   multilogs: Logs, diff: GitCompareArrows, changes: History,
 }
 
@@ -77,7 +81,8 @@ const ORDER: Record<string, string[]> = {
   Cluster: ['Node', 'Namespace', 'Project', 'Event', 'CustomResourceDefinition', 'PriorityClass', 'RuntimeClass', 'Lease'],
   Workloads: ['Pod', 'Deployment', 'DaemonSet', 'StatefulSet', 'ReplicaSet', 'Job', 'CronJob', 'DeploymentConfig', 'ReplicationController', 'BuildConfig', 'Build', 'ImageStream'],
   Config: ['ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange', 'HorizontalPodAutoscaler', 'PodDisruptionBudget'],
-  Network: ['Service', 'Endpoints', 'Ingress', 'Route', 'NetworkPolicy', 'IngressClass'],
+  Network: ['Service', 'Endpoints', 'Ingress', 'Route', 'Gateway', 'HTTPRoute', 'GRPCRoute', 'TLSRoute', 'TCPRoute', 'UDPRoute', 'GatewayClass', 'ReferenceGrant',
+    'BackendTLSPolicy', 'ListenerSet', 'NetworkPolicy', 'IngressClass'],
   Storage: ['PersistentVolumeClaim', 'PersistentVolume', 'StorageClass'],
   Access: ['ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding'],
 }
@@ -140,6 +145,7 @@ export function buildSections(resources: Resource[], filter: string): NavSection
       { id: 'argocd', label: 'Argo CD', icon: GitPullRequestArrow },
       { id: 'grafana', label: 'Grafana e Prometheus', icon: ChartColumn },
       { id: 'istio', label: 'Istio', icon: Waypoints },
+      { id: 'flux', label: 'Flux', icon: RefreshCcwDot },
     ]), kinds: [] },
     { id: 'Custom Resources', label: 'Custom Resources', icon: FileCode, kinds: [], groups },
     { id: 'Other', label: 'Outros recursos', icon: Boxes, kinds: kindsOf('Cluster').filter((r) => !CLUSTER_MAIN.has(r.kind)), defaultCollapsed: true },

@@ -123,6 +123,8 @@ func (s *Server) routes() {
 	s.multiLogRoutes(m)
 	s.diffRoutes(m)
 	s.historyRoutes(m)
+	// M7: Flux CD (RF04).
+	s.fluxRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 

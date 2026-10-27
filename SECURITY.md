@@ -125,12 +125,20 @@ It does not protect against an attacker who already controls your user account o
 - **Audit:** every question, proposal and apply (Copilot and MCP) is recorded locally in
   `audit.jsonl` (0600) without prompts, answers or object contents.
 
-## Integrations (Argo CD, Grafana, Istio, traffic)
+## Integrations (Argo CD, Flux, Grafana, Istio, traffic)
 
 - **Argo CD:** Leme reads `Application`/`AppProject` objects with your kubeconfig and never talks to
   the Argo CD API or asks for its credentials. Sync and Refresh are change proposals (diff, server
   dry-run, confirmation, resourceVersion check) under the same write lock; a sync whose destination
   is another cluster also asks for the Application name. MCP agents cannot apply them.
+- **Flux CD:** Leme reads Kustomizations, HelmReleases and sources with your kubeconfig and never
+  runs the `flux` CLI. Its only writes are reconcile (the `reconcile.fluxcd.io/requestedAt`
+  annotation), suspend and resume (`spec.suspend`) on those six Flux kinds. The engine builds the
+  patch from the action name (the UI sends nothing else), and each one is a change proposal: diff,
+  server dry-run when writable, RBAC check, confirmation and a single-use token bound to the
+  resourceVersion, under the same write lock (read-only and production until unlocked answer 403).
+  Proposals and applies are audited with source `flux`; the Copilot cannot propose them and MCP
+  agents cannot apply them. What the Flux controller applies afterwards comes from Git, OCI or the chart, not from Leme.
 - **Grafana and Prometheus:** only services detected by the engine can be opened, through a local
   port-forward (which needs the write lock, like any port-forward). The window is sandboxed, without
   preload, with a fresh in-memory session and navigation pinned to the forwarded address. Leme

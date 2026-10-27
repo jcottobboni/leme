@@ -1,0 +1,78 @@
+# M7 Gateway API fixtures (CA02). Only for the isolated kind cluster. The CRDs come from
+# scripts/gitops-crds.sh (SHA-256 pinned); there is no Gateway controller, so the e2e test writes
+# the status with kubectl patch --subresource=status. Every object is named m7-*.
+apiVersion: v1
+kind: Namespace
+metadata: {name: m7-gateway}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: m7-gateway-backend}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata: {name: m7-gateway-class}
+spec: {controllerName: example.com/m7-gateway-controller}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata: {name: m7-gw, namespace: m7-gateway}
+spec:
+  gatewayClassName: m7-gateway-class
+  listeners:
+  - {name: http, port: 80, protocol: HTTP, allowedRoutes: {namespaces: {from: All}}}
+  - {name: tcp, port: 5432, protocol: TCP, allowedRoutes: {namespaces: {from: All}}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: m7-web, namespace: m7-gateway, labels: {app: m7-web}}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: m7-web}}
+  template:
+    metadata: {labels: {app: m7-web}}
+    spec:
+      containers: [{name: nginx, image: "nginx:1.27-alpine", ports: [{containerPort: 80}]}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: m7-web, namespace: m7-gateway, labels: {app: m7-web}}
+spec:
+  selector: {app: m7-web}
+  ports: [{name: http, port: 80, targetPort: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: m7-web, namespace: m7-gateway}
+spec:
+  hostnames: [web.m7.example]
+  parentRefs: [{name: m7-gw, sectionName: http}]
+  rules:
+  - matches: [{path: {type: PathPrefix, value: /}}]
+    backendRefs: [{name: m7-web, port: 80}]
+---
+# Backend Service that does not exist: the analyzer must report it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: m7-broken, namespace: m7-gateway}
+spec:
+  hostnames: [broken.m7.example]
+  parentRefs: [{name: m7-gw, sectionName: http}]
+  rules:
+  - backendRefs: [{name: m7-missing, port: 80}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: m7-db, namespace: m7-gateway-backend}
+spec:
+  selector: {app: m7-db}
+  ports: [{name: pg, port: 5432}]
+---
+# Cross-namespace backend without a ReferenceGrant in m7-gateway-backend.
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata: {name: m7-db, namespace: m7-gateway}
+spec:
+  parentRefs: [{name: m7-gw, sectionName: tcp}]
+  rules:
+  - backendRefs: [{name: m7-db, namespace: m7-gateway-backend, port: 5432}]
