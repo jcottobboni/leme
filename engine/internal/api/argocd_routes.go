@@ -70,7 +70,7 @@ func (s *Server) argoPropose(w http.ResponseWriter, r *http.Request, sess *clust
 	entry := audit.Entry{Source: argoSource, Action: "propose", Context: sess.Context.Name, Object: ref.String()}
 	fail := func(code int, err error) {
 		entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
-		_ = s.audit.Add(entry)
+		s.auditAdd(entry)
 		if code == 0 {
 			kubeError(w, err)
 			return
@@ -123,7 +123,7 @@ func (s *Server) argoPropose(w http.ResponseWriter, r *http.Request, sess *clust
 		return
 	}
 	entry.Result = "ok"
-	_ = s.audit.Add(entry)
+	s.auditAdd(entry)
 	writeJSON(w, argoProposal{Proposal: p.View(false), Notes: notes})
 }
 
@@ -141,10 +141,11 @@ func remoteNote(d argocd.Destination) string {
 // are not accepted here.
 func (s *Server) argoApply(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
 	tok := r.PathValue("token")
+	// Applying is the user's click in the app: audited as a UI change of the Argo CD Application.
 	entry := audit.Entry{Source: argoSource, Action: "apply", Context: sess.Context.Name}
 	deny := func(err error) {
 		entry.Result, entry.Detail = "denied", truncate(err.Error(), 200)
-		_ = s.audit.Add(entry)
+		s.auditAdd(entry)
 		if errors.Is(err, cluster.ErrReadOnly) {
 			httpError(w, http.StatusForbidden, err.Error())
 			return
@@ -167,7 +168,7 @@ func (s *Server) argoApply(w http.ResponseWriter, r *http.Request, sess *cluster
 		return
 	}
 	entry.Result = "ok"
-	_ = s.audit.Add(entry)
+	s.auditAdd(entry)
 	s.log.Info("change applied", "context", sess.Context.Name, "object", p.Ref.String(), "source", p.Source)
 	writeJSON(w, map[string]any{"applied": true, "ref": p.Ref})
 }

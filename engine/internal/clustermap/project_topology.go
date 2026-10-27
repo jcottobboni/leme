@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
@@ -190,13 +191,13 @@ func BuildProject(in TopoInput) *ProjectTopology {
 	nodes := map[wkey]*node{}
 	var order []wkey
 	add := func(group string, u *unstructured.Unstructured, kind string) *node {
-		k := wkey{u.GetNamespace(), kind, u.GetName()}
+		k := wkey{u.GetNamespace(), group, kind, u.GetName()}
 		if n, ok := nodes[k]; ok {
 			return n
 		}
 		row := project.Project(u)
 		l := u.GetLabels()
-		n := &node{obj: u, labels: templateLabels(u), n: TopoNode{
+		n := &node{obj: u, labels: templateLabels(group, kind, u), n: TopoNode{
 			ID: kind + "/" + u.GetName(), Group: group, Kind: kind, Name: u.GetName(), Health: row.Health,
 			Status: str(row, "status"), Ready: str(row, "ready"), App: l["app.kubernetes.io/part-of"], Release: releaseOf(u),
 			VCS: u.GetAnnotations()["app.openshift.io/vcs-uri"], Runtime: l["app.openshift.io/runtime"], Labels: l,
@@ -224,8 +225,8 @@ func BuildProject(in TopoInput) *ProjectTopology {
 		objs                []*unstructured.Unstructured
 	}{{"apps", "ReplicaSet", "Deployment", in.ReplicaSets}, {"", "ReplicationController", "DeploymentConfig", in.ReplicationControllers}, {"batch", "Job", "CronJob", in.Jobs}} {
 		for _, u := range g.objs {
-			if k, n, _ := ownerOf(u); k == g.parent {
-				owner[wkey{u.GetNamespace(), g.kind, u.GetName()}] = wkey{u.GetNamespace(), k, n}
+			if k, n, av := ownerOf(u); k == g.parent {
+				owner[wkey{u.GetNamespace(), g.group, g.kind, u.GetName()}] = wkey{u.GetNamespace(), kinds.GroupOf(av), k, n}
 			} else {
 				add(g.group, u, g.kind) // standalone controller
 			}
@@ -234,12 +235,12 @@ func BuildProject(in TopoInput) *ProjectTopology {
 	for _, p := range in.Pods {
 		var n *node
 		if kind, name, av := ownerOf(p); kind != "" && kind != "Node" {
-			k := wkey{p.GetNamespace(), kind, name}
+			k := wkey{p.GetNamespace(), kinds.GroupOf(av), kind, name}
 			if top, ok := owner[k]; ok {
 				k = top
 			}
 			if n = nodes[k]; n == nil { // controller not listed (operator CRD, cache gap): keep its pods visible
-				n = &node{labels: p.GetLabels(), n: TopoNode{ID: k.kind + "/" + k.name, Group: groupOf(av), Kind: k.kind, Name: k.name, Health: "neutral", Pods: []TopoPod{}, Services: []string{}}}
+				n = &node{labels: p.GetLabels(), n: TopoNode{ID: k.kind + "/" + k.name, Group: k.group, Kind: k.kind, Name: k.name, Health: "neutral", Pods: []TopoPod{}, Services: []string{}}}
 				nodes[k] = n
 				order = append(order, k)
 			}

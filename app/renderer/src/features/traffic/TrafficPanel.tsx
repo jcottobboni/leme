@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { ArrowDown, ArrowLeftRight, ArrowRight, ArrowUp, Globe } from 'lucide-react'
+import { ArrowDown, ArrowLeftRight, ArrowRight, ArrowUp, BookOpen, Globe, Radar, Workflow } from 'lucide-react'
 import { openPanel, useApp, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
 import { NamespaceSelect } from '../../components/ResourceGrid'
-import { ClusterGate, ErrorBanner, PanelHeader, RefreshButton, useAsync } from '../common'
+import { ClusterGate, ErrorBanner, useAsync } from '../common'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { CodeCopy, DOCS_URL } from '../../components/CodeCopy'
 import { kindIcon } from '../shell/nav'
 import { openTopology } from '../topology/Topology'
 import type { TrafficEdge, TrafficEndpoint } from '../map-webgl/trafficEdges'
@@ -73,9 +75,11 @@ function Traffic({ clusterId }: { clusterId: string }) {
 
   return (
     <div className="object-panel trf-panel" data-testid="traffic-panel">
-      <PanelHeader icon={<ArrowLeftRight size={16} />} title="Tráfego observado">
-        <NamespaceSelect clusterId={clusterId} />
-        <select className="ns-select" value={win} onChange={(e) => setWin(e.target.value as TrafficWindow)} title="Janela de observação" data-testid="traffic-window">
+      <PanelHeader icon={ArrowLeftRight} title="Tráfego observado" scope={<NamespaceSelect clusterId={clusterId} />} actions={[
+        { key: 'topology', label: 'Ver na Topologia', icon: Workflow, testid: 'traffic-open-topology', disabled: !ns, title: ns ? 'Abrir a Topologia com o tráfego' : 'Escolha um namespace para abrir a Topologia', onClick: () => showTopology() },
+        refreshAction(() => setRev((r) => r + 1), loading),
+      ]}>
+        <select className="ns-select" value={win} onChange={(e) => setWin(e.target.value as TrafficWindow)} title="Janela de observação" aria-label="Janela de observação" data-testid="traffic-window">
           {TRAFFIC_WINDOWS.map((w) => <option key={w} value={w}>últimos {w}</option>)}
         </select>
         {data && (
@@ -84,11 +88,6 @@ function Traffic({ clusterId }: { clusterId: string }) {
           </span>
         )}
         {data?.available && <span className="muted small">{rows.length} conex{rows.length === 1 ? 'ão' : 'ões'}</span>}
-        <span className="spacer" />
-        <button onClick={() => showTopology()} data-testid="traffic-open-topology" disabled={!ns} title={ns ? 'Abrir a Topologia com o tráfego' : 'Escolha um namespace para abrir a Topologia'}>
-          <ArrowLeftRight size={14} /> Ver na Topologia
-        </button>
-        <RefreshButton onClick={() => setRev((r) => r + 1)} loading={loading} />
       </PanelHeader>
       <ErrorBanner error={error} />
       {notes.length > 0 && (
@@ -98,10 +97,31 @@ function Traffic({ clusterId }: { clusterId: string }) {
       )}
       <div className="obj-body">
         {data && !data.available && (
-          <div className="empty trf-empty" data-testid="traffic-empty">
-            <ArrowLeftRight size={24} />
-            <span><b>Sem dados de tráfego observado.</b></span>
-            <span className="trf-hint" data-testid="traffic-hint">{data.hint || 'A fonte de tráfego não respondeu.'}</span>
+          <div className="teach" data-testid="traffic-empty">
+            <div className="teach-head">
+              <ArrowLeftRight size={26} />
+              <div>
+                <h3>Sem dados de tráfego observado</h3>
+                <div className="muted">O Leme lê conexões reais pelo Prometheus do cluster, de uma das fontes abaixo. Nada é instalado no cluster pelo Leme.</div>
+                <details className="small muted trf-hint">
+                  <summary>Detalhe da detecção</summary>
+                  <span data-testid="traffic-hint">{data.hint || 'A fonte de tráfego não respondeu.'}</span>
+                </details>
+              </div>
+            </div>
+            <div className="teach-cards">
+              <section className="teach-card">
+                <h4><Radar size={15} /> Caretta (eBPF, mede bytes/s)</h4>
+                <span className="small muted">Instale o chart e faça o Prometheus raspar a métrica <code>caretta_links_observed</code>.</span>
+                <CodeCopy text={'helm repo add groundcover https://helm.groundcover.com\nhelm install caretta groundcover/caretta --namespace caretta --create-namespace'} />
+              </section>
+              <section className="teach-card">
+                <h4><Workflow size={15} /> Hubble (Cilium, mede flows/s)</h4>
+                <span className="small muted">Habilite a métrica <code>flow</code> com os rótulos de workload nos values do Cilium.</span>
+                <CodeCopy text={'hubble:\n  metrics:\n    enabled:\n      - "flow:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload"'} />
+              </section>
+            </div>
+            <a className="btn link-btn" href={`${DOCS_URL}/integrations/traffic.md`} target="_blank" rel="noreferrer"><BookOpen size={14} /> Guia completo: docs/integrations/traffic.md</a>
           </div>
         )}
         {data?.available && !rows.length && (

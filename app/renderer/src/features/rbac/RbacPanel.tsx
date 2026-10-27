@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, Key, ShieldAlert } from 'lucide-react'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
+import { useWorkNamespace } from '../shell/useWorkNamespace'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type AccessRequest, type PolicyRule, type Subject, type WhoCanEntry } from '../../api'
 import { openPanel, useApp, type OpenOptions } from '../../store'
@@ -16,11 +19,19 @@ export function openRbac(clusterId: string, opts?: OpenOptions) {
 }
 
 function Mine({ clusterId }: { clusterId: string }) {
-  const fallback = useApp((s) => s.connected[clusterId]?.defaultNamespace || 'default')
-  const ns = useApp((s) => s.namespace[clusterId] ?? '') || fallback
-  const { data, error, loading } = useAsync(() => api.rbacMine(clusterId, ns), [clusterId, ns])
+  const ns = useWorkNamespace(clusterId)
+  if (!ns) return <div className="pad"><span className="spinner" /></div>
+  return <MineNs clusterId={clusterId} ns={ns} />
+}
+
+function MineNs({ clusterId, ns }: { clusterId: string; ns: string }) {
+  const [rev, setRev] = useState(0)
+  const { data, error, loading } = useAsync(() => api.rbacMine(clusterId, ns), [clusterId, ns, rev])
   const [q, setQ] = useState('')
   const [onlyAllowed, setOnlyAllowed] = useState(false)
+  const [showMatrix, setShowMatrix] = useState(false)
+  // Every verb on every resource: say it in one line instead of a wall of check marks.
+  const full = !!data?.matrix?.length && data.matrix.every((r) => VERBS.every((v) => r.verbs[v]))
   const rows = useMemo(
     () =>
       (data?.matrix ?? [])
@@ -31,17 +42,25 @@ function Mine({ clusterId }: { clusterId: string }) {
   )
   return (
     <div className="grid-panel">
-      <div className="toolbar">
-        <NamespaceSelect clusterId={clusterId} effective={ns} />
-        <input className="search" placeholder="Filtrar recursos…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <PanelHeader icon={Key} title="Minhas permissões" scope={<NamespaceSelect clusterId={clusterId} effective={ns} />} actions={[refreshAction(() => setRev((r) => r + 1), loading)]}>
+        <input className="search" placeholder="Filtrar recursos…" aria-label="Filtrar recursos" value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="check"><input type="checkbox" checked={onlyAllowed} onChange={(e) => setOnlyAllowed(e.target.checked)} /> só com alguma permissão</label>
-        {loading && <span className="spinner" />}
-      </div>
+      </PanelHeader>
       <ErrorBanner error={error} />
+      {full && (
+        <div className="rbac-full" data-testid="rbac-full">
+          <ShieldAlert size={18} className="s-warn" />
+          <span><b>Acesso total (cluster-admin)</b> — você pode fazer tudo em todos os {data!.matrix.length} recursos de <b>{ns}</b>.</span>
+          <span className="spacer" />
+          <button onClick={() => setShowMatrix((v) => !v)} aria-expanded={showMatrix} data-testid="rbac-show-matrix">
+            {showMatrix ? <ChevronDown size={14} /> : <ChevronRight size={14} />} {showMatrix ? 'Ocultar matriz' : 'Ver matriz'}
+          </button>
+        </div>
+      )}
       {data?.incomplete && <div className="banner warn">O servidor marcou a resposta como incompleta (webhook ou autorizador externo): use “Posso…?” para confirmar casos específicos.{data.evaluationError ? ` ${data.evaluationError}` : ''}</div>}
-      <div className="scroll">
+      {(!full || showMatrix) && <div className="scroll">
         <table className="table matrix" data-testid="rbac-matrix">
-          <thead><tr><th>Recurso</th><th>Grupo</th>{VERBS.map((v) => <th key={v} title={v}>{v === 'deletecollection' ? 'del·col' : v}</th>)}</tr></thead>
+          <thead><tr><th>Recurso</th><th>Grupo</th>{VERBS.map((v) => <th key={v} title={v}>{v}</th>)}</tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.group + '/' + r.resource}>
@@ -52,7 +71,7 @@ function Mine({ clusterId }: { clusterId: string }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -122,7 +141,7 @@ function WhoCan({ clusterId }: { clusterId: string }) {
       <Partial errors={res?.errors} />
       {res && (
         <table className="table" data-testid="whocan-table">
-          <thead><tr><th>Subject</th><th>Via</th><th>Role</th></tr></thead>
+          <thead><tr><th>Sujeito</th><th>Via</th><th>Role</th></tr></thead>
           <tbody>
             {res.entries.map((e, i) => (
               <tr key={i}>
@@ -162,6 +181,7 @@ function Rules({ rules }: { rules?: PolicyRule[] }) {
 }
 
 function Subjects({ clusterId }: { clusterId: string }) {
+  const toggleOpen = (k: string) => setOpen((o) => (o === k ? undefined : k))
   const [refresh, setRefresh] = useState(0)
   const { data, error, loading } = useAsync(() => api.rbacSubjects(clusterId, refresh > 0), [clusterId, refresh])
   const [q, setQ] = useState('')
@@ -171,25 +191,23 @@ function Subjects({ clusterId }: { clusterId: string }) {
   const key = (s: Subject) => `${s.kind}|${s.namespace ?? ''}|${s.name}`
   return (
     <div className="grid-panel">
-      <div className="toolbar">
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">Todos</option>
-          <option value="User">Users</option>
-          <option value="Group">Groups</option>
+      <PanelHeader icon={Key} title="Usuários e contas" actions={[refreshAction(() => setRefresh((r) => r + 1), loading)]}>
+        <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo de sujeito">
+          <option value="">Todos os tipos</option>
+          <option value="User">Usuários</option>
+          <option value="Group">Grupos</option>
           <option value="ServiceAccount">ServiceAccounts</option>
         </select>
-        <input className="search" placeholder="Buscar subject…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <span className="muted">{list.length} subjects</span>
-        {loading && <span className="spinner" />}
-        <span className="spacer" />
-        <button onClick={() => setRefresh((r) => r + 1)}>Recarregar</button>
-      </div>
+        <input className="search" placeholder="Buscar usuário, grupo ou conta…" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="muted">{list.length} {list.length === 1 ? 'sujeito' : 'sujeitos'}</span>
+      </PanelHeader>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />
       <div className="scroll tree">
         {list.map((s) => (
           <div key={key(s)} className="tree-node">
-            <div className="tree-head" onClick={() => setOpen(open === key(s) ? undefined : key(s))}>
+            <div className="tree-head" role="button" tabIndex={0} aria-expanded={open === key(s)} onClick={() => toggleOpen(key(s))}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleOpen(key(s)))}>
               <span className="chev">{open === key(s) ? '▾' : '▸'}</span>
               <SubjectLink e={s} />
               <span className="muted small"> · {s.grants.length} binding{s.grants.length > 1 ? 's' : ''}</span>
@@ -240,7 +258,7 @@ export function RbacPanel({ params }: IDockviewPanelProps<{ clusterId: string }>
   return (
     <ClusterGate clusterId={params.clusterId}>
       <div className="object-panel">
-        <Tabs<Tab> tabs={[['mine', 'Minhas permissões'], ['can', 'Posso…?'], ['whocan', 'Quem pode…?'], ['subjects', 'Subjects'], ['create', 'Criar role/binding']]} value={tab} onChange={setTab} />
+        <Tabs<Tab> tabs={[['mine', 'Minhas permissões'], ['can', 'Posso…?'], ['whocan', 'Quem pode…?'], ['subjects', 'Usuários e contas'], ['create', 'Criar role/binding']]} value={tab} onChange={setTab} />
         <div className="obj-body">
           {tab === 'mine' && <Mine clusterId={params.clusterId} />}
           {tab === 'can' && <Can clusterId={params.clusterId} />}

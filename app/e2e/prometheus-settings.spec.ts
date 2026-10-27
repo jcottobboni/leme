@@ -34,7 +34,7 @@ test('Configurar Prometheus sem nenhum Prometheus detectado abre o diálogo, sem
   await page.getByTestId(`cluster-row-${KIND_CONTEXT}`).first().click()
   await page.getByTestId('nav-kind-Deployment').click()
   await page.getByTestId('row-web').dblclick()
-  await page.getByRole('button', { name: 'Métricas' }).click()
+  await page.getByRole('tab', { name: 'Métricas' }).click()
   await page.getByRole('button', { name: 'Configurar Prometheus' }).click()
   await expect(page.getByText('Prometheus deste cluster')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Testar' })).toBeVisible()
@@ -48,7 +48,7 @@ test('um erro de renderização fica no painel: o resto da janela continua', asy
   await page.getByTestId(`cluster-row-${KIND_CONTEXT}`).first().click()
   await page.getByTestId('nav-kind-Deployment').click()
   await page.getByTestId('row-web').dblclick()
-  await page.getByRole('button', { name: 'Métricas' }).click()
+  await page.getByRole('tab', { name: 'Métricas' }).click()
   await page.getByRole('button', { name: 'Configurar Prometheus' }).click()
   await expect(page.getByTestId('error-boundary').first()).toBeVisible()
   // The shell still works: the navigator opens another grid.

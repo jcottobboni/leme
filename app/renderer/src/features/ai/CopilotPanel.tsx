@@ -168,13 +168,13 @@ function Copilot({ clusterId, initialRef }: { clusterId: string; initialRef?: Co
         {ref ? (
           <span className="ai-ref" title="Objeto em foco: vai como contexto da conversa" data-testid="copilot-ref">
             <span>{ref.kind} {ref.namespace ? `${ref.namespace}/` : ''}{ref.name}</span>
-            <button title="Conversar sobre o cluster inteiro" onClick={() => setRef(undefined)}><X size={12} /></button>
+            <button title="Conversar sobre o cluster inteiro" aria-label="Remover o objeto em foco" onClick={() => setRef(undefined)}><X size={12} /></button>
           </span>
         ) : <span className="ai-meta">contexto: cluster</span>}
         <span className="spacer" />
         {meta.model && <span className="ai-meta" data-testid="copilot-meta">{meta.model}{meta.anonymized ? ' · anonimizado' : ''}{meta.tokens ? ` · ${meta.tokens.toLocaleString()} tokens` : ''}</span>}
-        <button className="icon-btn" title="Ver exatamente o que será enviado" onClick={showPreview} data-testid="copilot-preview"><Eye size={15} /></button>
-        <button className="icon-btn" title="Configurações de IA" onClick={() => setShowSettings(true)} data-testid="copilot-settings"><Settings2 size={15} /></button>
+        <button title="Ver exatamente o que será enviado ao provedor" onClick={showPreview} data-testid="copilot-preview"><Eye size={14} /> Prévia do envio</button>
+        <button title="Provedor, modelo e privacidade" onClick={() => setShowSettings(true)} data-testid="copilot-settings"><Settings2 size={14} /> Ajustes de IA</button>
       </div>
       <div className="ai-body" ref={body}>
         {!items.length && (

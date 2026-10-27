@@ -173,7 +173,7 @@ export interface Overview {
 export interface NamespaceStat { name: string; pods: Record<string, number>; requests: Res; limits: Res; usage?: Usage }
 
 // --- Graph ---
-export interface GraphNode { id: string; group: string; kind: string; name: string; namespace?: string; health: Health; status?: string; count?: number; pods?: Record<string, number>; ref?: boolean; missing?: boolean; app?: string }
+export interface GraphNode { id: string; group: string; kind: string; name: string; namespace?: string; health: Health; status?: string; count?: number; pods?: Record<string, number>; ref?: boolean; missing?: boolean; app?: string; /** Aggregates: the controller owning the pods. */ owner?: { group: string; kind: string; name: string } }
 export interface GraphEdge { from: string; to: string; rel: string }
 export interface Graph { root?: string; nodes: GraphNode[]; edges: GraphEdge[]; truncated?: boolean; errors?: Record<string, string> }
 
@@ -368,7 +368,7 @@ export const api = {
 
   overview: (id: string, namespace: string) => call<Overview>('GET', `/api/clusters/${id}/overview?` + qs({ namespace })),
   clusterMap: (id: string, namespace?: string) => call<ClusterMap>('GET', `/api/clusters/${id}/map?` + qs({ namespace })),
-  graph: (id: string, namespace: string, kind?: string, name?: string) => call<Graph>('GET', `/api/clusters/${id}/graph?` + qs({ namespace, kind, name })),
+  graph: (id: string, namespace: string, kind?: string, name?: string, group?: string) => call<Graph>('GET', `/api/clusters/${id}/graph?` + qs({ namespace, kind, name, group: kind ? group : undefined })),
   search: (id: string, q: string) => call<{ hits: SearchHit[]; errors?: Record<string, string> }>('GET', `/api/clusters/${id}/search?` + qs({ q })),
   rolloutHistory: (id: string, namespace: string, name: string) => call<Revision[]>('GET', `/api/clusters/${id}/rollout/history?` + qs({ namespace, name })),
   rolloutUndo: (id: string, namespace: string, name: string, revision: number, dryRun: boolean) =>
@@ -378,8 +378,8 @@ export const api = {
 export const api3 = {
   securityTools: () => call<ScanTool[]>('GET', '/api/security/tools'),
   securityReport: (id: string, namespace: string) => call<SecurityReport>('GET', `/api/clusters/${id}/security/report?` + qs({ namespace })),
-  securityObject: (id: string, kind: string, namespace: string, name: string) =>
-    call<{ findings: Finding[]; score: number; applicable: boolean }>('GET', `/api/clusters/${id}/security/object?` + qs({ kind, namespace, name })),
+  securityObject: (id: string, kind: string, namespace: string, name: string, group?: string) =>
+    call<{ findings: Finding[]; score: number; applicable: boolean }>('GET', `/api/clusters/${id}/security/object?` + qs({ kind, namespace, name, group })),
   securityRBAC: (id: string, refresh = false) => call<{ risks: RBACRisk[]; errors: Record<string, string> }>('GET', `/api/clusters/${id}/security/rbac?` + qs({ refresh: refresh ? 1 : undefined })),
   securityScan: (id: string, tool: 'polaris' | 'kubescape', namespace: string, framework?: string) =>
     call<{ findings: Finding[] }>('POST', `/api/clusters/${id}/security/scan`, { tool, namespace, framework }),

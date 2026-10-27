@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type SearchHit } from '../../api'
-import { clusterName, useApp, useClusterColor } from '../../store'
+import { clusterName, findByKind, useApp, useClusterColor } from '../../store'
 import { openGrid } from '../shell/Sidebar'
 import { openObject } from '../../components/ObjectPanel'
 import { Search, type LucideIcon } from 'lucide-react'
-import { COMPONENT_ICONS, kindIcon } from '../shell/nav'
+import { behaviorKind, COMPONENT_ICONS, isBuiltinGroup, kindIcon } from '../shell/nav'
 import { TOOLS } from '../workspace/tools'
 
 interface Item {
@@ -18,6 +18,8 @@ interface Item {
 }
 
 const TOOL_ICON: Record<string, string> = { helm: 'helmReleases', charts: 'helmCharts' }
+const GROUP_LABEL: Record<Item['kind'], string> = { tool: 'Telas', type: 'Tipos de recurso', object: 'Objetos' }
+const ORDER: Item['kind'][] = ['tool', 'type', 'object']
 const SUGGESTED = ['Pod', 'Deployment', 'Service', 'ConfigMap', 'Secret', 'Ingress', 'Event', 'Node']
 
 function Dot({ id }: { id: string }) {
@@ -34,6 +36,9 @@ export function Palette({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false)
   const [sel, setSel] = useState(0)
   const input = useRef<HTMLInputElement>(null)
+  // With a single cluster connected, repeating its name on every row is noise.
+  const multi = Object.keys(connected).length > 1
+  const where = (id: string, extra = '') => [extra, multi ? clusterName(id) : ''].filter(Boolean).join(' · ')
   useEffect(() => input.current?.focus(), [])
 
   useEffect(() => {
@@ -68,21 +73,22 @@ export function Palette({ onClose }: { onClose: () => void }) {
     // Empty query: suggest the screens and the most used types of the cluster in focus.
     const home = active && connected[active] ? active : Object.keys(connected)[0]
     if (!f && home) {
-      for (const t of TOOLS) if (t.id !== 'create') out.push({ id: `tool:${home}:${t.id}`, clusterId: home, title: t.label, detail: clusterName(home), kind: 'tool', icon: COMPONENT_ICONS[TOOL_ICON[t.id] ?? t.id] ?? kindIcon(), run: () => t.open(home) })
+      for (const t of TOOLS) if (t.id !== 'create') out.push({ id: `tool:${home}:${t.id}`, clusterId: home, title: t.label, detail: where(home), kind: 'tool', icon: COMPONENT_ICONS[TOOL_ICON[t.id] ?? t.id] ?? kindIcon(), run: () => t.open(home) })
       for (const k of SUGGESTED) {
-        const r = connected[home].resources.find((x) => x.kind === k)
-        if (r) out.push({ id: `type:${home}:${r.group}/${r.resource}`, clusterId: home, title: r.kind, detail: clusterName(home), kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(home, r) })
+        // Built-in first: a CRD reusing the name (kind Node) is not the suggested Nodes.
+        const r = findByKind(home, k)
+        if (r) out.push({ id: `type:${home}:${r.group}/${r.resource}`, clusterId: home, title: r.kind, detail: where(home), kind: 'type', icon: kindIcon(behaviorKind(r.group, r.kind)), run: () => openGrid(home, r) })
       }
       return out
     }
     for (const [id, st] of Object.entries(connected)) {
       for (const t of TOOLS) {
-        if (f && t.label.toLowerCase().includes(f)) out.push({ id: `tool:${id}:${t.id}`, clusterId: id, title: t.label, detail: clusterName(id), kind: 'tool', icon: COMPONENT_ICONS[TOOL_ICON[t.id] ?? t.id] ?? kindIcon(), run: () => t.open(id) })
+        if (f && t.label.toLowerCase().includes(f)) out.push({ id: `tool:${id}:${t.id}`, clusterId: id, title: t.label, detail: where(id), kind: 'tool', icon: COMPONENT_ICONS[TOOL_ICON[t.id] ?? t.id] ?? kindIcon(), run: () => t.open(id) })
       }
       if (f.length >= 2) {
         for (const r of st.resources) {
           if (r.kind.toLowerCase().startsWith(f) || r.resource.startsWith(f) || r.shortNames?.includes(f)) {
-            out.push({ id: `type:${id}:${r.group}/${r.resource}`, clusterId: id, title: r.kind, detail: clusterName(id), kind: 'type', icon: kindIcon(r.kind), run: () => openGrid(id, r) })
+            out.push({ id: `type:${id}:${r.group}/${r.resource}`, clusterId: id, title: r.kind, detail: where(id, isBuiltinGroup(r.group) ? '' : r.group), kind: 'type', icon: kindIcon(behaviorKind(r.group, r.kind)), run: () => openGrid(id, r) })
           }
         }
       }
@@ -92,14 +98,14 @@ export function Palette({ onClose }: { onClose: () => void }) {
         id: `obj:${clusterId}:${hit.kind}/${hit.namespace}/${hit.name}`,
         clusterId,
         title: hit.name,
-        detail: `${hit.kind}${hit.namespace ? ' · ' + hit.namespace : ''} · ${clusterName(clusterId)}${hit.match !== 'name' ? ' · ' + hit.match : ''}`,
+        detail: [`${hit.kind}${hit.namespace ? ' · ' + hit.namespace : ''}`, multi ? clusterName(clusterId) : '', hit.match !== 'name' ? hit.match : ''].filter(Boolean).join(' · '),
         kind: 'object',
-        icon: kindIcon(hit.kind),
+        icon: kindIcon(behaviorKind(hit.group, hit.kind)),
         run: () => openObject(clusterId, hit.group, hit.kind, hit.name, hit.namespace),
       })
     }
-    return out.slice(0, 80)
-  }, [q, connected, hits, active])
+    return out.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)).slice(0, 80)
+  }, [q, connected, hits, active]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setSel(0), [q])
   const go = (it?: Item) => {
@@ -129,15 +135,17 @@ export function Palette({ onClose }: { onClose: () => void }) {
         />
         {busy && <span className="spinner" />}
         </div>
-        <div className="palette-list">
+        <div className="palette-list" role="listbox" aria-label="Resultados">
           {items.map((it, i) => (
-            <div key={it.id} className={`palette-item ${i === sel ? 'selected' : ''}`} onMouseEnter={() => setSel(i)} onClick={() => go(it)} data-testid="palette-item">
-              <it.icon size={16} className="p-icon" />
-              <span className={`pk pk-${it.kind}`}>{it.kind === 'object' ? 'obj' : it.kind === 'type' ? 'tipo' : 'tela'}</span>
-              <b>{it.title}</b>
-              <span className="muted small ellipsis">{it.detail}</span>
-              <span className="spacer" />
-              <Dot id={it.clusterId} />
+            <div key={it.id} role="option" aria-selected={i === sel}>
+              {(i === 0 || items[i - 1].kind !== it.kind) && <div className="palette-group" role="presentation">{GROUP_LABEL[it.kind]}</div>}
+              <div className={`palette-item ${i === sel ? 'selected' : ''}`} onMouseEnter={() => setSel(i)} onClick={() => go(it)} data-testid="palette-item">
+                <it.icon size={16} className="p-icon" />
+                <b>{it.title}</b>
+                <span className="muted small ellipsis">{it.detail}</span>
+                <span className="spacer" />
+                {multi && <Dot id={it.clusterId} />}
+              </div>
             </div>
           ))}
           {!busy && q.trim().length >= 2 && !items.length && <div className="pad small muted">Nada encontrado.</div>}

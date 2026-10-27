@@ -10,8 +10,16 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// Mask replaces a value that must not leave the machine.
-const Mask = "<redacted>"
+// Mask is the only placeholder the engine writes for a value that is not shown: Secret values
+// before an explicit reveal, and values that must not leave the machine (AI providers, MCP agents,
+// external scanners). Anything that writes back to the cluster refuses it (see IsMask).
+const Mask = "<hidden>"
+
+// legacyMask is what versions before 0.6 sent to AI providers and agents; still refused on write.
+const legacyMask = "<redacted>"
+
+// IsMask reports whether v is a masked placeholder rather than a real value.
+func IsMask(v string) bool { return v == Mask || v == legacyMask }
 
 const maxAnnotation = 200
 

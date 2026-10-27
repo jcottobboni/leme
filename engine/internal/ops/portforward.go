@@ -141,28 +141,27 @@ func (f *Forwards) Start(ctx context.Context, s *cluster.Session, req ForwardReq
 		Pod: podName, RemotePort: req.RemotePort, LocalPort: int(ports[0].Local),
 		URL: fmt.Sprintf("http://127.0.0.1:%d", ports[0].Local), Started: time.Now(), stop: stop,
 	}
+	return f.track(v, errCh, s.WriteScope()), nil
+}
+
+// track registers a running forward and watches it with one goroutine: it ends when the user stops
+// it, when the session is locked or disconnected (scope), or when the forwarder dies on its own
+// (pod deleted, connection lost) — then the entry is dropped instead of staying listed as live.
+func (f *Forwards) track(v *Forward, done <-chan error, scope context.Context) Forward {
 	f.mu.Lock()
-	f.byID[id] = v
+	f.byID[v.ID] = v
 	out := *v
 	f.mu.Unlock()
-	scope := s.WriteScope()
 	go func() {
 		select {
 		case <-scope.Done():
-			f.Stop(id)
-		case <-stop:
+			f.Stop(v.ID)
+		case <-v.stop:
+		case <-done:
+			f.Stop(v.ID)
 		}
 	}()
-	go func() {
-		if err := <-errCh; err != nil {
-			f.mu.Lock()
-			if cur, ok := f.byID[id]; ok {
-				cur.Error = err.Error()
-			}
-			f.mu.Unlock()
-		}
-	}()
-	return out, nil
+	return out
 }
 
 func resolveTarget(ctx context.Context, s *cluster.Session, req ForwardRequest) (string, int, error) {

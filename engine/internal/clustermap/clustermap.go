@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 	"github.com/jcottobboni/leme/engine/internal/project"
 )
 
@@ -20,39 +20,19 @@ const MaxWorkloads = 25000
 // It matches the default WebGL threshold of the UI.
 const CompactAbove = 1500
 
-// HealthCount counts pods per health (neutral ones only add to Total).
-type HealthCount struct {
-	Total int `json:"total"`
-	OK    int `json:"ok"`
-	Warn  int `json:"warn"`
-	Error int `json:"error"`
-}
-
-func (h *HealthCount) add(health string) {
-	h.Total++
-	switch health {
-	case "ok":
-		h.OK++
-	case "warn":
-		h.Warn++
-	case "error":
-		h.Error++
-	}
-}
-
 // Workload is one tile of the map.
 type Workload struct {
-	Group    string      `json:"group"`
-	Kind     string      `json:"kind"`
-	Name     string      `json:"name"`
-	Health   string      `json:"health"`
-	Status   string      `json:"status,omitempty"`
-	Ready    string      `json:"ready,omitempty"`
-	Pods     HealthCount `json:"pods"`
-	Services []string    `json:"services,omitempty"`
-	PVCs     int         `json:"pvcs,omitempty"`
-	Restarts int         `json:"restarts,omitempty"` // container restarts summed over the pods
-	Hosts    []string    `json:"hosts,omitempty"`    // Ingress hosts routing to one of its services
+	Group    string              `json:"group"`
+	Kind     string              `json:"kind"`
+	Name     string              `json:"name"`
+	Health   string              `json:"health"`
+	Status   string              `json:"status,omitempty"`
+	Ready    string              `json:"ready,omitempty"`
+	Pods     project.HealthCount `json:"pods"`
+	Services []string            `json:"services,omitempty"`
+	PVCs     int                 `json:"pvcs,omitempty"`
+	Restarts int                 `json:"restarts,omitempty"` // container restarts summed over the pods
+	Hosts    []string            `json:"hosts,omitempty"`    // Ingress hosts routing to one of its services
 }
 
 // App groups workloads of a namespace.
@@ -63,13 +43,13 @@ type App struct {
 
 // Namespace is one island.
 type Namespace struct {
-	Name      string      `json:"name"`
-	Status    string      `json:"status,omitempty"`
-	Pods      HealthCount `json:"pods"`
-	Apps      []App       `json:"apps"`
-	Services  int         `json:"services"`
-	Ingresses int         `json:"ingresses"`
-	PVCs      int         `json:"pvcs"`
+	Name      string              `json:"name"`
+	Status    string              `json:"status,omitempty"`
+	Pods      project.HealthCount `json:"pods"`
+	Apps      []App               `json:"apps"`
+	Services  int                 `json:"services"`
+	Ingresses int                 `json:"ingresses"`
+	PVCs      int                 `json:"pvcs"`
 }
 
 // ClusterMap is the endpoint payload.
@@ -90,7 +70,9 @@ type Input struct {
 	Errors                                                             map[string]string
 }
 
-type wkey struct{ ns, kind, name string }
+// wkey identifies a workload; the group keeps a CRD named like a built-in kind (an operator's
+// "Deployment") apart from the built-in one.
+type wkey struct{ ns, group, kind, name string }
 
 type wl struct {
 	w        Workload
@@ -109,18 +91,22 @@ func ownerOf(u *unstructured.Unstructured) (kind, name, apiVersion string) {
 	return "", "", ""
 }
 
-func groupOf(apiVersion string) string {
-	gv, _ := schema.ParseGroupVersion(apiVersion)
-	return gv.Group
+func templateLabels(group, kind string, u *unstructured.Unstructured) map[string]string {
+	p := kinds.PodTemplateMetaPath(group, kind)
+	if p == nil {
+		return nil
+	}
+	m, _, _ := unstructured.NestedStringMap(u.Object, append(p, "labels")...)
+	return m
 }
 
-func templateLabels(u *unstructured.Unstructured) map[string]string {
-	if u.GetKind() == "CronJob" {
-		m, _, _ := unstructured.NestedStringMap(u.Object, "spec", "jobTemplate", "spec", "template", "metadata", "labels")
-		return m
+func templateVolumes(group, kind string, u *unstructured.Unstructured) []any {
+	p := kinds.PodTemplatePath(group, kind)
+	if p == nil {
+		return nil
 	}
-	m, _, _ := unstructured.NestedStringMap(u.Object, "spec", "template", "metadata", "labels")
-	return m
+	v, _, _ := unstructured.NestedSlice(u.Object, append(p, "volumes")...)
+	return v
 }
 
 func volumeClaims(vols []any, into map[string]bool) {
@@ -161,17 +147,17 @@ func Build(in Input) *ClusterMap {
 	works := map[wkey]*wl{}
 	order := []wkey{}
 	add := func(group string, u *unstructured.Unstructured, kind string) *wl {
-		k := wkey{u.GetNamespace(), kind, u.GetName()}
+		k := wkey{u.GetNamespace(), group, kind, u.GetName()}
 		if w, ok := works[k]; ok {
 			return w
 		}
 		row := project.Project(u)
-		w := &wl{obj: u, claims: map[string]bool{}, labels: templateLabels(u), appLabel: u.GetLabels(),
+		w := &wl{obj: u, claims: map[string]bool{}, labels: templateLabels(group, kind, u), appLabel: u.GetLabels(),
 			w: Workload{Group: group, Kind: kind, Name: u.GetName(), Health: row.Health, Status: str(row, "status"), Ready: str(row, "ready")}}
 		if w.w.Ready == "" {
 			w.w.Ready = str(row, "completions")
 		}
-		if t, _, _ := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "volumes"); t != nil {
+		if t := templateVolumes(group, kind, u); t != nil {
 			volumeClaims(t, w.claims)
 		}
 		works[k] = w
@@ -190,55 +176,55 @@ func Build(in Input) *ClusterMap {
 	// Owner lookups for the intermediate controllers.
 	rsOwner := map[wkey]wkey{}
 	for _, u := range in.ReplicaSets {
-		if k, n, _ := ownerOf(u); k == "Deployment" {
-			rsOwner[wkey{u.GetNamespace(), "ReplicaSet", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "Deployment" && kinds.GroupOf(av) == "apps" {
+			rsOwner[wkey{u.GetNamespace(), "apps", "ReplicaSet", u.GetName()}] = wkey{u.GetNamespace(), "apps", k, n}
 		} else {
 			add("apps", u, "ReplicaSet") // standalone ReplicaSet
 		}
 	}
 	for _, u := range in.ReplicationControllers {
-		if k, n, _ := ownerOf(u); k == "DeploymentConfig" {
-			rsOwner[wkey{u.GetNamespace(), "ReplicationController", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "DeploymentConfig" && kinds.GroupOf(av) == "apps.openshift.io" {
+			rsOwner[wkey{u.GetNamespace(), "", "ReplicationController", u.GetName()}] = wkey{u.GetNamespace(), "apps.openshift.io", k, n}
 		} else {
 			add("", u, "ReplicationController")
 		}
 	}
 	for _, u := range in.Jobs {
-		if k, n, _ := ownerOf(u); k == "CronJob" {
-			rsOwner[wkey{u.GetNamespace(), "Job", u.GetName()}] = wkey{u.GetNamespace(), k, n}
+		if k, n, av := ownerOf(u); k == "CronJob" && kinds.GroupOf(av) == "batch" {
+			rsOwner[wkey{u.GetNamespace(), "batch", "Job", u.GetName()}] = wkey{u.GetNamespace(), "batch", k, n}
 		} else {
 			add("batch", u, "Job")
 		}
 	}
 
-	nsPods := map[string]*HealthCount{}
+	nsPods := map[string]*project.HealthCount{}
 	for _, p := range in.Pods {
 		ns := p.GetNamespace()
 		row := project.Project(p)
 		hc := nsPods[ns]
 		if hc == nil {
-			hc = &HealthCount{}
+			hc = &project.HealthCount{}
 			nsPods[ns] = hc
 		}
-		hc.add(row.Health)
+		hc.Add(row.Health)
 
 		var w *wl
-		if kind, name, av := ownerOf(p); kind != "" && kind != "Node" {
-			k := wkey{ns, kind, name}
+		if kind, name, av := ownerOf(p); kind != "" && !(kind == "Node" && kinds.GroupOf(av) == "") {
+			k := wkey{ns, kinds.GroupOf(av), kind, name}
 			if top, ok := rsOwner[k]; ok {
 				k = top
 			}
 			w = works[k]
 			if w == nil { // controller unknown (CRD operator, cache gap): synthesize it from the owner reference
-				w = &wl{claims: map[string]bool{}, appLabel: p.GetLabels(), w: Workload{Group: groupOf(av), Kind: k.kind, Name: k.name, Health: "neutral"}}
+				w = &wl{claims: map[string]bool{}, appLabel: p.GetLabels(), w: Workload{Group: k.group, Kind: k.kind, Name: k.name, Health: "neutral"}}
 				works[k] = w
 				order = append(order, k)
 			}
 		} else {
 			w = add("", p, "Pod")
-			w.w.Pods = HealthCount{} // the pod itself is its only pod, counted below
+			w.w.Pods = project.HealthCount{} // the pod itself is its only pod, counted below
 		}
-		w.w.Pods.add(row.Health)
+		w.w.Pods.Add(row.Health)
 		if w.labels == nil {
 			w.labels = p.GetLabels()
 		}

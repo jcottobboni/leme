@@ -101,11 +101,11 @@ func TestArgoSyncProposeAndApply(t *testing.T) {
 	entries, _ := s.audit.Recent(10)
 	var actions []string
 	for _, e := range entries {
-		if e.Source == "argocd" && e.Result == "ok" {
-			actions = append(actions, e.Action)
+		if (e.Source == "argocd" || e.Source == "ui") && e.Result == "ok" {
+			actions = append(actions, e.Source+":"+e.Action)
 		}
 	}
-	if strings.Join(actions, ",") != "propose,apply" && strings.Join(actions, ",") != "apply,propose" {
+	if strings.Join(actions, ",") != "argocd:apply,argocd:propose" {
 		t.Fatalf("audit: %+v", entries)
 	}
 	// A second sync while the requested operation is pending is refused.

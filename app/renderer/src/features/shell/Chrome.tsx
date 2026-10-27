@@ -39,6 +39,9 @@ function go(delta: number) {
   navigating = false
 }
 
+/** Shortcut modifier as the platform writes it: ⌘ on macOS, Ctrl elsewhere. */
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl'
+
 export function TopBar({ onSearch }: { onSearch: () => void }) {
   const { stack, pos } = useHistory()
   const hidden = useUi((s) => s.sidebarHidden)
@@ -49,21 +52,21 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
     <>
     <header className="topbar">
       <div className="brand"><Logo /> Leme</div>
-      <button className="icon-btn" title={`${hidden ? 'Mostrar' : 'Ocultar'} barra lateral (Ctrl+B)`} onClick={() => useUi.getState().update({ sidebarHidden: !hidden })}>
+      <button className="icon-btn" title={`${hidden ? 'Mostrar' : 'Ocultar'} barra lateral (${MOD}+B)`} aria-label={`${hidden ? 'Mostrar' : 'Ocultar'} barra lateral`} onClick={() => useUi.getState().update({ sidebarHidden: !hidden })}>
         <PanelLeft size={16} />
       </button>
-      <button className="icon-btn" title="Voltar (Alt+←)" disabled={pos <= 0} onClick={() => go(-1)}><ArrowLeft size={16} /></button>
-      <button className="icon-btn" title="Avançar (Alt+→)" disabled={pos >= stack.length - 1} onClick={() => go(1)}><ArrowRight size={16} /></button>
+      <button className="icon-btn" title="Voltar (Alt+←)" aria-label="Voltar" disabled={pos <= 0} onClick={() => go(-1)}><ArrowLeft size={16} /></button>
+      <button className="icon-btn" title="Avançar (Alt+→)" aria-label="Avançar" disabled={pos >= stack.length - 1} onClick={() => go(1)}><ArrowRight size={16} /></button>
       <button className="top-search" onClick={onSearch} data-testid="open-search">
         <Search size={14} />
         <span>Buscar recursos, objetos e telas…</span>
-        <kbd>Ctrl</kbd><kbd>K</kbd>
+        <kbd>{MOD}</kbd><kbd>K</kbd>
       </button>
       <div className="top-actions">
-        <button className="icon-btn" title="Port-forwards" onClick={() => openPanel('forwards', 'forwards', 'Port-forwards', {})}><Waypoints size={16} /></button>
-        <button className="icon-btn" data-testid="open-kubeconfigs" title="Arquivos kubeconfig" onClick={openKubeconfigs}><FolderCog size={16} /></button>
-        <button className="icon-btn" title="Recarregar kubeconfig" onClick={() => useApp.getState().loadClusters()}><RefreshCw size={16} /></button>
-        <button className="icon-btn" data-testid="theme-toggle" title={`Tema: ${{ system: 'do sistema', dark: 'escuro', light: 'claro' }[theme]} (clique para trocar)`} onClick={cycleTheme}>
+        <button className="icon-btn" title="Port-forwards ativos" aria-label="Port-forwards ativos" onClick={() => openPanel('forwards', 'forwards', 'Port-forwards', {})}><Waypoints size={16} /></button>
+        <button className="icon-btn" data-testid="open-kubeconfigs" title="Arquivos kubeconfig" aria-label="Arquivos kubeconfig" onClick={openKubeconfigs}><FolderCog size={16} /></button>
+        <button className="icon-btn" title="Reler o kubeconfig (novos contextos)" aria-label="Reler o kubeconfig" onClick={() => useApp.getState().loadClusters().then(() => useApp.getState().toast('ok', 'Kubeconfig relido'))}><RefreshCw size={16} /></button>
+        <button className="icon-btn" data-testid="theme-toggle" title={`Tema: ${{ system: 'do sistema', dark: 'escuro', light: 'claro' }[theme]} (clique para trocar)`} aria-label="Trocar tema" onClick={cycleTheme}>
           <ThemeIcon size={16} />
         </button>
       </div>
@@ -117,7 +120,7 @@ export function StatusBar() {
       <button className="sb-btn" onClick={() => openPanel('forwards', 'forwards', 'Port-forwards', {})}>
         <Waypoints size={11} /> {forwards} port-forward{forwards === 1 ? '' : 's'}
       </button>
-      <span className="sb-item"><Command size={11} /> Ctrl+K</span>
+      <span className="sb-item" title="Busca global">{MOD === '⌘' ? <><Command size={11} /> K</> : 'Ctrl+K'}</span>
       <span className="sb-item">Leme {__APP_VERSION__}</span>
     </footer>
   )
@@ -135,7 +138,7 @@ export function Home() {
         <div>
           <h2>Clusters</h2>
           <p>
-            {n} contextos no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · conexão sempre manual ·{' '}
+            {n} {n === 1 ? 'contexto' : 'contextos'} no kubeconfig · {nConnected} conectado{nConnected === 1 ? '' : 's'} · conexão sempre manual ·{' '}
             <button className="link" onClick={openKubeconfigs}>adicionar kubeconfigs</button>
           </p>
         </div>
@@ -146,16 +149,16 @@ export function Home() {
           <h4><ShieldCheck size={14} /> Segurança</h4>
           <ul>
             <li>Clusters remotos abrem em <b>somente leitura</b>; só os locais (kind, minikube…) abrem com escrita.</li>
-            {prod > 0 && <li><span className="badge badge-prod">PROD</span> {prod} contexto(s) de produção: para liberar escrita é preciso digitar o nome.</li>}
+            {prod > 0 && <li><span className="badge badge-prod">PROD</span> {prod} {prod === 1 ? 'contexto' : 'contextos'} de produção: para liberar escrita é preciso digitar o nome.</li>}
             <li>OpenShift: “Login OpenShift” no menu do cluster renova o token sem sair do app.</li>
           </ul>
         </div>
         <div className="card">
           <h4><Keyboard size={14} /> Atalhos</h4>
           <ul className="keys">
-            <li><kbd>Ctrl</kbd> <kbd>K</kbd> busca em todos os clusters conectados</li>
-            <li><kbd>Ctrl</kbd> <kbd>W</kbd> fecha a aba · <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd> reabre</li>
-            <li><kbd>Ctrl</kbd> <kbd>Tab</kbd> próxima aba · <kbd>Ctrl</kbd> <kbd>B</kbd> barra lateral</li>
+            <li><kbd>{MOD}</kbd> <kbd>K</kbd> busca em todos os clusters conectados</li>
+            <li><kbd>{MOD}</kbd> <kbd>W</kbd> fecha a aba · <kbd>{MOD}</kbd> <kbd>Shift</kbd> <kbd>T</kbd> reabre</li>
+            <li><kbd>Ctrl</kbd> <kbd>Tab</kbd> próxima aba · <kbd>{MOD}</kbd> <kbd>B</kbd> barra lateral</li>
             <li>Na lista: <kbd>↑</kbd> <kbd>↓</kbd> navegam no painel de detalhes, <kbd>Esc</kbd> fecha.</li>
             <li>Clique abre em <i>aba temporária</i>; duplo clique mantém a aba aberta.</li>
           </ul>

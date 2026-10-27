@@ -1,20 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, ApiError, type KubeEvent, type ObjectView, type Ref } from '../api'
 import { findKind, findResource, openPanel, useApp, type OpenOptions } from '../store'
 import { kindIcon, behaviorKind } from '../features/shell/nav'
-import { age, healthOfStatus } from '../format'
+import { behaviorOf } from '../features/shell/kinds'
+import { absDate, age, ago, healthOfStatus } from '../format'
 import { useWatch } from '../useWatch'
 import { YamlDiff, YamlEditor } from './Monaco'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
-import { TopologyView } from '../features/topology/Topology'
-import { MetricsView } from '../features/metrics/Metrics'
 import { Revisions } from '../features/workspace/Revisions'
 import { ObjectSecurity } from '../features/security/ObjectSecurity'
 import { DiagnosisTab } from '../features/analyze/DiagnosisTab'
 import { openCopilot } from '../features/ai/CopilotPanel'
 import { api3 } from '../api'
-import { ExternalLink, FilePen, Hammer, PanelTopOpen, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+import { Copy, ExternalLink, FilePen, Hammer, PanelTopOpen, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+
+// Heavy views (xyflow graph, uPlot charts) load only when their tab opens.
+const TopologyView = lazy(() => import('../features/topology/Topology').then((m) => ({ default: m.TopologyView })))
+const MetricsView = lazy(() => import('../features/metrics/Metrics').then((m) => ({ default: m.MetricsView })))
 
 export interface ObjectParams {
   clusterId: string
@@ -28,11 +31,6 @@ export interface ObjectParams {
 
 type Tab = 'overview' | 'yaml' | 'events' | 'diagnosis' | 'topology' | 'metrics' | 'revisions' | 'security'
 
-const METRIC_KINDS = ['Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'Node', 'DeploymentConfig']
-const SECURITY_KINDS = ['Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob', 'ReplicationController', 'DeploymentConfig']
-
-const SCALABLE = ['Deployment', 'StatefulSet', 'ReplicaSet', 'DeploymentConfig', 'ReplicationController']
-const RESTARTABLE = ['Deployment', 'StatefulSet', 'DaemonSet']
 
 export function openObject(clusterId: string, group: string, kind: string, name: string, namespace?: string, opts?: OpenOptions) {
   const r = findKind(clusterId, group, kind)
@@ -69,8 +67,11 @@ function Act({ icon: Icon, label, title, compact, danger, disabled, onClick }: {
 export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { params: ObjectParams; variant?: 'tab' | 'drawer'; onClose?: () => void; onPopOut?: () => void }) {
   const { clusterId, name, namespace } = params
   const kind = behaviorKind(params.group, params.kind)
+  const b = behaviorOf(params.group, params.kind)
   const compact = variant === 'drawer'
-  const ref: Ref = useMemo(() => ({ group: params.group, version: params.version, resource: params.resource, namespace, name }), [params, namespace, name])
+  // Built from primitives: a new params object with the same values must not refetch the object.
+  const { group, version, resource } = params
+  const ref: Ref = useMemo(() => ({ group, version, resource, namespace, name }), [group, version, resource, namespace, name])
   const readOnly = useApp((s) => s.connected[clusterId]?.readOnly ?? true)
   const shell = useApp((s) => !!s.connected[clusterId]?.shell)
   const toast = useApp((s) => s.toast)
@@ -163,7 +164,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           <div className="obj-names">
             <div className="obj-kind">
               <span className="kind-chip">{kind}</span>
-              {obj?.metadata?.creationTimestamp && <span className="muted">criado há {age(obj.metadata.creationTimestamp)}</span>}
+              {obj?.metadata?.creationTimestamp && <span className="muted" title={absDate(obj.metadata.creationTimestamp)}>criado {ago(obj.metadata.creationTimestamp)}</span>}
               {gone && <span className="badge badge-prod">EXCLUÍDO</span>}
             </div>
             <div className="obj-name">
@@ -173,46 +174,46 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           </div>
         </div>
         <div className="obj-actions">
-          {kind === 'Pod' && (
+          {b.pod && (
             <>
               <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`logs:${clusterId}:${namespace}/${name}`, 'logs', `logs ${name}`, { clusterId, namespace, pod: name })} />
               <Act compact={compact} icon={SquareTerminal} label="Shell" disabled={readOnly && !shell} title={readOnly && !shell ? 'Cluster em somente leitura: libere o shell no menu do cluster' : 'Shell no container'}
                 onClick={() => openPanel(`term:${clusterId}:${namespace}/${name}:${Date.now()}`, 'terminal', `sh ${name}`, { clusterId, namespace, pod: name })} />
             </>
           )}
-          {(kind === 'Pod' || kind === 'Service') && <ForwardButton compact={compact} clusterId={clusterId} kind={kind} namespace={namespace!} name={name} obj={obj} disabled={readOnly} />}
-          {SCALABLE.includes(kind) && <Act compact={compact} icon={Scaling} label="Escalar" disabled={readOnly} onClick={() => setConfirm('scale')} />}
-          {RESTARTABLE.includes(kind) && <Act compact={compact} icon={RotateCw} label="Reiniciar" disabled={readOnly} onClick={() => setConfirm('restart')} />}
-          {kind === 'DeploymentConfig' && <Act compact={compact} icon={Rocket} label="Rollout latest" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc rollout latest'} onClick={() => setConfirm('rollout-latest')} />}
-          {kind === 'BuildConfig' && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
-          {kind === 'Build' && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
-          {kind === 'Route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
+          {b.portForward && <ForwardButton compact={compact} clusterId={clusterId} kind={kind} namespace={namespace!} name={name} obj={obj} disabled={readOnly} />}
+          {b.scalable && <Act compact={compact} icon={Scaling} label="Escalar" disabled={readOnly} onClick={() => setConfirm('scale')} />}
+          {b.restartable && <Act compact={compact} icon={RotateCw} label="Reiniciar" disabled={readOnly} onClick={() => setConfirm('restart')} />}
+          {b.rolloutLatest && <Act compact={compact} icon={Rocket} label="Rollout latest" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc rollout latest'} onClick={() => setConfirm('rollout-latest')} />}
+          {b.startBuild && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
+          {b.buildLogs && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
+          {b.details === 'route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
           <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind: params.kind, namespace, name })} />
-          <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} onClick={() => { setTab('yaml'); if (view && !view.masked) setDraft(view.yaml) }} />
+          <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} title={readOnly ? 'Cluster em somente leitura' : 'Editar YAML'}
+            onClick={() => { setTab('yaml'); if (view?.masked) toast('info', 'Revele os valores do Secret antes de editar'); else if (view) setDraft(view.yaml) }} />
           <Act compact={compact} icon={Trash2} label="Excluir" danger disabled={readOnly || gone} onClick={() => setConfirm('delete')} />
           {(onPopOut || onClose) && <span className="sep" />}
           {onPopOut && <Act compact icon={PanelTopOpen} label="Abrir em aba" onClick={onPopOut} />}
           {onClose && <Act compact icon={X} label="Fechar painel (Esc)" onClick={onClose} />}
         </div>
       </div>
-      <div className="tabs">
-        {(['overview', 'yaml', 'events', 'diagnosis', ...(namespace ? ['topology'] : []), ...(METRIC_KINDS.includes(kind) ? ['metrics'] : []), ...(kind === 'Deployment' ? ['revisions'] : []), ...(SECURITY_KINDS.includes(kind) && namespace ? ['security'] : [])] as Tab[]).map((t) => (
-          <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} data-testid={`tab-${t}`}>
+      <div className="tabs" role="tablist">
+        {(['overview', 'yaml', 'events', 'diagnosis', ...(namespace ? ['topology'] : []), ...(b.metrics ? ['metrics'] : []), ...(b.revisions ? ['revisions'] : []), ...(b.security && namespace ? ['security'] : [])] as Tab[]).map((t) => (
+          <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} data-testid={`tab-${t}`}>
             {{ overview: 'Visão geral', yaml: 'YAML', events: 'Eventos', diagnosis: 'Diagnóstico', topology: 'Topologia', metrics: 'Métricas', revisions: 'Revisões', security: 'Segurança' }[t]}
           </button>
         ))}
       </div>
       {error && <div className="banner error">{error}</div>}
       <div className="obj-body">
-        {tab === 'overview' && obj && <Overview clusterId={clusterId} obj={obj} kind={kind} onReveal={() => load(true)} masked={!!view?.masked} />}
+        {tab === 'overview' && obj && <Overview clusterId={clusterId} obj={obj} group={params.group} kind={params.kind} onReveal={() => load(true)} masked={!!view?.masked} />}
         {tab === 'yaml' && view && (
           <div className="yaml-tab">
             <div className="toolbar">
               {!editing ? (
                 <>
-                  <button disabled={readOnly || gone} onClick={() => (view.masked ? toast('info', 'Revele os valores do Secret antes de editar') : setDraft(view.yaml))}>Editar</button>
-                  <button onClick={() => navigator.clipboard.writeText(view.yaml).then(() => toast('ok', 'YAML copiado'))}>Copiar</button>
-                  <button onClick={() => load()}>Recarregar</button>
+                  <button onClick={() => navigator.clipboard.writeText(view.yaml).then(() => toast('ok', 'YAML copiado'))}><Copy size={14} /> Copiar</button>
+                  <button onClick={() => load()}><RefreshCw size={14} /> Atualizar</button>
                   {view.masked && <button onClick={() => load(true)}>Revelar Secret</button>}
                   {readOnly && <span className="muted">somente leitura</span>}
                 </>
@@ -234,8 +235,10 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
         )}
         {tab === 'events' && obj && <EventsList clusterId={clusterId} namespace={namespace ?? obj.metadata?.namespace ?? ''} uid={obj.metadata?.uid} />}
         {tab === 'diagnosis' && <DiagnosisTab clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
-        {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} kind={params.kind} name={name} />}
-        {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
+        <Suspense fallback={<div className="pad"><span className="spinner" /></div>}>
+          {tab === 'topology' && namespace && <TopologyView clusterId={clusterId} namespace={namespace} group={params.group} kind={params.kind} name={name} />}
+          {tab === 'metrics' && obj && <ObjectMetrics clusterId={clusterId} kind={kind} obj={obj} />}
+        </Suspense>
         {tab === 'security' && namespace && <ObjectSecurity clusterId={clusterId} group={params.group} kind={params.kind} namespace={namespace} name={name} />}
         {tab === 'revisions' && namespace && <Revisions clusterId={clusterId} namespace={namespace} name={name} readOnly={readOnly} />}
       </div>
@@ -327,8 +330,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: string; obj: Record<string, any>; kind: string; masked: boolean; onReveal: () => void }) {
+function Overview({ clusterId, obj, group, kind, masked, onReveal }: { clusterId: string; obj: Record<string, any>; group: string; kind: string; masked: boolean; onReveal: () => void }) {
   const md = obj.metadata ?? {}
+  const b = behaviorOf(group, kind)
   const conditions: any[] = obj.status?.conditions ?? []
   return (
     <div className="overview">
@@ -336,7 +340,7 @@ function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: strin
         <table className="kv">
           <tbody>
             <tr><td>UID</td><td className="mono">{md.uid}</td></tr>
-            <tr><td>Criado</td><td>{md.creationTimestamp} ({age(md.creationTimestamp)})</td></tr>
+            <tr><td>Criado</td><td title={md.creationTimestamp}>{ago(md.creationTimestamp)} <span className="muted small">· {absDate(md.creationTimestamp)}</span></td></tr>
             {md.ownerReferences?.length > 0 && (
               <tr><td>Controlado por</td><td>
                 {md.ownerReferences.map((o: any) => (
@@ -349,11 +353,11 @@ function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: strin
           </tbody>
         </table>
       </Section>
-      {kind === 'Pod' && <PodDetails clusterId={clusterId} obj={obj} />}
-      {['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'DeploymentConfig', 'ReplicationController'].includes(kind) && <WorkloadDetails clusterId={clusterId} obj={obj} />}
-      {kind === 'Route' && <RouteDetails clusterId={clusterId} obj={obj} />}
-      {kind === 'Service' && <ServiceDetails clusterId={clusterId} obj={obj} />}
-      {(kind === 'ConfigMap' || kind === 'Secret') && <DataDetails obj={obj} secret={kind === 'Secret'} masked={masked} onReveal={onReveal} />}
+      {b.details === 'pod' && <PodDetails clusterId={clusterId} obj={obj} />}
+      {b.workload && <WorkloadDetails clusterId={clusterId} obj={obj} />}
+      {b.details === 'route' && <RouteDetails clusterId={clusterId} obj={obj} />}
+      {b.details === 'service' && <ServiceDetails clusterId={clusterId} obj={obj} />}
+      {(b.details === 'configmap' || b.details === 'secret') && <DataDetails obj={obj} secret={b.details === 'secret'} masked={masked} onReveal={onReveal} />}
       {conditions.length > 0 && (
         <Section title="Condições">
           <table className="table">
@@ -365,7 +369,7 @@ function Overview({ clusterId, obj, kind, masked, onReveal }: { clusterId: strin
                   <td><span className={`status s-${c.status === 'True' ? (/(Fail|Pressure)/.test(c.type) ? 'error' : 'ok') : c.status === 'False' && !/(Fail|Pressure)/.test(c.type) ? 'warn' : 'neutral'}`}>{c.status}</span></td>
                   <td>{c.reason}</td>
                   <td className="wrap">{c.message}</td>
-                  <td>{age(c.lastTransitionTime)}</td>
+                  <td title={absDate(c.lastTransitionTime)}>{ago(c.lastTransitionTime)}</td>
                 </tr>
               ))}
             </tbody>
@@ -408,7 +412,7 @@ function PodDetails({ clusterId, obj }: { clusterId: string; obj: Record<string,
       <Section title="Pod">
         <table className="kv">
           <tbody>
-            <tr><td>Fase</td><td><span className={`status s-${healthOfStatus(obj.status?.phase ?? '')}`}>{obj.status?.phase}</span></td></tr>
+            <tr><td>Fase</td><td><span className={`pill pill-${healthOfStatus(obj.status?.phase ?? '')}`}>{obj.status?.phase}</span></td></tr>
             <tr><td>Nó</td><td>{obj.spec?.nodeName ? <button className="link" onClick={() => openObject(clusterId, '', 'Node', obj.spec.nodeName)}>{obj.spec.nodeName}</button> : '—'}</td></tr>
             <tr><td>IP</td><td className="mono">{obj.status?.podIP ?? '—'}</td></tr>
             <tr><td>QoS</td><td>{obj.status?.qosClass}</td></tr>
@@ -427,7 +431,7 @@ function PodDetails({ clusterId, obj }: { clusterId: string; obj: Record<string,
                   <span className={`dot d-${healthOfStatus(state)}`} />
                   <b>{c.name}</b>
                   {c.init && <span className="chip">init</span>}
-                  <span className={`status s-${healthOfStatus(state)}`}>{state}</span>
+                  <span className={`pill pill-${healthOfStatus(state)}`}>{state}</span>
                   <span className="muted">reinícios: {st?.restartCount ?? 0}</span>
                 </div>
                 <div className="mono small">{c.image}</div>
@@ -462,13 +466,13 @@ function PodsFor({ clusterId, namespace, selector }: { clusterId: string; namesp
       <thead><tr><th>Pod</th><th>Prontos</th><th>Status</th><th>Reinícios</th><th>Nó</th><th>Idade</th></tr></thead>
       <tbody>
         {pods.map((p) => (
-          <tr key={p.uid} className="clickable" onClick={() => openObject(clusterId, '', 'Pod', p.name, namespace)}>
+          <tr key={p.uid} className="clickable" tabIndex={0} onClick={() => openObject(clusterId, '', 'Pod', p.name, namespace)} onKeyDown={(e) => e.key === 'Enter' && openObject(clusterId, '', 'Pod', p.name, namespace)}>
             <td><span className={`dot d-${p.health}`} />{p.name}</td>
-            <td>{String(p.cells.ready)}</td>
-            <td><span className={`status s-${healthOfStatus(String(p.cells.status))}`}>{String(p.cells.status)}</span></td>
-            <td>{String(p.cells.restarts)}</td>
+            <td className="num">{String(p.cells.ready)}</td>
+            <td><span className={`pill pill-${p.health && p.health !== 'neutral' ? p.health : healthOfStatus(String(p.cells.status))}`}>{String(p.cells.status)}</span></td>
+            <td className="num">{String(p.cells.restarts)}</td>
             <td>{String(p.cells.node ?? '')}</td>
-            <td>{age(p.created)}</td>
+            <td title={absDate(p.created)}>{age(p.created)}</td>
           </tr>
         ))}
         {!pods.length && <tr><td colSpan={6} className="muted">Nenhum pod correspondente.</td></tr>}
@@ -524,9 +528,13 @@ function WorkloadDetails({ clusterId, obj }: { clusterId: string; obj: Record<st
           {s.updatedReplicas !== undefined && <div className="stat"><b>{s.updatedReplicas}</b><span>atualizadas</span></div>}
           {s.availableReplicas !== undefined && <div className="stat"><b>{s.availableReplicas}</b><span>disponíveis</span></div>}
           {s.numberReady !== undefined && <div className="stat"><b>{s.numberReady}/{s.desiredNumberScheduled}</b><span>prontas (DS)</span></div>}
-          {obj.spec?.strategy?.type && <div className="stat"><b>{obj.spec.strategy.type}</b><span>estratégia</span></div>}
         </div>
-        <div className="small">Imagens: {(obj.spec?.template?.spec?.containers ?? []).map((c: any) => c.image).join(', ')}</div>
+        <table className="kv">
+          <tbody>
+            {(obj.spec?.strategy?.type || obj.spec?.updateStrategy?.type) && <tr><td>Estratégia</td><td>{obj.spec?.strategy?.type ?? obj.spec?.updateStrategy?.type}</td></tr>}
+            <tr><td>Imagens</td><td className="mono small">{(obj.spec?.template?.spec?.containers ?? []).map((c: any) => c.image).join(', ') || '—'}</td></tr>
+          </tbody>
+        </table>
       </Section>
       {sel && (
         <Section title="Pods">
@@ -586,6 +594,7 @@ function DataDetails({ obj, secret, masked, onReveal }: { obj: Record<string, an
 function EventsList({ clusterId, namespace, uid }: { clusterId: string; namespace: string; uid?: string }) {
   const [events, setEvents] = useState<KubeEvent[]>()
   const [err, setErr] = useState<string>()
+  const [type, setType] = useState<'' | 'Warning' | 'Normal'>('')
   useEffect(() => {
     if (!uid) return
     let stop = false
@@ -599,23 +608,31 @@ function EventsList({ clusterId, namespace, uid }: { clusterId: string; namespac
   }, [clusterId, namespace, uid])
   if (err) return <div className="banner error">{err}</div>
   if (!events) return <div className="pad"><span className="spinner" /></div>
-  const sorted = events.slice().sort((a, b) => (b.lastTimestamp ?? b.eventTime ?? '').localeCompare(a.lastTimestamp ?? a.eventTime ?? ''))
+  const sorted = events.filter((e) => !type || e.type === type).sort((a, b) => (b.lastTimestamp ?? b.eventTime ?? '').localeCompare(a.lastTimestamp ?? a.eventTime ?? ''))
+  const warnings = events.filter((e) => e.type === 'Warning').length
   return (
     <div className="pad-panel">
+      <div className="ev-filter">
+        <div className="seg" role="group" aria-label="Tipo de evento" data-testid="events-type">
+          {([['', `Todos (${events.length})`], ['Warning', `Warning (${warnings})`], ['Normal', `Normal (${events.length - warnings})`]] as const).map(([k, l]) => (
+            <button key={k} className={type === k ? 'on' : ''} aria-pressed={type === k} onClick={() => setType(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
       <table className="table">
         <thead><tr><th>Tipo</th><th>Motivo</th><th>Mensagem</th><th>Qtd</th><th>Origem</th><th>Última vez</th></tr></thead>
         <tbody>
           {sorted.map((e) => (
             <tr key={e.metadata.uid}>
-              <td><span className={`status s-${e.type === 'Warning' ? 'error' : 'ok'}`}>{e.type}</span></td>
+              <td><span className={`pill pill-${e.type === 'Warning' ? 'warn' : 'neutral'}`}>{e.type}</span></td>
               <td>{e.reason}</td>
               <td className="wrap">{e.message}</td>
               <td>{e.count ?? 1}</td>
               <td>{e.source?.component}</td>
-              <td>{age(e.lastTimestamp ?? e.eventTime ?? e.metadata.creationTimestamp)}</td>
+              <td title={absDate(e.lastTimestamp ?? e.eventTime ?? e.metadata.creationTimestamp)}>{ago(e.lastTimestamp ?? e.eventTime ?? e.metadata.creationTimestamp)}</td>
             </tr>
           ))}
-          {!sorted.length && <tr><td colSpan={6} className="muted">Nenhum evento recente.</td></tr>}
+          {!sorted.length && <tr><td colSpan={6} className="muted">{type ? `Nenhum evento do tipo ${type}.` : 'Nenhum evento recente.'}</td></tr>}
         </tbody>
       </table>
     </div>

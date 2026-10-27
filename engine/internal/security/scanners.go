@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jcottobboni/leme/engine/internal/redact"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
@@ -148,7 +149,7 @@ func redactEnv(o map[string]any) {
 						for _, e := range list {
 							if m, ok := e.(map[string]any); ok {
 								if _, has := m["value"]; has {
-									m["value"] = "<redacted>"
+									m["value"] = redact.Mask
 								}
 							}
 						}

@@ -68,6 +68,8 @@ test('CA-I2: personalizar apelido, sigla, cor e ícone reflete na hotbar, naviga
   await page.getByTestId('cp-save').click()
   await expect(hot.locator('.avatar-text')).toHaveText('🧪')
   await page.reload()
+  // Connecting lands on the Visão geral; the cluster cards are on Início.
+  await page.locator('.dv-tab .ctab', { hasText: 'Início' }).first().click()
   await expect(page.getByTestId(`cluster-card-${KIND_CONTEXT}`).locator('.cc-name')).toHaveText('Kind Lab')
   // Restore defaults.
   await page.getByTestId(`cluster-card-${KIND_CONTEXT}`).getByTitle('Personalizar').click()

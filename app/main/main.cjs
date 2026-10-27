@@ -313,6 +313,14 @@ async function createWindow() {
   win.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)))
   win.webContents.session.setPermissionCheckHandler((_wc, permission) => allowed.has(permission))
   mainWindow = win
+  // Closing the main window ends the app, even with Grafana embeds or dock popouts open: without it the app would
+  // keep running headless (engine included) and a second launch would focus a destroyed window.
+  win.on('closed', () => {
+    mainWindow = undefined
+    for (const w of embedWindows) if (!w.isDestroyed()) w.destroy()
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.destroy()
+    app.quit()
+  })
   await win.loadURL(`${origin}/#token=${token}`)
 }
 
@@ -334,7 +342,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on('second-instance', () => {
-  if (!mainWindow) return
+  if (!mainWindow || mainWindow.isDestroyed()) return
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.focus()
 })

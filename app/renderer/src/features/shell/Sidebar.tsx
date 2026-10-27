@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ChevronDown, ChevronRight, EllipsisVertical, LayoutGrid, Lock, LockOpen, Pencil, Plug, Search, Tags, TriangleAlert } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, EllipsisVertical, LayoutGrid, Lock, LockOpen, Pencil, Plug, Search, Star, Tags, TriangleAlert } from 'lucide-react'
 import type { ClusterInfo, Resource } from '../../api'
 import { clusterName, contextParts, ENV_LABEL, hostTag, openPanel, useApp, useIdentity, useUi, type ClusterIdentity, type OpenOptions } from '../../store'
 import { openTool } from '../workspace/tools'
-import { buildSections, kindIcon, plural, type NavSection } from './nav'
+import { behaviorKind, buildSections, isBuiltinGroup, kindIcon, plural, type NavSection } from './nav'
+
 import { clusterMenu, openLogin, openMenu, openProfile, unlockWrites } from './menu'
 
 export function gridPanelId(clusterId: string, r: Pick<Resource, 'group' | 'resource'>) {
@@ -164,7 +165,7 @@ export function Hotbar() {
   }
   return (
     <nav className={`hotbar ${labels ? 'with-labels' : ''}`} aria-label="Clusters">
-      <button className={`hot-btn ${!active ? 'active' : ''}`} title="Todos os clusters" data-testid="hotbar-catalog" onClick={() => useApp.getState().setActiveCluster(undefined)}>
+      <button className={`hot-btn ${!active ? 'active' : ''}`} title="Todos os clusters" aria-label="Todos os clusters" data-testid="hotbar-catalog" onClick={() => useApp.getState().setActiveCluster(undefined)}>
         <LayoutGrid size={18} />
       </button>
       <div className="hot-sep" />
@@ -172,7 +173,7 @@ export function Hotbar() {
         {shown.map((c) => <HotItem key={c.id} c={c} active={active === c.id} labels={labels} onHover={onHover} drag={drag} />)}
       </div>
       <div className="hot-foot">
-        <button className={`hot-btn small ${labels ? 'on' : ''}`} title={labels ? 'Ocultar nomes na hotbar' : 'Mostrar nomes na hotbar'} data-testid="hotbar-labels"
+        <button className={`hot-btn small ${labels ? 'on' : ''}`} title={labels ? 'Ocultar nomes na hotbar' : 'Mostrar nomes na hotbar'} aria-label={labels ? 'Ocultar nomes na hotbar' : 'Mostrar nomes na hotbar'} aria-pressed={labels} data-testid="hotbar-labels"
           onClick={() => useUi.getState().update({ hotbarLabels: !labels })}>
           <Tags size={15} />
         </button>
@@ -201,7 +202,7 @@ export function ClusterList({ compact }: { compact?: boolean }) {
       {active && (
         <label className="search-box">
           <Search size={14} />
-          <input placeholder={`Buscar em ${clusters.length} contextos…`} value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder={`Buscar em ${clusters.length} ${clusters.length === 1 ? 'contexto' : 'contextos'}…`} aria-label="Buscar contexto" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
       )}
       {groups.filter(([, l]) => l.length).map(([title, list]) => (
@@ -235,7 +236,7 @@ export function ClusterCards() {
       <div className="home-bar">
         <label className="search-box">
           <Search size={14} />
-          <input placeholder={`Buscar em ${clusters.length} contextos…`} value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder={`Buscar em ${clusters.length} ${clusters.length === 1 ? 'contexto' : 'contextos'}…`} aria-label="Buscar contexto" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <div className="seg">
           {labels.map(([k, l]) => <button key={k} className={f === k ? 'on' : ''} onClick={() => setF(k)}>{l}</button>)}
@@ -249,6 +250,16 @@ export function ClusterCards() {
   )
 }
 
+/** Connects (when needed) and focuses the cluster; a fresh connection lands on its Visão geral. */
+export async function openCluster(id: string) {
+  const app = useApp.getState()
+  if (app.connected[id]) return app.setActiveCluster(id)
+  if (app.connecting[id]) return
+  await app.connect(id)
+  // Preview tab: the first screen the user picks in the navigator takes its place.
+  if (useApp.getState().connected[id]) openTool('overview', id, { preview: true })
+}
+
 function ClusterCard({ c }: { c: ClusterInfo }) {
   const st = useApp((s) => s.connected[c.id])
   const connecting = useApp((s) => s.connecting[c.id])
@@ -256,21 +267,18 @@ function ClusterCard({ c }: { c: ClusterInfo }) {
   const id = useIdentity(c)
   const color = id.color
   const pinned = useUi((s) => s.pinned.includes(c.id))
-  const open = async () => {
-    const app = useApp.getState()
-    if (st) return app.setActiveCluster(c.id)
-    if (!connecting) await app.connect(c.id)
-  }
+  const open = () => openCluster(c.id)
   return (
-    <div className="cluster-card" style={{ '--cc': color } as React.CSSProperties} onClick={open} onContextMenu={(e) => openMenu(e, clusterMenu(c))} data-testid={`cluster-card-${c.name}`} title={c.source}>
+    <div className="cluster-card" style={{ '--cc': color } as React.CSSProperties} role="button" tabIndex={0} aria-label={`${id.name}: ${st ? 'abrir' : 'conectar'}`}
+      onClick={open} onKeyDown={(e) => e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open())} onContextMenu={(e) => openMenu(e, clusterMenu(c))} data-testid={`cluster-card-${c.name}`} title={c.source}>
       <div className="cc-top">
         <ClusterAvatar c={c} size={38} />
         <div className="cl-main">
           <span className="cc-name" title={c.name}>{id.name}</span>
           <span className="cc-server">{id.host && <><span className="cc-host">{id.host}</span>{' · '}</>}<span className="cc-ep">{c.server.replace(/^https?:\/\//, '')}</span></span>
         </div>
-        <button className="icon-btn" title="Personalizar" onClick={(e) => (e.stopPropagation(), openProfile(c))}><Pencil size={14} /></button>
-        <button className="icon-btn" title="Ações" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={16} /></button>
+        <button className="icon-btn" title="Personalizar" aria-label={`Personalizar ${id.name}`} onClick={(e) => (e.stopPropagation(), openProfile(c))}><Pencil size={14} /></button>
+        <button className="icon-btn" title="Ações" aria-label={`Ações de ${id.name}`} onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={16} /></button>
       </div>
       <div className="cc-tags">
         <span className={`prov prov-${c.provider}`}>{providerLabel(c.provider)}</span>
@@ -308,14 +316,11 @@ function ClusterRow({ c }: { c: ClusterInfo }) {
   const err = useApp((s) => s.connectError[c.id])
   // Same twin rule as HotItem: contexts with the same readable name on different clusters show the cluster tag.
   const twin = useApp((s) => id.name === contextParts(c.name).base && !!id.host && s.clusters.some((o) => o.id !== c.id && contextParts(o.name).base === contextParts(c.name).base))
-  const open = async () => {
-    const app = useApp.getState()
-    if (st) return app.setActiveCluster(c.id)
-    if (!connecting) await app.connect(c.id)
-  }
+  const open = () => openCluster(c.id)
   return (
     <div className="cluster-row-wrap">
-      <div className={`cluster-row ${st ? 'is-connected' : ''}`} onClick={open} onContextMenu={(e) => openMenu(e, clusterMenu(c))} title={`${c.server}\n${c.source}`} data-testid={`cluster-row-${c.name}`}>
+      <div className={`cluster-row ${st ? 'is-connected' : ''}`} role="button" tabIndex={0} aria-label={`${id.name}: ${st ? 'abrir' : 'conectar'}`}
+        onClick={open} onKeyDown={(e) => e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open())} onContextMenu={(e) => openMenu(e, clusterMenu(c))} title={`${c.server}\n${c.source}`} data-testid={`cluster-row-${c.name}`}>
         <ClusterAvatar c={c} size={28} />
         <span className="cl-main">
           <span className="cluster-name">{twin ? `${id.name} · ${hostTag(id.host)}` : id.name}</span>
@@ -325,7 +330,7 @@ function ClusterRow({ c }: { c: ClusterInfo }) {
         {c.prod && <span className="badge badge-prod" title="Servidor de produção: a escrita só é liberada digitando o nome do contexto">{id.env === 'prod' || id.env === 'none' ? 'PROD' : 'CLUSTER PROD'}</span>}
         {st?.readOnly && <span className="badge badge-ro" title="Somente leitura">RO</span>}
         {connecting && <span className="spinner" />}
-        <button className="icon-btn" title="Ações" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={14} /></button>
+        <button className="icon-btn" title="Ações" aria-label={`Ações de ${id.name}`} onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={14} /></button>
       </div>
       {!st && err && (
         <div className="cluster-error small">
@@ -368,8 +373,8 @@ function ClusterNavigator({ c }: { c: ClusterInfo }) {
             {st && <span className="muted">{st.version}</span>}
           </div>
         </div>
-        <button className="icon-btn" title="Personalizar cluster" data-testid="cluster-edit" onClick={() => openProfile(c)}><Pencil size={14} /></button>
-        <button className="icon-btn" title="Ações do cluster" data-testid="cluster-menu" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={16} /></button>
+        <button className="icon-btn" title="Personalizar cluster" aria-label="Personalizar cluster" data-testid="cluster-edit" onClick={() => openProfile(c)}><Pencil size={14} /></button>
+        <button className="icon-btn" title="Ações do cluster" aria-label="Ações do cluster" data-testid="cluster-menu" onClick={(e) => openMenu(e, clusterMenu(c))}><EllipsisVertical size={16} /></button>
       </div>
       {st && (
         <button
@@ -385,7 +390,7 @@ function ClusterNavigator({ c }: { c: ClusterInfo }) {
       {!st && (
         <div className="nav-connect">
           <p className="muted small">Este cluster não está conectado.</p>
-          <button className="primary" disabled={connecting} onClick={() => useApp.getState().connect(c.id)} data-testid="nav-connect">
+          <button className="primary" disabled={connecting} onClick={() => openCluster(c.id)} data-testid="nav-connect">
             <Plug size={14} /> {connecting ? 'Conectando…' : 'Conectar'}
           </button>
           {err && <p className="s-error small wrap">{err.message}</p>}
@@ -398,7 +403,7 @@ function ClusterNavigator({ c }: { c: ClusterInfo }) {
             <Search size={14} />
             <input placeholder="Filtrar…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           </label>
-          <div className="nav-tree">
+          <div className="nav-tree" role="tree" aria-label="Recursos do cluster" onKeyDown={navTreeKeys}>
             {sections.map((s) => (
               <Section key={s.id} s={s} c={c} open={!!filter || !(collapsed[s.id] ?? s.defaultCollapsed)} onToggle={() => toggle(s.id, !!s.defaultCollapsed)} activePanel={activePanel} />
             ))}
@@ -409,11 +414,34 @@ function ClusterNavigator({ c }: { c: ClusterInfo }) {
   )
 }
 
+/** Up/Down (and Home/End) move between the navigator's items; Enter or Space activates. */
+function navTreeKeys(e: React.KeyboardEvent<HTMLDivElement>) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')]
+  if (!items.length) return
+  e.preventDefault()
+  const i = items.indexOf(document.activeElement as HTMLElement)
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))
+  items[next]?.focus()
+}
+
+/** Keyboard activation for the navigator rows (Enter opens for keeps, like a double click). */
+function keyActivate(fn: (pin: boolean) => void) {
+  return (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      fn(e.key === 'Enter')
+    }
+  }
+}
+
 function Section({ s, c, open, onToggle, activePanel }: { s: NavSection; c: ClusterInfo; open: boolean; onToggle: () => void; activePanel?: string }) {
   const Icon = s.icon
+  const favKeys = useUi((u) => u.favoriteCrds)
+  const favorites = useMemo(() => (s.groups ?? []).flatMap((g) => g.kinds).filter((r) => favKeys.includes(`${r.group}/${r.resource}`)).sort((a, b) => a.kind.localeCompare(b.kind)), [s.groups, favKeys])
   return (
     <div className="nav-section" data-section={s.id}>
-      <div className="nav-section-head" onClick={onToggle}>
+      <div className="nav-section-head" role="treeitem" aria-expanded={open} tabIndex={0} data-nav onClick={onToggle} onKeyDown={keyActivate(onToggle)}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <Icon size={15} />
         <span className="cat-title">{s.label}</span>
@@ -428,6 +456,7 @@ function Section({ s, c, open, onToggle, activePanel }: { s: NavSection; c: Clus
             )
           })}
           {s.kinds.map((r) => <KindItem key={r.group + r.resource} r={r} c={c} activePanel={activePanel} />)}
+          {favorites.map((r) => <KindItem key={'fav' + r.group + r.resource} r={r} c={c} activePanel={activePanel} favorite />)}
           {s.groups?.map((g) => <CrdGroup key={g.group} group={g.group} kinds={g.kinds} c={c} activePanel={activePanel} />)}
         </div>
       )}
@@ -438,9 +467,10 @@ function Section({ s, c, open, onToggle, activePanel }: { s: NavSection; c: Clus
 function CrdGroup({ group, kinds, c, activePanel }: { group: string; kinds: Resource[]; c: ClusterInfo; activePanel?: string }) {
   const key = `crd:${group}`
   const open = !useUi((s) => s.collapsed[key] ?? true)
+  const toggle = () => useUi.getState().update({ collapsed: { ...useUi.getState().collapsed, [key]: open } })
   return (
     <div className="nav-crd">
-      <div className="nav-item nav-crd-head" onClick={() => useUi.getState().update({ collapsed: { ...useUi.getState().collapsed, [key]: open } })} title={group}>
+      <div className="nav-item nav-crd-head" role="treeitem" aria-expanded={open} tabIndex={0} data-nav onClick={toggle} onKeyDown={keyActivate(toggle)} title={group}>
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <span className="ellipsis">{group}</span>
         <span className="muted small">{kinds.length}</span>
@@ -450,22 +480,37 @@ function CrdGroup({ group, kinds, c, activePanel }: { group: string; kinds: Reso
   )
 }
 
-function KindItem({ r, c, activePanel, indent }: { r: Resource; c: ClusterInfo; activePanel?: string; indent?: boolean }) {
+function KindItem({ r, c, activePanel, indent, favorite }: { r: Resource; c: ClusterInfo; activePanel?: string; indent?: boolean; favorite?: boolean }) {
+  const builtin = isBuiltinGroup(r.group)
+  const key = `${r.group}/${r.resource}`
+  const fav = useUi((u) => !builtin && u.favoriteCrds.includes(key))
+  const toggleFav = () => {
+    const list = useUi.getState().favoriteCrds
+    useUi.getState().update({ favoriteCrds: list.includes(key) ? list.filter((k) => k !== key) : [...list, key] })
+  }
+  // Built-ins keep the plain testid; a CRD adds its group so a CRD "Node" never collides with the real Nodes.
+  const tid = builtin ? `nav-kind-${r.kind}` : `nav-kind-${r.kind}.${r.group}`
   return (
     <NavItem
-      icon={kindIcon(r.kind)}
+      icon={kindIcon(behaviorKind(r.group, r.kind))}
       label={plural(r.kind)}
       title={`${r.resource}${r.group ? '.' + r.group : ''}/${r.version}`}
       active={gridPanelId(c.id, r) === activePanel}
-      testid={`nav-kind-${r.kind}`}
+      testid={favorite ? `nav-fav-${r.kind}.${r.group}` : tid}
       indent={indent}
       onOpen={(pin) => openGrid(c.id, r, { preview: !pin, from: 'nav' })}
+      extra={!builtin && (
+        <button className={`icon-btn nav-pin ${fav ? 'on nav-fav' : ''}`} title={fav ? 'Remover dos favoritos' : 'Fixar no topo de Custom Resources'} aria-label={fav ? `Remover ${plural(r.kind)} dos favoritos` : `Fixar ${plural(r.kind)} nos favoritos`}
+          aria-pressed={fav} tabIndex={-1} data-testid={`nav-star-${r.kind}.${r.group}`} onClick={(e) => (e.stopPropagation(), toggleFav())} onDoubleClick={(e) => e.stopPropagation()}>
+          <Star size={12} fill={fav ? 'currentColor' : 'none'} />
+        </button>
+      )}
     />
   )
 }
 
-function NavItem({ icon: Icon, label, title, active, testid, indent, onOpen }: {
-  icon: React.ComponentType<{ size?: number }>; label: string; title?: string; active?: boolean; testid?: string; indent?: boolean; onOpen: (pin: boolean) => void
+function NavItem({ icon: Icon, label, title, active, testid, indent, onOpen, extra }: {
+  icon: React.ComponentType<{ size?: number }>; label: string; title?: string; active?: boolean; testid?: string; indent?: boolean; onOpen: (pin: boolean) => void; extra?: React.ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -477,11 +522,17 @@ function NavItem({ icon: Icon, label, title, active, testid, indent, onOpen }: {
       className={`nav-item kind ${active ? 'active' : ''} ${indent ? 'indent' : ''}`}
       title={title ?? label}
       data-testid={testid}
+      role="treeitem"
+      aria-selected={!!active}
+      tabIndex={active ? 0 : -1}
+      data-nav
       onClick={() => onOpen(false)}
       onDoubleClick={() => onOpen(true)}
+      onKeyDown={keyActivate(onOpen)}
     >
       <Icon size={14} />
       <span className="ellipsis">{label}</span>
+      {extra}
     </div>
   )
 }

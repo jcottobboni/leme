@@ -5,6 +5,8 @@ import { openPanel, useApp, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
 import { NamespaceSelect } from '../../components/ResourceGrid'
 import { ClusterGate } from '../common'
+import { PanelHeader } from '../../components/PanelHeader'
+import { CircleHelp, Play, Timer } from 'lucide-react'
 import { buildRows, density, matches, type Filter, type Row } from './model'
 
 const LABEL_W = 300
@@ -291,21 +293,19 @@ function Timeline({ clusterId }: { clusterId: string }) {
 
   return (
     <div className="object-panel timeline-panel">
-      <div className="toolbar">
-        <NamespaceSelect clusterId={clusterId} />
-        {WINDOWS.map(([l, ms]) => (
-          <button key={l} className={live && win === ms ? 'primary' : ''} onClick={() => { setWin(ms); setLive(true) }}>{l}</button>
-        ))}
-        <select value={type} onChange={(e) => setType(e.target.value as Filter['type'])}>
+      <PanelHeader icon={Timer} title="Timeline de eventos" scope={<NamespaceSelect clusterId={clusterId} />} actions={[
+        { key: 'window', label: 'Janela', value: live ? String(win) : '', onSelect: (v) => { setWin(Number(v)); setLive(true) }, options: WINDOWS.map(([l, ms]) => ({ value: String(ms), label: l, title: `Últimos ${l}, ao vivo` })) },
+        ...(!live ? [{ key: 'live', label: 'Ao vivo', icon: Play, keep: true, onClick: () => setLive(true) }] : []),
+        { key: 'help', label: 'Como navegar', icon: CircleHelp, iconOnly: true, keep: true, title: 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas', onClick: () => useApp.getState().toast('info', 'Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas') },
+      ]}>
+        <select value={type} onChange={(e) => setType(e.target.value as Filter['type'])} aria-label="Tipo de evento">
           <option value="">Todos os tipos</option>
           <option value="Warning">Só Warning</option>
           <option value="Normal">Só Normal</option>
         </select>
-        <input className="search" placeholder="Filtrar motivo, mensagem, objeto…" value={text} onChange={(e) => setText(e.target.value)} />
-        <span className="muted small">{events.length} eventos retidos · {total} na janela</span>
-        {!live && <button onClick={() => setLive(true)}>Ao vivo</button>}
-        <span className="muted small" title="Ctrl + roda: zoom · Shift + roda ou arrastar: mover no tempo · roda: rolar linhas">?</span>
-      </div>
+        <input className="search" placeholder="Filtrar motivo, mensagem, objeto…" aria-label="Filtrar eventos" value={text} onChange={(e) => setText(e.target.value)} />
+        <span className="muted small ph-info">{events.length} eventos retidos · {total} na janela</span>
+      </PanelHeader>
       {error && <div className="banner error">{error}</div>}
       <div className="timeline-host" ref={host} data-testid="timeline" data-rows={rows.slice(0, 300).map((r) => r.key).join('\n')}>
         <canvas

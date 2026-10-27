@@ -5,6 +5,8 @@ import { api, type ChartHit, type ChartInfo } from '../../api'
 import { clusterName, useApp } from '../../store'
 import { YamlEditor } from '../../components/Monaco'
 import { ErrorBanner, Tabs, useAsync } from '../common'
+import { pressable } from '../../components/a11y'
+import { PanelHeader, refreshAction } from '../../components/PanelHeader'
 import { Review, type ReviewState } from './Review'
 import { openRelease } from './HelmReleases'
 
@@ -149,17 +151,19 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
   const { data: hits, error, loading } = useAsync(() => api.helmSearch(q), [q, rev])
   const [sel, setSel] = useState<ChartHit>()
   return (
-    <div className="split">
+    <div className="object-panel">
+    <PanelHeader icon={Package} title="Helm charts" actions={[refreshAction(() => setRev((r) => r + 1), loading)]} />
+    <div className="split" style={{ flex: 1, minHeight: 0, height: 'auto' }}>
       <div className="split-left">
         <Repos onChanged={() => setRev((r) => r + 1)} />
         <div className="toolbar">
-          <input className="search" placeholder="Buscar charts…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="chart-search" />
+          <input className="search" placeholder="Buscar charts…" aria-label="Buscar charts" value={q} onChange={(e) => setQ(e.target.value)} data-testid="chart-search" />
           {loading && <span className="spinner" />}
         </div>
         <ErrorBanner error={error} />
         <div className="list">
           {hits?.map((h) => (
-            <div key={h.ref} className={`list-item ${sel?.ref === h.ref ? 'selected' : ''}`} onClick={() => setSel(h)} data-testid={`chart-${h.ref}`}>
+            <div key={h.ref} className={`list-item ${sel?.ref === h.ref ? 'selected' : ''}`} {...pressable(() => setSel(h))} aria-pressed={sel?.ref === h.ref} data-testid={`chart-${h.ref}`}>
               <div><b>{h.ref}</b> <span className="muted small">{h.version}</span>{h.deprecated && <span className="badge badge-ro">deprecated</span>}</div>
               <div className="small muted ellipsis">{h.description}</div>
             </div>
@@ -168,6 +172,7 @@ export function HelmChartsPanel({ params }: IDockviewPanelProps<{ clusterId?: st
         </div>
       </div>
       <div className="split-right">{sel ? <ChartDetail key={sel.ref} hit={sel} clusterId={params.clusterId} /> : <div className="empty"><Package size={22} /><span>Selecione um chart à esquerda para ver detalhes.</span></div>}</div>
+    </div>
     </div>
   )
 }

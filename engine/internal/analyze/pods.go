@@ -6,6 +6,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/jcottobboni/leme/engine/internal/kinds"
 )
 
 func refOf(u *unstructured.Unstructured) Ref {
@@ -16,6 +18,11 @@ func refOf(u *unstructured.Unstructured) Ref {
 func (c *scope) diagnose(u *unstructured.Unstructured, deep bool) []Finding {
 	var out []Finding
 	g := u.GroupVersionKind().Group
+	if !kinds.Builtin(g) {
+		// A CRD may reuse a built-in kind name (Longhorn Node, Knative Route, Volcano Job): the
+		// built-in rules would read fields it does not have and report false problems.
+		return nil
+	}
 	switch u.GetKind() {
 	case "Pod":
 		out = c.podFindings(u)

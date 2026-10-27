@@ -21,8 +21,9 @@ export interface Diagnosis {
 }
 
 export const analyzeApi = {
+  /** Findings of a namespace (or the cluster) plus the kinds that could not be listed ("group/resource" -> error). */
   namespace: (clusterId: string, namespace: string) =>
-    call<{ findings: Diagnosis[] }>('GET', `/api/clusters/${encodeURIComponent(clusterId)}/diagnose?${qs({ namespace })}`).then((r) => r.findings),
+    call<{ findings: Diagnosis[]; errors?: Record<string, string> }>('GET', `/api/clusters/${encodeURIComponent(clusterId)}/diagnose?${qs({ namespace })}`),
   object: (clusterId: string, ref: DiagRef) =>
     call<{ findings: Diagnosis[] }>('GET', `/api/clusters/${encodeURIComponent(clusterId)}/diagnose?${qs({ ...ref })}`).then((r) => r.findings),
 }

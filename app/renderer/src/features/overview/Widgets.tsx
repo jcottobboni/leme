@@ -4,6 +4,7 @@ import type { NamespaceStat, Overview } from '../../api'
 import { bytes, cpu } from '../../format'
 import { openTopology } from '../topology/Topology'
 import '../metrics/charts.css'
+import { pressable } from '../../components/a11y'
 
 export const PHASES: [string, string][] = [['Running', 'var(--ok)'], ['Pending', 'var(--warn)'], ['Succeeded', 'var(--accent)'], ['Failed', 'var(--error)'], ['Unknown', 'var(--neutral)']]
 
@@ -50,7 +51,7 @@ export function CommitCards({ o }: { o: Overview }) {
   return (
     <div className="commit-grid">
       <Commit icon={<Box size={15} />} title="Pods" req={o.requests.pods ?? 0} alloc={o.allocatable.pods ?? 0} fmt={String} />
-      <Commit icon={<Cpu size={15} />} title="CPU" req={o.requests.cpu} alloc={o.allocatable.cpu} fmt={(m) => (m >= 1000 ? `${cpu(m)} cores` : cpu(m))} />
+      <Commit icon={<Cpu size={15} />} title="CPU" req={o.requests.cpu} alloc={o.allocatable.cpu} fmt={(m) => cpu(m)} />
       <Commit icon={<Server size={15} />} title="Memória" req={o.requests.memory} alloc={o.allocatable.memory} fmt={bytes} />
     </div>
   )
@@ -97,7 +98,7 @@ export function NamespacesTable({ clusterId, stats, active, onPick }: { clusterI
     })
   }, [stats, sort])
   const th = (key: SortKey, label: string, cls = '') => (
-    <th className={`sortable ${cls}`} onClick={() => setSort((s) => ({ key, dir: s.key === key ? (-s.dir as 1 | -1) : key === 'name' ? 1 : -1 }))} aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
+    <th className={`sortable ${cls}`} {...pressable(() => setSort((s) => ({ key, dir: s.key === key ? (-s.dir as 1 | -1) : key === 'name' ? 1 : -1 })), null)} aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
       {label}{sort.key === key && <span className="arrow">{sort.dir === 1 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}</span>}
     </th>
   )
@@ -108,7 +109,7 @@ export function NamespacesTable({ clusterId, stats, active, onPick }: { clusterI
       </thead>
       <tbody>
         {rows.map((s) => (
-          <tr key={s.name} className={`clickable${active === s.name ? ' ns-active' : ''}`} data-testid={`ns-row-${s.name}`} onClick={() => onPick(active === s.name ? '' : s.name)} title="Filtrar por este namespace">
+          <tr key={s.name} className={`clickable${active === s.name ? ' ns-active' : ''}`} data-testid={`ns-row-${s.name}`} {...pressable(() => onPick(active === s.name ? '' : s.name), null)} aria-selected={active === s.name} title="Filtrar por este namespace">
             <td>{s.name}</td>
             <td style={{ minWidth: 220 }}><PodBar pods={s.pods} /></td>
             <td className="num">{cpu(s.requests.cpu)}</td>
@@ -144,7 +145,7 @@ export function TopConsumers({ stats, onPick }: { stats: NamespaceStat[]; onPick
       {top.length === 0 && <div className="ov-empty"><GaugeIcon size={20} />Nenhum consumo para exibir.</div>}
       <div className="top-bars">
         {top.map((s) => (
-          <div className="top-row" key={s.name} onClick={() => onPick(s.name)} title={s.name}>
+          <div className="top-row" key={s.name} {...pressable(() => onPick(s.name))} title={`Filtrar por ${s.name}`}>
             <span className="top-name">{s.name}</span>
             <div className="top-track"><div className={`top-fill${metric === 'memory' ? ' mem' : ''}`} style={{ width: `${max ? (val(s) / max) * 100 : 0}%` }} /></div>
             <span className="top-val">{fmt(val(s))}</span>

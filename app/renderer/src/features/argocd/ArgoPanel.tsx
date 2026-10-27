@@ -7,7 +7,9 @@ import { openObject } from '../../components/ObjectPanel'
 import { openTopology } from '../topology/Topology'
 import { ConfirmDialog, Modal } from '../../components/Dialogs'
 import { YamlDiff } from '../../components/Monaco'
-import { ClusterGate, Empty, ErrorBanner, PanelHeader, Partial, RefreshButton, useAsync } from '../common'
+import { ClusterGate, Empty, ErrorBanner, Partial, useAsync } from '../common'
+import { PanelHeader, RefreshBtn, refreshAction } from '../../components/PanelHeader'
+import { pressable } from '../../components/a11y'
 import {
   argoApi, healthTone, HEALTH_LABEL, phaseTone, syncTone, SYNC_LABEL,
   type ArgoAction, type ArgoApp, type ArgoProposal, type ArgoResource, type ArgoSource,
@@ -54,7 +56,7 @@ function Argo({ clusterId }: { clusterId: string }) {
   if (data && !data.installed) {
     return (
       <div className="grid-panel" data-testid="argocd-panel">
-        <PanelHeader icon={<GitPullRequestArrow size={15} />} title="Argo CD"><span className="spacer" /><RefreshButton onClick={reload} loading={loading} /></PanelHeader>
+        <PanelHeader icon={GitPullRequestArrow} title="Argo CD" actions={[refreshAction(reload, loading)]} />
         <div className="empty argo-absent" data-testid="argo-not-installed">
           <GitPullRequestArrow size={26} />
           <b>Argo CD não encontrado neste cluster</b>
@@ -66,8 +68,8 @@ function Argo({ clusterId }: { clusterId: string }) {
 
   return (
     <div className="grid-panel" data-testid="argocd-panel">
-      <PanelHeader icon={<GitPullRequestArrow size={15} />} title="Argo CD">
-        <input className="search" placeholder="Buscar application…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="argo-search" />
+      <PanelHeader icon={GitPullRequestArrow} title="Argo CD" actions={[refreshAction(reload, loading)]}>
+        <input className="search" placeholder="Buscar aplicação…" aria-label="Buscar aplicação" value={q} onChange={(e) => setQ(e.target.value)} data-testid="argo-search" />
         <select value={ns} onChange={(e) => setNs(e.target.value)} title="Namespace da Application" data-testid="argo-ns">
           <option value="">Todos os namespaces</option>
           {namespaces.map((n) => <option key={n}>{n}</option>)}
@@ -81,8 +83,6 @@ function Argo({ clusterId }: { clusterId: string }) {
           {Object.entries(HEALTH_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <span className="muted">{rows.length} de {apps.length}</span>
-        <span className="spacer" />
-        <RefreshButton onClick={reload} loading={loading} />
       </PanelHeader>
       <ErrorBanner error={error} />
       <Partial errors={data?.errors} />
@@ -91,11 +91,11 @@ function Argo({ clusterId }: { clusterId: string }) {
           {!loading && !rows.length ? (
             <div className="empty">
               <GitPullRequestArrow size={22} />
-              <span>{apps.length ? 'Nenhuma Application com estes filtros.' : 'Nenhuma Application do Argo CD neste cluster.'}</span>
+              <span>{apps.length ? 'Nenhuma aplicação com estes filtros.' : 'Nenhuma Application do Argo CD neste cluster.'}</span>
             </div>
           ) : (
             <table className="table">
-              <thead><tr><th>Application</th><th>Sync</th><th>Saúde</th><th>Projeto</th><th>Origem</th><th>Destino</th></tr></thead>
+              <thead><tr><th>Aplicação</th><th>Sync</th><th>Saúde</th><th>Projeto</th><th>Origem</th><th>Destino</th></tr></thead>
               <tbody>
                 {rows.map((a) => (
                   <AppRow key={a.namespace + '/' + a.name} a={a} active={sel?.namespace === a.namespace && sel?.name === a.name}
@@ -114,7 +114,7 @@ function Argo({ clusterId }: { clusterId: string }) {
 function AppRow({ a, active, onClick }: { a: ArgoApp; active: boolean; onClick: () => void }) {
   const src = a.source ?? a.sources?.[0]
   return (
-    <tr className={`clickable ${active ? 'argo-active' : ''}`} onClick={onClick} data-testid={`argo-app-${a.name}`}>
+    <tr className={`clickable ${active ? 'argo-active' : ''}`} {...pressable(onClick, null)} aria-selected={active} data-testid={`argo-app-${a.name}`}>
       <td><span className={`dot d-${healthTone(a.health)}`} /><b>{a.name}</b> <span className="muted small">{a.namespace}</span></td>
       <td><SyncBadge s={a.sync} />{a.operationPhase === 'Running' && <span className="argo-running" title="Operação em andamento"><RotateCw size={12} className="spin-icon" /></span>}</td>
       <td><HealthBadge h={a.health} /></td>
@@ -162,7 +162,7 @@ function AppDetail({ clusterId, ns, name, onClose, onChanged }: { clusterId: str
         <span className="muted small">{ns}</span>
         {d && <><SyncBadge s={d.sync} /><HealthBadge h={d.health} /></>}
         <span className="spacer" />
-        <button className="icon-btn" onClick={onClose} title="Fechar detalhe">×</button>
+        <button className="icon-btn" onClick={onClose} title="Fechar detalhe" aria-label="Fechar detalhe">×</button>
       </div>
       <ErrorBanner error={error} />
       {!d ? (loading ? <div className="pad"><span className="spinner" /></div> : null) : (
@@ -184,7 +184,7 @@ function AppDetail({ clusterId, ns, name, onClose, onChanged }: { clusterId: str
               </button>
             )}
             <span className="spacer" />
-            <RefreshButton onClick={reload} loading={loading} />
+            <RefreshBtn onClick={reload} loading={loading} />
           </div>
           {blocked && <div className="argo-note" data-testid="argo-readonly"><Lock size={13} /> {blocked}</div>}
           {running && <div className="argo-note">Há uma operação {d.pendingOperation && d.operationState?.phase !== 'Running' ? 'pedida, aguardando o controlador do Argo CD' : 'em andamento'}: o Sync fica bloqueado até terminar.</div>}

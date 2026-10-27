@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { behaviorKind } from '../shell/nav'
+import { behaviorOf } from '../shell/kinds'
 import { Copy, Filter, PanelRightOpen, PanelTopOpen, RotateCw, Scaling, ScrollText, SquareTerminal, Trash2 } from 'lucide-react'
 import { api, type Ref, type Resource, type Row } from '../../api'
 import { openPanel, useApp } from '../../store'
 import { ConfirmDialog, PromptDialog } from '../../components/Dialogs'
 import type { MenuItem } from '../shell/menu'
 
-export const SCALABLE = ['Deployment', 'StatefulSet', 'ReplicaSet', 'DeploymentConfig', 'ReplicationController']
-export const RESTARTABLE = ['Deployment', 'StatefulSet', 'DaemonSet']
 
 export function refOf(res: Resource, row: Row): Ref {
   return { group: res.group, version: res.version, resource: res.resource, namespace: row.namespace, name: row.name }
@@ -31,21 +29,21 @@ export function useRowActions(clusterId: string, res: Resource | undefined, open
 
   const menuFor = (row: Row): MenuItem[] => {
     if (!res) return []
-    const kind = behaviorKind(res.group, res.kind)
+    const b = behaviorOf(res.group, res.kind)
     const items: MenuItem[] = [
       { label: 'Ver detalhes', icon: PanelRightOpen, hint: 'Enter', onClick: () => open.drawer(row) },
       { label: 'Abrir em aba', icon: PanelTopOpen, hint: 'duplo clique', onClick: () => open.tab(row) },
     ]
-    if (kind === 'Pod') {
+    if (b.pod) {
       items.push(
         { separator: true },
         { label: 'Logs', icon: ScrollText, onClick: () => openPanel(`logs:${clusterId}:${row.namespace}/${row.name}`, 'logs', `logs ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
         { label: 'Shell', icon: SquareTerminal, disabled: readOnly && !shell, onClick: () => openPanel(`term:${clusterId}:${row.namespace}/${row.name}:${Date.now()}`, 'terminal', `sh ${row.name}`, { clusterId, namespace: row.namespace, pod: row.name }) },
       )
     }
-    if (SCALABLE.includes(kind) || RESTARTABLE.includes(kind)) items.push({ separator: true })
-    if (SCALABLE.includes(kind)) items.push({ label: 'Escalar…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })
-    if (RESTARTABLE.includes(kind)) items.push({ label: 'Reiniciar…', icon: RotateCw, disabled: readOnly, onClick: () => setPending({ kind: 'restart', rows: [row] }) })
+    if (b.scalable || b.restartable) items.push({ separator: true })
+    if (b.scalable) items.push({ label: 'Escalar…', icon: Scaling, disabled: readOnly, onClick: () => setPending({ kind: 'scale', rows: [row] }) })
+    if (b.restartable) items.push({ label: 'Reiniciar…', icon: RotateCw, disabled: readOnly, onClick: () => setPending({ kind: 'restart', rows: [row] }) })
     items.push(
       { separator: true },
       { label: 'Copiar nome', icon: Copy, onClick: () => navigator.clipboard.writeText(row.name).then(() => toast('ok', 'Nome copiado')) },

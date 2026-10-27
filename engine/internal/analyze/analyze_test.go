@@ -2,16 +2,19 @@ package analyze
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynfake "k8s.io/client-go/dynamic/fake"
 	kfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
 	"github.com/jcottobboni/leme/engine/internal/kube"
@@ -36,6 +39,10 @@ var testResources = []cluster.Resource{
 	{Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true},
 	{Group: "batch", Version: "v1", Resource: "jobs", Kind: "Job", Namespaced: true},
 	{Group: "batch", Version: "v1", Resource: "cronjobs", Kind: "CronJob", Namespaced: true},
+	// CRDs reusing built-in kind names.
+	{Group: "longhorn.io", Version: "v1beta2", Resource: "nodes", Kind: "Node", Namespaced: true},
+	{Group: "serving.knative.dev", Version: "v1", Resource: "routes", Kind: "Route", Namespaced: true},
+	{Group: "batch.volcano.sh", Version: "v1alpha1", Resource: "jobs", Kind: "Job", Namespaced: true},
 }
 
 func o(apiVersion, kind, ns, name string, extra m) *unstructured.Unstructured {
@@ -256,7 +263,7 @@ func TestNamespaceAndOrder(t *testing.T) {
 		o("v1", "Pod", "other", "other-bad", m{"status": waiting("ErrImagePull", "x")}),
 	}
 	s := session(objs...)
-	fs, err := Namespace(context.Background(), s, "demo")
+	fs, _, err := Namespace(context.Background(), s, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +275,10 @@ func TestNamespaceAndOrder(t *testing.T) {
 			t.Errorf("leaked finding from another namespace: %+v", f)
 		}
 	}
-	all, _ := Namespace(context.Background(), s, "")
+	all, errs, _ := Namespace(context.Background(), s, "")
+	if len(errs) != 0 {
+		t.Errorf("unexpected list errors: %v", errs)
+	}
 	if len(all) < 4 || all[0].ID != "node-not-ready" {
 		t.Fatalf("cluster scope must be ordered by severity, got %s", ids(all))
 	}
@@ -276,6 +286,50 @@ func TestNamespaceAndOrder(t *testing.T) {
 		if sevRank[all[i-1].Severity] > sevRank[all[i].Severity] {
 			t.Fatalf("not sorted: %s", ids(all))
 		}
+	}
+}
+
+// A kind that cannot be listed (RBAC) is reported instead of silently counting as "no problem".
+func TestNamespaceReportsListErrors(t *testing.T) {
+	s := session(pod("bad", waiting("ImagePullBackOff", "x"), nil))
+	dyn := s.Dynamic.(*dynfake.FakeDynamicClient)
+	dyn.PrependReactor("list", "deployments", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, "", errors.New("no RBAC"))
+	})
+	fs, errs, err := Namespace(context.Background(), s, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(fs, "image-pull") == nil {
+		t.Errorf("other kinds must still be diagnosed: %s", ids(fs))
+	}
+	if msg := errs["apps/deployments"]; !strings.Contains(msg, "forbidden") || len(errs) != 1 {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+// A CRD with the name of a built-in kind must not get the built-in rules (they would read fields it
+// does not have and report false problems to the UI, the Copilot and MCP agents).
+func TestCRDHomonymsGetNoBuiltinFindings(t *testing.T) {
+	objs := []*unstructured.Unstructured{
+		o("longhorn.io/v1beta2", "Node", "longhorn-system", "n1", m{"status": m{"conditions": []any{m{"type": "Ready", "status": "False", "reason": "KubernetesNodeNotReady"}}}}),
+		o("serving.knative.dev/v1", "Route", "demo", "r", m{"status": m{"conditions": []any{m{"type": "Ready", "status": "False"}}}}),
+		o("batch.volcano.sh/v1alpha1", "Job", "demo", "j", m{"status": m{"conditions": []any{m{"type": "Failed", "status": "True"}}}}),
+	}
+	s := session(objs...)
+	for _, ref := range []Ref{{"longhorn.io", "Node", "longhorn-system", "n1"}, {"serving.knative.dev", "Route", "demo", "r"}, {"batch.volcano.sh", "Job", "demo", "j"}} {
+		fs, err := Object(context.Background(), s, ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(fs) != 0 {
+			t.Errorf("%s/%s got built-in findings: %s", ref.Group, ref.Kind, ids(fs))
+		}
+	}
+	// The real built-in Node with the same condition is still diagnosed.
+	fs, err := Object(context.Background(), session(o("v1", "Node", "", "n1", m{"status": m{"conditions": []any{m{"type": "Ready", "status": "False"}}}})), Ref{"", "Node", "", "n1"})
+	if err != nil || find(fs, "node-not-ready") == nil {
+		t.Fatalf("built-in Node lost its rule: %v %s", err, ids(fs))
 	}
 }
 
@@ -301,7 +355,7 @@ func TestNamespacePerformance(t *testing.T) {
 	objs = append(objs, o("v1", "Service", "demo", "svc", m{"spec": m{"selector": m{"app": "x"}}}))
 	s := session(objs...)
 	start := time.Now()
-	fs, err := Namespace(context.Background(), s, "demo")
+	fs, _, err := Namespace(context.Background(), s, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

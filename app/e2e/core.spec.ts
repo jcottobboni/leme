@@ -106,7 +106,7 @@ test('CA04: editar ConfigMap com diff, dry-run e apply', async ({ page, context 
   await openKind(page, 'ConfigMap')
   await page.getByTestId('row-app-config').click()
   await page.locator('.tab', { hasText: 'YAML' }).click()
-  await page.getByRole('button', { name: 'Editar', exact: true }).click()
+  await page.getByTestId('drawer').getByRole('button', { name: 'Editar YAML', exact: true }).click()
   const current = JSON.parse(kubectl('-n', 'demo', 'get', 'cm', 'app-config', '-o', 'json'))
   const stamp = `e2e-${Date.now()}`
   const yaml = [
