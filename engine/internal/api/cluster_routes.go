@@ -27,7 +27,7 @@ func (s *Server) graph(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 		return
 	}
 	if kind, name := q.Get("kind"), q.Get("name"); kind != "" && name != "" {
-		writeJSON(w, graph.ForObject(r.Context(), sess, kind, ns, name))
+		writeJSON(w, graph.ForObject(r.Context(), sess, q.Get("group"), kind, ns, name))
 		return
 	}
 	writeJSON(w, graph.ForNamespace(r.Context(), sess, ns))
