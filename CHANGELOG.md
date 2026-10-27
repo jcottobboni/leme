@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
-## [Unreleased]
+## [0.5.2] - 2026-10-27
 
 ### Fixed
 - A CRD reusing a built-in kind name (for example Longhorn's `nodes.longhorn.io`, kind `Node`, or
