@@ -35,8 +35,8 @@ type Event struct {
 	Reason    string   `json:"reason"`
 	Message   string   `json:"message"`
 	Count     int32    `json:"count"`
-	First     int64    `json:"first"` // unix ms
-	Last      int64    `json:"last"`  // unix ms
+	First     int64    `json:"first"`     // unix ms
+	Last      int64    `json:"last"`      // unix ms
 	Namespace string   `json:"namespace"` // "" for cluster-scoped objects
 	Group     string   `json:"group,omitempty"`
 	Kind      string   `json:"kind"`
