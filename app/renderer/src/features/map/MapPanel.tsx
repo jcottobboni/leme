@@ -1,15 +1,22 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { api, type MapWorkload } from '../../api'
-import { clusterName, openPanel, useApp, type OpenOptions } from '../../store'
+import { clusterName, openPanel, useApp, useUi, type OpenOptions } from '../../store'
 import { openObject } from '../../components/ObjectPanel'
 import { openTopology } from '../topology/Topology'
 import { ClusterGate, ErrorBanner, Partial, useAsync } from '../common'
 import { kindIcon } from '../shell/nav'
 import { useTheme } from '../shell/theme'
-import { Filter, Layers, Maximize2, Minus, Plus, RefreshCw, Search, Server, TriangleAlert } from 'lucide-react'
-import { hasProblem, isSystemNs, layoutMap, TILE_R, type AppL, type IslandL, type Layout, type TileL } from './layout'
+import { Activity, Filter, Info, Layers, Maximize2, Minus, Plus, RefreshCw, Search, Server, Settings2, TriangleAlert } from 'lucide-react'
+import { computeMatch, countWorkloads, dotRadius, hasProblem, isSystemNs, lodOf, TILE_R, type AppL, type IslandL, type Match, type TileL } from './layout'
+import { useMapLayout } from '../map-webgl/useMapLayout'
+import { GlStage, type GlStageHandle } from '../map-webgl/GlStage'
+import { arrowOf, installTestTrafficProvider, placeEdges, type EdgeL } from '../map-webgl/edges'
+import { useFpsProbe, webglAvailable } from '../map-webgl/probe'
+import { useTrafficEdges } from '../map-webgl/trafficEdges'
+import type { Hit } from '../map-webgl/scene'
 import './map.css'
+import '../map-webgl/mgl.css'
 
 export function openMap(clusterId: string, opts?: OpenOptions) {
   openPanel(`map:${clusterId}`, 'map', 'Mapa do cluster', { clusterId }, opts)
@@ -128,30 +135,24 @@ const AppView = memo(function AppView({ a, k, vp, lod, dr, match }: { a: AppL; k
   )
 })
 
-interface Match { tiles: Set<number>; islands: Set<number>; islandsWithTiles: Set<number>; first?: { x: number; y: number; r: number; k?: number } }
-
-function computeMatch(l: Layout, q: string): Match | null {
-  const s = q.trim().toLowerCase()
-  if (!s) return null
-  const m: Match = { tiles: new Set(), islands: new Set(), islandsWithTiles: new Set() }
-  const byIsl = new Map(l.islands.map((i) => [i.ns.name, i]))
-  for (const t of l.tiles) {
-    if (t.w.name.toLowerCase().includes(s) || t.app.toLowerCase().includes(s) || t.w.kind.toLowerCase() === s) {
-      m.tiles.add(t.id)
-      const isl = byIsl.get(t.ns)
-      if (isl) m.islandsWithTiles.add(isl.id)
-      if (!m.first) m.first = { x: t.x, y: t.y, r: TILE_R, k: 1.5 }
-    }
-  }
-  for (const i of l.islands) {
-    if (i.ns.name.toLowerCase().includes(s)) {
-      m.islands.add(i.id)
-      if (!m.first) m.first = { x: i.x, y: i.y, r: i.r }
-    }
-  }
-  for (const id of m.islandsWithTiles) m.islands.add(id)
-  return m
-}
+/** Traffic edges in world units; stroke and arrow sizes stay in screen pixels (divided by the zoom). */
+const SvgEdges = memo(function SvgEdges({ edges, k }: { edges: EdgeL[]; k: number }) {
+  if (!edges.length) return null
+  return (
+    <g className="mgl-edges" data-testid="map-edges">
+      {edges.map((e, i) => {
+        const a = arrowOf(e, k)
+        return (
+          <g key={i} data-testid="map-edge">
+            <title>{e.label}</title>
+            <path className="mgl-edge" d={`M${e.x0} ${e.y0}L${a.ex} ${a.ey}`} strokeWidth={e.w / k} />
+            <path className="mgl-arrow" d={`M${a.tip[0]} ${a.tip[1]}L${a.tip[2]} ${a.tip[3]}L${a.tip[4]} ${a.tip[5]}Z`} />
+          </g>
+        )
+      })}
+    </g>
+  )
+})
 
 export function MapPanel({ params }: IDockviewPanelProps<{ clusterId: string }>) {
   return (
@@ -170,15 +171,34 @@ function MapView({ clusterId }: { clusterId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const map = useMemo(() => data, [sig])
 
-  const ready = !!map
   const [q, setQ] = useState('')
   const [onlyProblems, setOnlyProblems] = useState(false)
   const [hideSystem, setHideSystem] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nsOpen, setNsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [traffic, setTraffic] = useState(false)
 
-  const layout = useMemo(() => (map ? layoutMap(map, { selected, hideSystem, onlyProblems }) : null), [map, selected, hideSystem, onlyProblems])
+  // Renderer: SVG below the threshold, WebGL at/above it (SVG with a notice when WebGL cannot start).
+  const threshold = useUi((s) => s.mapWebglThreshold)
+  const total = useMemo(() => (map ? countWorkloads(map) : 0), [map])
+  const big = total >= threshold
+  const [glFail, setGlFail] = useState<string | null>(null)
+  const renderer: 'svg' | 'webgl' = big && !glFail && webglAvailable() ? 'webgl' : 'svg'
+  const [glReady, setGlReady] = useState(false)
+  useEffect(() => { if (renderer !== 'webgl') setGlReady(false) }, [renderer])
+
+  const opts = useMemo(() => ({ selected, hideSystem, onlyProblems }), [selected, hideSystem, onlyProblems])
+  const { layout, pending } = useMapLayout(map, opts, big)
   const match = useMemo(() => (layout ? computeMatch(layout, q) : null), [layout, q])
+  // The stage exists once there is a layout (with the worker it arrives after the map).
+  const ready = !!map && !!layout
+
+  useEffect(() => installTestTrafficProvider(), [])
+  const trafficQ = useTrafficEdges(clusterId, nsParam || undefined, traffic)
+  const placed = useMemo(() => placeEdges(layout, trafficQ.data), [layout, trafficQ.data])
+  const fpsRef = useFpsProbe<HTMLDivElement>()
+  const glRef = useRef<GlStageHandle>(null)
 
   const stageRef = useRef<HTMLDivElement>(null)
   const gRef = useRef<SVGGElement>(null)
@@ -196,6 +216,7 @@ function MapView({ clusterId }: { clusterId: string }) {
   const apply = useCallback(() => {
     const v = viewRef.current
     gRef.current?.setAttribute('transform', `translate(${v.x} ${v.y}) scale(${v.k})`)
+    glRef.current?.setView(v)
     if (zoomRef.current) zoomRef.current.textContent = `${Math.round(v.k * 100)}%`
     if (!syncTimer.current) {
       syncTimer.current = window.setTimeout(() => {
@@ -270,10 +291,10 @@ function MapView({ clusterId }: { clusterId: string }) {
   const fitKey = `${clusterId}|${hideSystem}|${onlyProblems}|${[...selected].sort().join(',')}`
   const lastFit = useRef('')
   useEffect(() => {
-    if (!layout || !layout.islands.length || !size.w || lastFit.current === fitKey) return
+    if (!layout || pending || !layout.islands.length || !size.w || lastFit.current === fitKey) return
     lastFit.current = fitKey
     fit(0)
-  }, [layout, size, fitKey, fit])
+  }, [layout, pending, size, fitKey, fit])
 
   const zoomToBox = useCallback((x: number, y: number, r: number, maxK = MAX_K) => {
     const k = Math.min(maxK, (Math.min(size.w, size.h) * 0.42) / r)
@@ -314,8 +335,12 @@ function MapView({ clusterId }: { clusterId: string }) {
     drag.current = { x: e.clientX, y: e.clientY, vx: viewRef.current.x, vy: viewRef.current.y }
     dragged.current = 0
   }
-  const hit = (target: EventTarget | null) => {
-    const el = (target as Element | null)?.closest?.('[data-tile],[data-app],[data-isl]') as HTMLElement | null
+  const hit = (e: { target: EventTarget | null; clientX: number; clientY: number }): Hit | null => {
+    if (renderer === 'webgl') {
+      const r = stageRef.current?.getBoundingClientRect()
+      return r ? glRef.current?.hitAt(e.clientX - r.left, e.clientY - r.top) ?? null : null
+    }
+    const el = (e.target as Element | null)?.closest?.('[data-tile],[data-app],[data-isl]') as HTMLElement | null
     if (!el) return null
     if (el.dataset.tile !== undefined) return { kind: 'tile' as const, id: +el.dataset.tile }
     if (el.dataset.app !== undefined) return { kind: 'app' as const, id: +el.dataset.app }
@@ -334,7 +359,7 @@ function MapView({ clusterId }: { clusterId: string }) {
       }
       return
     }
-    const h = hit(e.target)
+    const h = hit(e)
     if (h?.kind !== hover?.kind || h?.id !== hover?.id) setHover(h)
     const tip = tipRef.current, st = stageRef.current
     if (tip && st) {
@@ -349,7 +374,7 @@ function MapView({ clusterId }: { clusterId: string }) {
   }
   const onClick = (e: React.MouseEvent) => {
     if (dragged.current > 4 || !layout) return
-    const h = hit(e.target)
+    const h = hit(e)
     if (!h) return
     if (h.kind === 'tile') {
       const t = layout.tiles[h.id]
@@ -364,8 +389,9 @@ function MapView({ clusterId }: { clusterId: string }) {
   }
   const onDoubleClick = (e: React.MouseEvent) => {
     if (!layout) return
-    const h = hit(e.target)
-    if (h?.kind === 'isl') openTopology(clusterId, layout.islands[h.id].ns.name)
+    const h = hit(e)
+    if (h?.kind === 'tile') openTopology(clusterId, layout.tiles[h.id].ns)
+    else if (h?.kind === 'isl') openTopology(clusterId, layout.islands[h.id].ns.name)
     else if (h?.kind === 'app') openTopology(clusterId, layout.appsFlat[h.id].ns)
   }
 
@@ -374,9 +400,8 @@ function MapView({ clusterId }: { clusterId: string }) {
     const m = 0.5
     return { x0: (-view.x - size.w * m) / view.k, y0: (-view.y - size.h * m) / view.k, x1: (-view.x + size.w * (1 + m)) / view.k, y1: (-view.y + size.h * (1 + m)) / view.k }
   }, [view, size])
-  const lodOf = (k: number) => { const r = TILE_R * k; return r < 1 ? 0 : r < 11 ? 1 : r < 22 ? 2 : r < 48 ? 3 : 4 }
   const lod = lodOf(view.k)
-  const dr = Math.min(30, Math.max(17, Math.ceil(1.6 / view.k / 4) * 4))
+  const dr = dotRadius(view.k)
   const level = levelOf(view.k)
 
   const hoverNode = useMemo(() => {
@@ -395,6 +420,7 @@ function MapView({ clusterId }: { clusterId: string }) {
           <Row k="Pods" v={`${w.pods.total} (${w.pods.ok} ok · ${w.pods.warn} atenção · ${w.pods.error} erro)`} />
           {!!w.services?.length && <Row k="Services" v={w.services.join(', ')} />}
           {!!w.pvcs && <Row k="PVCs" v={String(w.pvcs)} />}
+          {(map as { compact?: boolean } | undefined)?.compact && <div className="muted small" style={{ marginTop: 4 }}>Mapa grande: status e services no painel do objeto</div>}
         </>
       )
     }
@@ -415,7 +441,7 @@ function MapView({ clusterId }: { clusterId: string }) {
         <div className="muted small" style={{ marginTop: 4 }}>Clique para ampliar, duplo clique para a topologia</div>
       </>
     )
-  }, [hover, layout])
+  }, [hover, layout, map])
 
   if (error && !map) return <ErrorBanner error={error} />
   if (!map || !layout) return <div className="pad"><span className="spinner" /></div>
@@ -439,11 +465,21 @@ function MapView({ clusterId }: { clusterId: string }) {
         <button className="map-toggle" data-testid="map-ns-filter" onClick={() => setNsOpen((o) => !o)}><Server size={14} /> Namespaces{selected.size ? ` (${selected.size})` : ''}</button>
         <button className={`map-toggle${hideSystem && hasUserNs ? ' on' : ''}`} data-testid="map-hide-system" onClick={() => setHideSystem((v) => !v)} title="Oculta kube-*, openshift-*">Ocultar sistema</button>
         <button className={`map-toggle${onlyProblems ? ' on' : ''}`} data-testid="map-problems" onClick={() => setOnlyProblems((v) => !v)}><TriangleAlert size={14} /> Só com problemas{nProblems ? ` (${nProblems})` : ''}</button>
+        <button className={`map-toggle${traffic ? ' on' : ''}`} data-testid="map-traffic" onClick={() => setTraffic((v) => !v)} title="Arestas de tráfego observado (Caretta ou Hubble), com volume e direção">
+          <Activity size={14} /> Tráfego{traffic && placed.edges.length ? ` (${placed.edges.length})` : ''}
+        </button>
         {map.truncated && <span className="badge badge-ro" title="O mapa mostra os primeiros workloads">truncado</span>}
         <span className="spacer" />
-        {loading && <span className="spinner" />}
+        {(loading || pending) && <span className="spinner" />}
         <button onClick={reload} data-testid="map-refresh"><RefreshCw size={14} /> Recarregar</button>
+        <button className="map-toggle" data-testid="map-settings" title="Configurações do mapa" aria-label="Configurações do mapa" onClick={() => setSettingsOpen((o) => !o)}><Settings2 size={14} /></button>
       </div>
+      {settingsOpen && (
+        <>
+          <div className="map-away" onClick={() => setSettingsOpen(false)} />
+          <MapSettings threshold={threshold} renderer={renderer} total={total} onClose={() => setSettingsOpen(false)} />
+        </>
+      )}
       <Partial errors={map.errors} />
       {error && <ErrorBanner error={error} />}
       {nsOpen && (
@@ -466,16 +502,34 @@ function MapView({ clusterId }: { clusterId: string }) {
       <div ref={stageRef} className={`map-stage${panning ? ' panning' : ''}`} data-testid="map-stage"
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={() => { onPointerUp(); setHover(null) }}
         onClick={onClick} onDoubleClick={onDoubleClick}>
-        <svg className="map-svg">
-          <defs>
-            <pattern id="map-hex" width="34.64" height="60" patternUnits="userSpaceOnUse">
-              <path className="map-hexpat" d="M17.32 0L34.64 10V30L17.32 40L0 30V10ZM17.32 40V60" />
-            </pattern>
-          </defs>
-          <g ref={gRef} transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
-            {layout.islands.map((isl) => (seen(vp, isl.x, isl.y, isl.r) ? <Island key={isl.ns.name} isl={isl} k={view.k} vp={vp} lod={lod} dr={dr} match={match} /> : null))}
-          </g>
-        </svg>
+        <div ref={fpsRef} className="mgl-renderer" data-testid="map-renderer" data-kind={renderer} data-ready={(renderer === 'webgl' ? glReady : true) ? '1' : '0'}
+          data-workloads={total} data-edges={placed.edges.length}>
+          {renderer === 'svg' ? (
+            <svg className="map-svg">
+              <defs>
+                <pattern id="map-hex" width="34.64" height="60" patternUnits="userSpaceOnUse">
+                  <path className="map-hexpat" d="M17.32 0L34.64 10V30L17.32 40L0 30V10ZM17.32 40V60" />
+                </pattern>
+              </defs>
+              <g ref={gRef} transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+                {layout.islands.map((isl) => (seen(vp, isl.x, isl.y, isl.r) ? <Island key={isl.ns.name} isl={isl} k={view.k} vp={vp} lod={lod} dr={dr} match={match} /> : null))}
+                <SvgEdges edges={placed.edges} k={view.k} />
+              </g>
+            </svg>
+          ) : (
+            <GlStage handle={glRef} layout={layout} match={match} edges={placed.edges} hover={hover} view={view} current={() => viewRef.current} size={size} theme={theme}
+              onFail={(r) => setGlFail(r)} onReady={() => setGlReady(true)} />
+          )}
+        </div>
+        <div className="mgl-notes">
+          {big && renderer === 'svg' && (
+            <div className="mgl-note warn" data-testid="map-webgl-fallback">
+              <TriangleAlert size={14} />
+              <span>WebGL indisponível{glFail ? ` (${glFail})` : ''}: o mapa usa SVG e pode ficar lento com {total} workloads.</span>
+            </div>
+          )}
+          {traffic && <TrafficNote q={trafficQ} dropped={placed.dropped} shown={placed.edges.length} />}
+        </div>
         {!layout.islands.length && <div className="map-empty">{onlyProblems ? 'Nenhum workload com problema.' : 'Nada para mostrar neste escopo.'}</div>}
         <div ref={tipRef} className={`map-tip${hoverNode ? ' show' : ''}`} data-testid="map-tip">{hoverNode}</div>
         <div className="map-ctl">
@@ -495,6 +549,7 @@ function MapView({ clusterId }: { clusterId: string }) {
       <div className="map-foot" data-testid="map-summary">
         <span>{scope} · <b>{layout.totals.namespaces}</b> namespaces / <b>{layout.totals.workloads}</b> workloads / <b>{layout.totals.pods}</b> pods / <b>{layout.totals.apps}</b> apps / <b>{layout.totals.services}</b> services</span>
         <span className="muted"><Filter size={11} style={{ verticalAlign: -1 }} /> {hideSystem && hasUserNs && !selected.size ? 'sistema oculto' : 'todos os namespaces'}</span>
+        <span className="muted" data-testid="map-renderer-label" title="Renderizador do palco (limiar nas configurações do mapa)">{renderer === 'webgl' ? 'WebGL' : 'SVG'}</span>
         <span className="legend">
           <span><i style={{ background: 'var(--ok)' }} />{podTotals.ok} saudáveis</span>
           <span><i style={{ background: 'var(--warn)' }} />{podTotals.warn} atenção</span>
@@ -507,4 +562,57 @@ function MapView({ clusterId }: { clusterId: string }) {
 
 function Row({ k, v }: { k: string; v: string }) {
   return <div className="row"><span>{k}</span><b>{v}</b></div>
+}
+
+function TrafficNote({ q, dropped, shown }: { q: ReturnType<typeof useTrafficEdges>; dropped: number; shown: number }) {
+  const d = q.data
+  let body: React.ReactNode
+  if (q.error) body = <span>Tráfego: {q.error}</span>
+  else if (q.loading && !d.available && !d.hint) body = <span>Lendo tráfego observado…</span>
+  else if (!d.available) {
+    body = (
+      <span>
+        Tráfego observado indisponível. <span className="mgl-sub">{d.hint || 'Precisa do Hubble (Cilium) ou do Caretta com o Prometheus do cluster configurado. Nada é instalado pelo Leme.'}</span>
+      </span>
+    )
+  } else {
+    const src = d.source === 'hubble' ? 'Hubble' : d.source === 'caretta' ? 'Caretta' : d.source
+    body = (
+      <span>
+        {shown ? `${shown} conexão(ões)` : 'Nenhuma conexão observada'}{src ? ` · ${src}` : ''}{d.window ? ` · janela ${d.window}` : ''}
+        {!!dropped && <span className="mgl-sub"> · {dropped} fora do mapa (nós, externos ou namespaces filtrados)</span>}
+        <span className="mgl-sub"> · espessura = volume, seta = direção</span>
+      </span>
+    )
+  }
+  return <div className="mgl-note" data-testid="map-traffic-note"><Activity size={14} />{body}</div>
+}
+
+function MapSettings({ threshold, renderer, total, onClose }: { threshold: number; renderer: 'svg' | 'webgl'; total: number; onClose: () => void }) {
+  const [draft, setDraft] = useState(String(threshold))
+  useEffect(() => setDraft(String(threshold)), [threshold])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // Capture: other Escape handlers of the shell must not swallow it first.
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+  const commit = () => {
+    const n = Math.round(Number(draft))
+    if (Number.isFinite(n) && n >= 1 && n <= 1_000_000) useUi.getState().update({ mapWebglThreshold: n })
+    else setDraft(String(threshold))
+  }
+  return (
+    <div className="mgl-settings" data-testid="map-settings-pop">
+      <b>Renderizador do mapa</b>
+      <label>
+        <span>Usar WebGL a partir de</span>
+        <input type="number" min={1} step={100} data-testid="map-webgl-threshold" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit() }} />
+      </label>
+      <div className="mgl-sub">
+        <Info size={12} style={{ verticalAlign: -2 }} /> Agora: <span className="mgl-kind">{renderer === 'webgl' ? 'WebGL' : 'SVG'}</span> com {total} workloads. Abaixo do limiar o mapa usa SVG; a partir dele, WebGL (sem WebGL, continua em SVG).
+      </div>
+    </div>
+  )
 }

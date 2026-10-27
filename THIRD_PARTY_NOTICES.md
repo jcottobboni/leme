@@ -40,6 +40,7 @@ The Helm SDK brings transitive dependencies. As of 2026-10-25, the 123 modules l
 | @xyflow/react, @xyflow/system (React Flow) | 12.12.0 / 0.0.83 | MIT (d3-zoom, d3-selection, d3-drag, d3-interpolate, d3-color, d3-dispatch, d3-timer, d3-transition: ISC; d3-ease: BSD-3-Clause; classcat: MIT) |
 | elkjs | 0.12.0 | EPL-2.0 OR GPL-3.0-or-later. Used under **EPL-2.0**, unmodified; the `elk-worker.min.js` worker is distributed as is. Source: https://github.com/kieler/elkjs |
 | uplot | 1.6.32 | MIT |
+| pixi.js (WebGL map, loaded on demand) | 8.22.0 | MIT (bundled dependencies: @pixi/colord, eventemitter3, ismobilejs, parse-svg-path, @xmldom/xmldom: MIT; earcut: ISC; tiny-lru: BSD-3-Clause). @pixi/colord ships without a license file; the upstream colord MIT text is vendored in `app/scripts/licenses/` |
 
 Build and test tools (not distributed): vite (MIT), typescript (Apache-2.0), electron-builder (MIT), @playwright/test (Apache-2.0).
 

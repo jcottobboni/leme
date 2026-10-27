@@ -5,7 +5,7 @@ export const TILE_R = 30
 const DX = 78
 const DY = 84
 const TILE_REACH = 44
-const BLOB_AMP = 0.1
+export const BLOB_AMP = 0.1
 
 export interface TileL { id: number; x: number; y: number; w: MapWorkload; ns: string; app: string; key: string }
 export interface AppL { id: number; x: number; y: number; r: number; name: string; ns: string; tiles: TileL[]; boxed: boolean; path: string }
@@ -106,8 +106,7 @@ function enclose(cs: { x: number; y: number; r: number }[]) {
   return { cx, cy, r }
 }
 
-/** Smooth closed organic outline: a circle whose radius wobbles inward (never past r*(1-amp)..r). */
-export function blobPath(cx: number, cy: number, r: number, seed: number, amp = BLOB_AMP, n = 26): string {
+function blobPts(cx: number, cy: number, r: number, seed: number, amp: number, n: number): [number, number][] {
   const p1 = (seed % 628) / 100, p2 = ((seed >> 5) % 628) / 100, p3 = ((seed >> 11) % 628) / 100
   const pts: [number, number][] = []
   for (let i = 0; i < n; i++) {
@@ -116,6 +115,12 @@ export function blobPath(cx: number, cy: number, r: number, seed: number, amp = 
     const rr = r * (1 - amp * Math.min(1, Math.max(0, u)))
     pts.push([cx + rr * Math.cos(a), cy + rr * Math.sin(a)])
   }
+  return pts
+}
+
+/** Smooth closed organic outline: a circle whose radius wobbles inward (never past r*(1-amp)..r). */
+export function blobPath(cx: number, cy: number, r: number, seed: number, amp = BLOB_AMP, n = 26): string {
+  const pts = blobPts(cx, cy, r, seed, amp, n)
   const f = (v: number) => v.toFixed(1)
   let d = `M${f(pts[0][0])} ${f(pts[0][1])}`
   for (let i = 0; i < n; i++) {
@@ -124,6 +129,61 @@ export function blobPath(cx: number, cy: number, r: number, seed: number, amp = 
   }
   return d + 'Z'
 }
+
+/** The same outline as blobPath, flattened to a polygon (x0, y0, x1, y1, …) for canvas/WebGL renderers. */
+export function blobPolygon(cx: number, cy: number, r: number, seed: number, amp = BLOB_AMP, n = 26, sub = 3): number[] {
+  const pts = blobPts(cx, cy, r, seed, amp, n)
+  const out: number[] = []
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], a = pts[i], b = pts[(i + 1) % n], p3 = pts[(i + 2) % n]
+    const c1x = a[0] + (b[0] - p0[0]) / 6, c1y = a[1] + (b[1] - p0[1]) / 6
+    const c2x = b[0] - (p3[0] - a[0]) / 6, c2y = b[1] - (p3[1] - a[1]) / 6
+    for (let j = 0; j < sub; j++) {
+      const t = j / sub, u = 1 - t
+      out.push(u * u * u * a[0] + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * b[0], u * u * u * a[1] + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * b[1])
+    }
+  }
+  return out
+}
+
+/** Island blob seed (shared by the SVG and WebGL renderers). */
+export const islandSeed = (ns: string) => hash(ns)
+/** Boxed app region seed. */
+export const appSeed = (ns: string, app: string) => hash(ns + app)
+
+/** Workloads in the map (before filters): the WebGL threshold compares against this. */
+export const countWorkloads = (m: ClusterMap) => m.namespaces.reduce((a, n) => a + n.apps.reduce((b, ap) => b + ap.workloads.length, 0), 0)
+
+/** Search result: matching tiles and islands, and where to zoom first. */
+export interface Match { tiles: Set<number>; islands: Set<number>; islandsWithTiles: Set<number>; first?: { x: number; y: number; r: number; k?: number } }
+
+export function computeMatch(l: Layout, q: string): Match | null {
+  const s = q.trim().toLowerCase()
+  if (!s) return null
+  const m: Match = { tiles: new Set(), islands: new Set(), islandsWithTiles: new Set() }
+  const byIsl = new Map(l.islands.map((i) => [i.ns.name, i]))
+  for (const t of l.tiles) {
+    if (t.w.name.toLowerCase().includes(s) || t.app.toLowerCase().includes(s) || t.w.kind.toLowerCase() === s) {
+      m.tiles.add(t.id)
+      const isl = byIsl.get(t.ns)
+      if (isl) m.islandsWithTiles.add(isl.id)
+      if (!m.first) m.first = { x: t.x, y: t.y, r: TILE_R, k: 1.5 }
+    }
+  }
+  for (const i of l.islands) {
+    if (i.ns.name.toLowerCase().includes(s)) {
+      m.islands.add(i.id)
+      if (!m.first) m.first = { x: i.x, y: i.y, r: i.r }
+    }
+  }
+  for (const id of m.islandsWithTiles) m.islands.add(id)
+  return m
+}
+
+/** Level of detail from the zoom: 0 nothing, 1 dot, 2 hexagon + icon, 3 + name and pod bar, 4 pod squares. */
+export const lodOf = (k: number) => { const r = TILE_R * k; return r < 1 ? 0 : r < 11 ? 1 : r < 22 ? 2 : r < 48 ? 3 : 4 }
+/** Dot radius (world units) at LOD 1, so a dot stays a few pixels wide. */
+export const dotRadius = (k: number) => Math.min(30, Math.max(17, Math.ceil(1.6 / k / 4) * 4))
 
 export function layoutMap(map: ClusterMap, o: LayoutOpts): Layout {
   const hasUser = map.namespaces.some((n) => !isSystemNs(n.name))
@@ -195,14 +255,14 @@ export function layoutMap(map: ClusterMap, o: LayoutOpts): Layout {
   }
   // Absolute coordinates, ids and outlines.
   for (const isl of islands) {
-    isl.path = blobPath(isl.x, isl.y, isl.r, hash(isl.ns.name))
+    isl.path = blobPath(isl.x, isl.y, isl.r, islandSeed(isl.ns.name))
     isl.labelY += isl.y
     for (const a of isl.apps) {
       a.x += isl.x
       a.y += isl.y
       a.id = appsFlat.length
       appsFlat.push(a)
-      if (a.boxed) a.path = blobPath(a.x, a.y, a.r, hash(isl.ns.name + a.name), 0.06, 20)
+      if (a.boxed) a.path = blobPath(a.x, a.y, a.r, appSeed(isl.ns.name, a.name), 0.06, 20)
       for (const t of a.tiles) {
         t.x += isl.x
         t.y += isl.y
