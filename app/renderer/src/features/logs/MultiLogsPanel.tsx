@@ -129,8 +129,9 @@ export function MultiLogsPanel({ params }: IDockviewPanelProps<MultiLogsParams>)
     term.scrollToBottom()
   }, [ring, format])
 
+  // Pause only stops appending: a filter or timestamps change still redraws what is buffered.
   useEffect(() => {
-    if (!paused) redraw()
+    redraw()
   }, [filter, timestamps, paused, redraw])
 
   useEffect(() => {
@@ -244,7 +245,7 @@ export function MultiLogsPanel({ params }: IDockviewPanelProps<MultiLogsParams>)
         </form>
         <input className={`search ${reError ? 'invalid' : ''}`} aria-label="Filtrar linhas" placeholder={regex ? 'regex…' : 'Filtrar…'} value={q} onChange={(e) => setQ(e.target.value)} title={reError} data-testid="ml-filter" />
         <button className={`ph-tog icon-btn ${regex ? 'on' : ''}`} aria-pressed={regex} aria-label="Expressão regular" title="Expressão regular" onClick={() => setRegex((v) => !v)}><Regex size={14} /></button>
-        <span className="muted small ph-info" data-testid="ml-status">{streaming} {streaming === 1 ? 'pod' : 'pods'} · {paused ? 'pausado' : status}</span>
+        <span className="muted small ph-info" data-testid="ml-status" title={`${streaming} de ${matched} pods · seletor ${resolved || selector}`}>{streaming} {streaming === 1 ? 'pod' : 'pods'} · {paused ? 'pausado' : status}</span>
       </PanelHeader>
       {error && <div className="banner error" data-testid="ml-error">{error}</div>}
       {matched > max && <div className="banner warn" data-testid="ml-cap">Mostrando {max} de {matched} pods (limite de {max}). Refine o seletor para ver os outros.</div>}

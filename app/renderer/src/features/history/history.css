@@ -12,6 +12,7 @@
 .hist-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hist-body { padding: 2px 12px 10px 36px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .hist-ops { width: 100%; }
+.hist-table { width: auto; max-width: 100%; }
 .hist-table td { padding: 3px 8px; vertical-align: top; }
 .hist-op { width: 18px; font-weight: 700; text-align: center; }
 .hist-add { color: var(--ok-text); }
