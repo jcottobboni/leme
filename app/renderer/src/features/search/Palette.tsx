@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type SearchHit } from '../../api'
-import { clusterName, findByKind, useApp, useClusterColor } from '../../store'
+import { clusterName, findByKind, findResource, useApp, useClusterColor } from '../../store'
 import { openGrid } from '../shell/Sidebar'
 import { openObject } from '../../components/ObjectPanel'
-import { Search, type LucideIcon } from 'lucide-react'
+import { ExternalLink, Puzzle, Search, type LucideIcon } from 'lucide-react'
+import { actionsFor, ensurePlugins, linksFor, usePlugins } from '../plugins/api'
+import { openLink, runAction } from '../plugins/run'
+import type { ObjectParams } from '../../components/ObjectPanel'
 import { behaviorKind, COMPONENT_ICONS, isBuiltinGroup, kindIcon } from '../shell/nav'
 import { TOOLS } from '../workspace/tools'
 import { gridText, isStructured, matchHit, parseFilter, presetGridFilter, resolveAlias } from './filter'
@@ -14,14 +17,14 @@ interface Item {
   clusterId: string
   title: string
   detail: string
-  kind: 'object' | 'type' | 'tool'
+  kind: 'plugin' | 'object' | 'type' | 'tool'
   icon: LucideIcon
   run: () => void
 }
 
 const TOOL_ICON: Record<string, string> = { helm: 'helmReleases', charts: 'helmCharts' }
-const GROUP_LABEL: Record<Item['kind'], string> = { tool: 'Telas', type: 'Tipos de recurso', object: 'Objetos' }
-const ORDER: Item['kind'][] = ['tool', 'type', 'object']
+const GROUP_LABEL: Record<Item['kind'], string> = { plugin: 'Plugins do objeto aberto', tool: 'Telas', type: 'Tipos de recurso', object: 'Objetos' }
+const ORDER: Item['kind'][] = ['plugin', 'tool', 'type', 'object']
 const SUGGESTED = ['Pod', 'Deployment', 'Service', 'ConfigMap', 'Secret', 'Ingress', 'Event', 'Node']
 
 function Dot({ id }: { id: string }) {
@@ -42,6 +45,8 @@ export function Palette({ onClose }: { onClose: () => void }) {
   const multi = Object.keys(connected).length > 1
   const where = (id: string, extra = '') => [extra, multi ? clusterName(id) : ''].filter(Boolean).join(' · ')
   useEffect(() => input.current?.focus(), [])
+  const plugins = usePlugins((s) => s.info)
+  useEffect(() => void ensurePlugins(), [])
   // M7 RF05: the same k9s syntax as the grid search. `:alias` navigates; the other terms either go to
   // the grid it opens or filter the object hits here.
   const filter = useMemo(() => parseFilter(q), [q])
@@ -77,6 +82,23 @@ export function Palette({ onClose }: { onClose: () => void }) {
   const items: Item[] = useMemo(() => {
     const f = filter.include.join(' ')
     const out: Item[] = []
+    // M8: actions and links of plugins for the object open in the active tab.
+    const panel = useApp.getState().dock?.activePanel
+    if (!filter.alias && panel?.api.component === 'object') {
+      const p = panel.params as unknown as ObjectParams
+      const res = p && findResource(p.clusterId, p.group, p.resource)
+      if (res) {
+        const input = { group: res.group, version: res.version, resource: res.resource, namespace: p.namespace, name: p.name }
+        const hit = (t: string) => !f || t.toLowerCase().includes(f.toLowerCase())
+        for (const a of actionsFor(plugins, res)) {
+          if (hit(a.title) && !(a.mutates && (connected[p.clusterId]?.readOnly ?? true)))
+            out.push({ id: `plugin:${a.id}`, clusterId: p.clusterId, title: a.title, detail: `${p.name} · ${a.format === 'k9s' ? 'k9s' : a.plugin}`, kind: 'plugin', icon: Puzzle, run: () => void runAction(p.clusterId, a, input) })
+        }
+        for (const l of linksFor(plugins, res)) {
+          if (hit(l.title)) out.push({ id: `link:${l.id}`, clusterId: p.clusterId, title: l.title, detail: `${p.name} · link`, kind: 'plugin', icon: ExternalLink, run: () => openLink(p.clusterId, l, input) })
+        }
+      }
+    }
     if (filter.alias) {
       // `:deploy demo -l app=web`: resource types for the alias; Enter opens the grid already filtered.
       const ns = filter.namespaces[0]
@@ -133,7 +155,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
       })
     }
     return out.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)).slice(0, 80)
-  }, [q, filter, connected, hits, active]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q, filter, connected, hits, active, plugins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setSel(0), [q])
   const go = (it?: Item) => {

@@ -22,9 +22,9 @@ func (s *Server) diagnose(w http.ResponseWriter, r *http.Request, sess *cluster.
 		err      error
 	)
 	if q.Get("kind") != "" && q.Get("name") != "" {
-		findings, err = analyze.Object(r.Context(), sess, analyze.Ref{Group: q.Get("group"), Kind: q.Get("kind"), Namespace: q.Get("namespace"), Name: q.Get("name")})
+		findings, err = analyze.Object(r.Context(), sess, analyze.Ref{Group: q.Get("group"), Kind: q.Get("kind"), Namespace: q.Get("namespace"), Name: q.Get("name")}, s.pluginRules()...)
 	} else {
-		findings, errs, err = analyze.Namespace(r.Context(), sess, q.Get("namespace"))
+		findings, errs, err = analyze.Namespace(r.Context(), sess, q.Get("namespace"), s.pluginRules()...)
 	}
 	if err != nil {
 		kubeError(w, err)
@@ -49,4 +49,12 @@ func writeListErrors(b *strings.Builder, errs map[string]string) {
 	}
 	sort.Strings(keys)
 	b.WriteString("\nNão diagnosticados (sem acesso ou erro ao listar): " + strings.Join(keys, ", ") + "\n")
+}
+
+// pluginRules returns the CEL rules of the loaded plugins as analyzer extensions.
+func (s *Server) pluginRules() []analyze.Extension {
+	if rs := s.plugins.Current().Rules; len(rs) > 0 {
+		return []analyze.Extension{rs}
+	}
+	return nil
 }

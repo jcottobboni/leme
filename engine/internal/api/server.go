@@ -28,6 +28,7 @@ import (
 	"github.com/jcottobboni/leme/engine/internal/history"
 	"github.com/jcottobboni/leme/engine/internal/kube"
 	"github.com/jcottobboni/leme/engine/internal/ops"
+	"github.com/jcottobboni/leme/engine/internal/plugins"
 	"github.com/jcottobboni/leme/engine/internal/settings"
 )
 
@@ -43,12 +44,15 @@ type Server struct {
 	changes  *change.Store
 	ai       *aiState
 	history  *history.Store // M7: persistent change history
-	token    string
-	port     string // the bound port, for the CSP of the bundled UI
-	origins  map[string]bool
-	static   fs.FS
-	log      *slog.Logger
-	mux      *http.ServeMux
+	// M8: declarative plugins and the actions the user trusted.
+	plugins          *plugins.Registry
+	pluginTrustStore *plugins.Trust
+	token            string
+	port             string // the bound port, for the CSP of the bundled UI
+	origins          map[string]bool
+	static           fs.FS
+	log              *slog.Logger
+	mux              *http.ServeMux
 }
 
 // Options configure the server.
@@ -71,6 +75,8 @@ func New(mgr *cluster.Manager, o Options) *Server {
 		s.static = os.DirFS(o.StaticDir)
 	}
 	s.history = history.Open(o.ConfigDir)
+	s.plugins = plugins.NewRegistry(o.ConfigDir, func() bool { return s.settings != nil && s.settings.PluginsK9s() })
+	s.pluginTrustStore = plugins.OpenTrust(o.ConfigDir)
 	s.routes()
 	return s
 }
@@ -125,6 +131,8 @@ func (s *Server) routes() {
 	s.historyRoutes(m)
 	// M7: Flux CD (RF04).
 	s.fluxRoutes(m)
+	// M8: declarative plugins (actions, links, CRD views, CEL rules; k9s plugins too).
+	s.pluginRoutes(m)
 	m.HandleFunc("/", s.serveStatic)
 }
 

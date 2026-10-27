@@ -13,8 +13,11 @@ import { ObjectSecurity } from '../features/security/ObjectSecurity'
 import { DiagnosisTab } from '../features/analyze/DiagnosisTab'
 import { openCopilot } from '../features/ai/CopilotPanel'
 import { api3 } from '../api'
-import { Copy, ExternalLink, FilePen, GitCompareArrows, Hammer, Logs, PanelTopOpen, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
+import { Copy, ExternalLink, FilePen, GitCompareArrows, Hammer, Logs, PanelTopOpen, Puzzle, RefreshCw, Rocket, RotateCw, Scaling, ScrollText, Sparkles, SquareTerminal, Trash2, Waypoints, X, type LucideIcon } from 'lucide-react'
 import { openMultiLogs } from '../features/logs/open'
+import { openMenu } from '../features/shell/menu'
+import { pluginMenuItems } from '../features/plugins/run'
+import { actionsFor, ensurePlugins, linksFor, pluginsApi, usePlugins, viewFor } from '../features/plugins/api'
 
 // Heavy views (xyflow graph, uPlot charts) load only when their tab opens.
 const TopologyView = lazy(() => import('../features/topology/Topology').then((m) => ({ default: m.TopologyView })))
@@ -197,6 +200,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           {b.startBuild && <Act compact={compact} icon={Hammer} label="Iniciar build" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'oc start-build'} onClick={() => setConfirm('start-build')} />}
           {b.buildLogs && <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`buildlog:${clusterId}:${namespace}/${name}`, 'buildLog', `build ${name}`, { clusterId, namespace, build: name })} />}
           {b.details === 'route' && obj && routeURL(obj) && <a className="btn" href={routeURL(obj)} target="_blank" rel="noreferrer"><ExternalLink size={14} />{!compact && 'Abrir URL'}</a>}
+          <PluginsButton compact={compact} clusterId={clusterId} params={params} />
           <Act compact={compact} icon={GitCompareArrows} label="Comparar com…" title="Comparar com outro cluster ou namespace" onClick={() => setComparing(true)} />
           <Act compact={compact} icon={Sparkles} label="Perguntar à IA" disabled={gone} onClick={() => openCopilot(clusterId, { group: params.group, kind: params.kind, namespace, name })} />
           <Act compact={compact} icon={FilePen} label="Editar YAML" disabled={readOnly || gone} title={readOnly ? 'Cluster em somente leitura' : 'Editar YAML'}
@@ -374,6 +378,7 @@ function Overview({ clusterId, obj, group, kind, masked, onReveal }: { clusterId
       {b.details === 'route' && <RouteDetails clusterId={clusterId} obj={obj} />}
       {b.details === 'service' && <ServiceDetails clusterId={clusterId} obj={obj} />}
       {(b.details === 'configmap' || b.details === 'secret') && <DataDetails obj={obj} secret={b.details === 'secret'} masked={masked} onReveal={onReveal} />}
+      <PluginFields clusterId={clusterId} group={group} kind={kind} obj={obj} />
       {conditions.length > 0 && (
         <Section title="Condições">
           <table className="table">
@@ -393,6 +398,49 @@ function Overview({ clusterId, obj, group, kind, masked, onReveal }: { clusterId
         </Section>
       )}
     </div>
+  )
+}
+
+/** M8: plugin actions and links of this kind, in a menu (shown only when some apply). */
+function PluginsButton({ compact, clusterId, params }: { compact: boolean; clusterId: string; params: ObjectParams }) {
+  const info = usePlugins((s) => s.info)
+  useEffect(() => void ensurePlugins(), [])
+  const res = findResource(clusterId, params.group, params.resource)
+  if (!res || (!actionsFor(info, res).length && !linksFor(info, res).length)) return null
+  const input = () => ({ group: res.group, version: res.version, resource: res.resource, namespace: params.namespace, name: params.name })
+  return (
+    <button className={compact ? 'icon-btn' : ''} aria-label="Plugins" title="Ações e links de plugins" data-testid="obj-plugins"
+      onClick={(e) => openMenu(e, pluginMenuItems(clusterId, res, input).filter((i) => !i.separator))}>
+      <Puzzle size={compact ? 16 : 14} />
+      {!compact && 'Plugins'}
+    </button>
+  )
+}
+
+/** M8: detail fields of a plugin view for this kind (evaluated by the engine; Secret values never). */
+function PluginFields({ clusterId, group, kind, obj }: { clusterId: string; group: string; kind: string; obj: Record<string, any> }) {
+  const info = usePlugins((s) => s.info)
+  const view = viewFor(info, group, kind)
+  const [fields, setFields] = useState<{ plugin?: string; fields: { name: string; value: unknown }[] }>()
+  const rv = obj.metadata?.resourceVersion
+  useEffect(() => void ensurePlugins(), [])
+  useEffect(() => {
+    if (!view) return
+    const res = findKind(clusterId, group, kind)
+    if (!res) return
+    pluginsApi.fields(clusterId, { group, resource: res.resource, namespace: obj.metadata?.namespace, name: obj.metadata?.name }).then(setFields, () => setFields(undefined))
+  }, [clusterId, group, kind, view, rv]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!view || !fields?.fields.length) return null
+  return (
+    <Section title={`Plugin ${fields.plugin ?? view.plugin}`}>
+      <table className="kv" data-testid="plugin-fields">
+        <tbody>
+          {fields.fields.map((f) => (
+            <tr key={f.name}><td>{f.name}</td><td className="wrap">{f.value === null || f.value === undefined ? <span className="muted">—</span> : typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
   )
 }
 

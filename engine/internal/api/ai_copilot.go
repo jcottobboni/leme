@@ -168,7 +168,7 @@ func (s *Server) copilotPrompt(ctx context.Context, sess *cluster.Session, req *
 		}
 		learnObject(an, u)
 		fmt.Fprintf(&b, "\n## Objeto selecionado\nkind=%s group=%s namespace=%s name=%s\n```yaml\n%s```\n", res.Kind, res.Group, u.GetNamespace(), u.GetName(), objectYAML(u))
-		if f, err := analyze.Object(ctx, sess, analyze.Ref{Group: res.Group, Kind: res.Kind, Namespace: u.GetNamespace(), Name: u.GetName()}); err == nil {
+		if f, err := analyze.Object(ctx, sess, analyze.Ref{Group: res.Group, Kind: res.Kind, Namespace: u.GetNamespace(), Name: u.GetName()}, s.pluginRules()...); err == nil {
 			writeFindings(&b, an, f)
 		}
 		if evs, err := ops.Events(ctx, sess, u.GetNamespace(), string(u.GetUID())); err == nil && len(evs) > 0 {
@@ -184,7 +184,7 @@ func (s *Server) copilotPrompt(ctx context.Context, sess *cluster.Session, req *
 		if req.AllowLogs {
 			s.writeLogs(ctx, sess, &b, u, res.Kind, req.LogLines)
 		}
-	} else if f, _, err := analyze.Namespace(ctx, sess, ""); err == nil {
+	} else if f, _, err := analyze.Namespace(ctx, sess, "", s.pluginRules()...); err == nil {
 		if len(f) > 30 {
 			f = f[:30]
 		}
@@ -384,9 +384,9 @@ func (s *Server) copilotTools(sess *cluster.Session, req *chatRequest, an *anony
 					if rerr != nil {
 						return "", rerr
 					}
-					f, err = analyze.Object(ctx, sess, analyze.Ref{Group: res.Group, Kind: res.Kind, Namespace: v.Namespace, Name: v.Name})
+					f, err = analyze.Object(ctx, sess, analyze.Ref{Group: res.Group, Kind: res.Kind, Namespace: v.Namespace, Name: v.Name}, s.pluginRules()...)
 				} else {
-					f, listErrs, err = analyze.Namespace(ctx, sess, v.Namespace)
+					f, listErrs, err = analyze.Namespace(ctx, sess, v.Namespace, s.pluginRules()...)
 				}
 				if err != nil {
 					return "", err

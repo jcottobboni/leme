@@ -7,6 +7,7 @@ import { rememberClosed, useApp, useTabs } from './store'
 import { Sidebar } from './features/shell/Sidebar'
 import { Home, StatusBar, TopBar, trackActive, useShortcuts } from './features/shell/Chrome'
 import { ContextMenuHost, DialogHost } from './features/shell/menu'
+import { PluginDialogHost } from './features/plugins/run'
 import { useApplyTheme, useTheme } from './features/shell/theme'
 import { ResourceGrid } from './components/ResourceGrid'
 // Static on purpose: the grid's drawer already imports them (ObjectDetails, openCopilot), so a lazy import would not
@@ -56,6 +57,9 @@ const MultiLogsPanel = lazyPanel(() => import('./features/logs/MultiLogsPanel'),
 const DiffPanel = lazyPanel(() => import('./features/diff/DiffPanel'), 'DiffPanel')
 // M7: Flux CD.
 const FluxPanel = lazyPanel(() => import('./features/flux/FluxPanel'), 'FluxPanel')
+// M8: plugins.
+const PluginsPanel = lazyPanel(() => import('./features/plugins/PluginsPanel'), 'PluginsPanel')
+const PluginTerminalPanel = lazyPanel(() => import('./features/plugins/PluginTerminal'), 'PluginTerminalPanel')
 
 function Welcome(_: IDockviewPanelProps) {
   return <Home />
@@ -116,11 +120,13 @@ const components = Object.fromEntries(
     multilogs: gated(MultiLogsPanel),
     diff: DiffPanel,
     flux: FluxPanel,
+    plugins: PluginsPanel,
+    pluginTerm: gated(PluginTerminalPanel),
   } as Record<string, PanelComponent>).map(([k, C]) => [k, panel(C, k)]),
 )
 
 // Panels that start streams or shells are never restored from a saved layout.
-const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog', 'multilogs'])
+const NOT_RESTORED = new Set(['terminal', 'logs', 'create', 'buildLog', 'multilogs', 'pluginTerm'])
 
 const TOAST_ICONS = { ok: CircleCheck, error: CircleAlert, info: Info }
 
@@ -202,6 +208,7 @@ export function App() {
       <StatusBar />
       {palette && <Palette onClose={() => setPalette(false)} />}
       <ContextMenuHost />
+      <PluginDialogHost />
       <DialogHost />
       <Toasts />
     </div>

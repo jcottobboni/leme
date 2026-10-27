@@ -121,6 +121,21 @@ ipcMain.handle('kubeconfig:pick', async (e, kind) => {
   return r.canceled ? [] : r.filePaths
 })
 
+// M8: the plugin folder, the same the engine reads (<config dir>/plugins). Nothing comes from the
+// renderer: it can only ask for this one folder to be shown.
+ipcMain.handle('plugins:open-folder', async (e) => {
+  if (!fromApp(e)) return { ok: false, error: 'not allowed' }
+  const base = process.env.LEME_CONFIG_DIR || path.join(app.getPath('appData'), 'leme')
+  const dir = path.join(base, 'plugins')
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+  const err = await shell.openPath(dir)
+  return err ? { ok: false, error: err, path: dir } : { ok: true, path: dir }
+})
+
 // Embedded web UIs (M5: Grafana, Prometheus) reached through an active port-forward of the engine.
 // Same isolation as the detached windows plus: no preload, an in-memory session per window (logins
 // never persist), navigation pinned to the forward's origin, no popups, no permissions.
