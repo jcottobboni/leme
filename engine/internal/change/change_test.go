@@ -189,6 +189,18 @@ func TestRedactedView(t *testing.T) {
 	if strings.Contains(p.View(true).After, "hunter2") {
 		t.Fatal("the agent view must mask env values")
 	}
+	// M7 "Exportar proposta": the patch travels with the proposal, masked the same way for agents.
+	if !strings.Contains(p.Patch, "image: nginx:1.27-alpine") || !strings.Contains(p.Patch, "hunter2") {
+		t.Fatalf("the UI patch is the merge patch as YAML: %q", p.Patch)
+	}
+	if v := p.View(true).Patch; strings.Contains(v, "hunter2") || !strings.Contains(v, "nginx:1.27-alpine") {
+		t.Fatalf("the agent view must mask env values in the patch: %q", v)
+	}
+	// The stored copy does not follow later edits of the caller's map.
+	patch["spec"] = "changed"
+	if strings.Contains(p.View(true).Patch, "changed") {
+		t.Fatal("the patch must be copied")
+	}
 }
 
 func TestMaskedValuesAndRisks(t *testing.T) {

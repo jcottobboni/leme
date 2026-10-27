@@ -76,7 +76,7 @@ type Conversation interface {
 type Config struct {
 	Provider  string
 	Model     string
-	BaseURL   string // empty = official endpoint (anthropic/openai) or http://localhost:11434/v1 (ollama)
+	BaseURL   string // empty = official endpoint (anthropic/openai) or OllamaBaseURL (ollama)
 	APIKey    string
 	Effort    string // anthropic only
 	MaxTokens int64
@@ -101,7 +101,7 @@ func Start(cfg Config, system string, history []Turn, user string, tools []ToolD
 			return nil, errors.New("no API key configured for the OpenAI-compatible provider")
 		}
 		if cfg.Provider == Ollama && cfg.BaseURL == "" {
-			cfg.BaseURL = "http://localhost:11434/v1"
+			cfg.BaseURL = OllamaBaseURL
 		}
 		if cfg.MaxTokens > 16000 {
 			cfg.MaxTokens = 16000 // many compatible servers reject larger completion limits

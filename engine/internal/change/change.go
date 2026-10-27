@@ -68,6 +68,7 @@ type Proposal struct {
 	Source      string    `json:"source"`
 	Before      string    `json:"before"` // YAML
 	After       string    `json:"after"`  // YAML
+	Patch       string    `json:"patch"`  // the JSON merge patch as YAML ("Exportar proposta", M7)
 	DryRun      bool      `json:"dryRun"` // the API server accepted it in dry-run
 	DryRunError string    `json:"dryRunError,omitempty"`
 	RBACAllowed bool      `json:"rbacAllowed"`
@@ -75,6 +76,7 @@ type Proposal struct {
 	Expires     time.Time `json:"expires"`
 
 	rv     string
+	patch  map[string]any
 	after  *unstructured.Unstructured
 	before *unstructured.Unstructured
 }
@@ -84,6 +86,9 @@ func (p *Proposal) View(redacted bool) Proposal {
 	v := *p
 	if redacted {
 		v.Before, v.After = render(redact.Object(p.before)), render(redact.Object(p.after))
+		if p.patch != nil {
+			v.Patch = render(redact.Object(&unstructured.Unstructured{Object: p.patch}))
+		}
 	}
 	return v
 }
@@ -154,6 +159,8 @@ func (st *Store) ProposeWith(ctx context.Context, s *cluster.Session, ref Ref, p
 		Risks: risks(cur, next),
 	}
 	p.Before, p.After = render(p.before), render(p.after)
+	p.patch = copyPatch(patch)
+	p.Patch = render(&unstructured.Unstructured{Object: p.patch})
 	if r, err := s.Typed.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authv1.SelfSubjectAccessReview{Spec: authv1.SelfSubjectAccessReviewSpec{
 		ResourceAttributes: &authv1.ResourceAttributes{Namespace: ref.Namespace, Verb: "update", Group: res.Group, Resource: res.Resource, Name: ref.Name},
 	}}, metav1.CreateOptions{}); err == nil {
@@ -311,6 +318,19 @@ func clean(u *unstructured.Unstructured) *unstructured.Unstructured {
 		c.SetAnnotations(ann)
 	}
 	return c
+}
+
+// copyPatch keeps a private JSON copy of the patch (callers may build it with any Go types).
+func copyPatch(patch map[string]any) map[string]any {
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return nil
+	}
+	var m map[string]any
+	if json.Unmarshal(b, &m) != nil {
+		return nil
+	}
+	return m
 }
 
 func render(u *unstructured.Unstructured) string {
