@@ -1,0 +1,33 @@
+/* Observed traffic: panel and topology overlay. Tokens only, so both themes work. */
+:root { --trf: #22d3ee; }
+html[data-theme='light'] { --trf: #0891b2; }
+
+/* panel */
+.trf-panel .obj-body { overflow: auto; }
+.trf-notes { flex-wrap: wrap; gap: 4px 14px; font-size: 12px; }
+.trf-empty { max-width: 640px; margin: 0 auto; }
+.trf-hint { overflow-wrap: anywhere; font-size: 12.5px; line-height: 1.5; color: var(--muted); user-select: text; }
+.trf-table td.num, .trf-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.trf-table .trf-arrow { color: var(--trf); width: 18px; padding: 0 2px; }
+.trf-rate { font-weight: 650; color: var(--text-strong); }
+.trf-sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
+.trf-sort:hover, .trf-sort:focus-visible { color: var(--text); }
+.trf-ep { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-size: 12.5px; }
+.trf-ep.link { border: none; background: none; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; color: var(--text); cursor: pointer; }
+.trf-ep.link:hover { background: var(--hover); }
+.trf-ep.link:hover .trf-ep-name { color: var(--accent); text-decoration: underline; }
+.trf-ep-name { font-weight: 600; }
+.trf-ep.ext { color: var(--muted); }
+.trf-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 5px; border-radius: 4px; background: var(--chip-bg); color: var(--chip-text); border: 1px solid var(--line); }
+.trf-mini { height: 24px; padding: 0 8px; font-size: 11.5px; border-radius: 6px; }
+
+/* topology overlay */
+.react-flow__edge.trf-edge .react-flow__edge-path { stroke: var(--trf); stroke-width: 2; stroke-dasharray: 6 5; animation: trf-dash 0.9s linear infinite; }
+.react-flow__edge.trf-edge.trf-dim { opacity: 0.15; }
+@keyframes trf-dash { to { stroke-dashoffset: -11; } }
+@media (prefers-reduced-motion: reduce) { .react-flow__edge.trf-edge .react-flow__edge-path { animation: none; } }
+.trf-label { position: absolute; pointer-events: all; font-size: 10.5px; font-weight: 650; padding: 1px 6px; border-radius: 9px; background: var(--panel); color: var(--trf); border: 1px solid color-mix(in srgb, var(--trf) 50%, var(--line)); white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: var(--shadow); }
+.trf-ext { width: 100%; height: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 12px; border: 1.5px dashed color-mix(in srgb, var(--trf) 55%, var(--line)); background: color-mix(in srgb, var(--trf) 7%, var(--panel)); display: flex; align-items: center; gap: 8px; color: var(--text); overflow: hidden; }
+.trf-ext .tc-ico { background: color-mix(in srgb, var(--trf) 16%, transparent); color: var(--trf); }
+.trf-banner.react-flow__panel { margin: 10px; width: max-content; min-width: 240px; max-width: min(480px, calc(100% - 460px)); overflow-wrap: anywhere; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--trf); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.45; color: var(--muted); box-shadow: var(--shadow); user-select: text; }
+.trf-banner b { color: var(--text-strong); }
