@@ -1,0 +1,24 @@
+/* M7 RF05: k9s-style filter chips (grid search and palette). */
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+.palette .filter-chips { padding: 6px 16px; border-bottom: 1px solid var(--line-soft); }
+.fchip { display: inline-flex; align-items: center; gap: 4px; max-width: 320px; height: 22px; padding: 0 2px 0 8px; border-radius: 11px; background: var(--chip-bg); color: var(--chip-text); border: 1px solid transparent; }
+.fchip-k { color: var(--chip-key); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.fchip-v { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fchip-label { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.fchip-not, .fchip-notregex { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.fchip.bad { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, var(--panel)); }
+.fchip-x { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--muted); }
+.fchip-x:hover:not(:disabled) { background: var(--hover); color: var(--text); border: none; }
+.filter-error { color: var(--error-text); font-size: 12px; }
+.filter-hint { color: var(--muted); font-size: 11.5px; }
+.palette-help { padding: 6px 16px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+.palette-help code { font-size: 11px; background: var(--chip-bg); border-radius: 4px; padding: 0 4px; }
+
+/* JSONPath column dialog */
+.jp-dialog { display: grid; gap: 12px; }
+.jp-dialog .jp-examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.jp-dialog .jp-examples button { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-size: 11.5px; padding: 2px 8px; }
+.jp-dialog .jp-list { display: grid; gap: 4px; }
+.jp-dialog .jp-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: 6px; }
+.jp-dialog .jp-item code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.jp-dialog .jp-item .jp-err { color: var(--error-text); font-size: 11.5px; }

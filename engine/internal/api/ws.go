@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/jcottobboni/leme/engine/internal/cluster"
@@ -51,17 +53,27 @@ type gridSub struct {
 	errMsg  string
 	wake    chan struct{}
 	printer *project.Printer // CRD printer columns; nil for built-in kinds
+	sel     labels.Selector  // M7: server-side label filter (`-l` in the grid search); nil = everything
+	jp      *jpCols          // M7: JSONPath columns the user added; nil = none
 }
 
 func newGridSub(p *project.Printer) *gridSub {
 	return &gridSub{sent: map[string]string{}, upserts: map[string]project.Row{}, deletes: map[string]struct{}{}, wake: make(chan struct{}, 1), printer: p}
 }
 
-// row projects an object, with the CRD printer columns when there are any.
+// matches reports whether an object passes the label selector of this subscription.
+func (g *gridSub) matches(u *unstructured.Unstructured) bool {
+	return g.sel == nil || g.sel.Matches(labels.Set(u.GetLabels()))
+}
+
+// row projects an object, with the CRD printer columns and the JSONPath columns when there are any.
 func (g *gridSub) row(u *unstructured.Unstructured) project.Row {
 	r := project.Project(u)
 	if g.printer != nil {
 		g.printer.Apply(u, &r)
+	}
+	if g.jp != nil {
+		g.jp.Apply(u, &r)
 	}
 	return r
 }
@@ -71,6 +83,15 @@ func (g *gridSub) OnUpsert(u *unstructured.Unstructured) {
 	rv := u.GetResourceVersion()
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if !g.matches(u) {
+		// Relabeled out of the selector: the client drops it.
+		if _, had := g.sent[uid]; had {
+			delete(g.sent, uid)
+			delete(g.upserts, uid)
+			g.deletes[uid] = struct{}{}
+		}
+		return
+	}
 	// The informer replays every object while syncing; skip versions the client already has.
 	if rv != "" && g.sent[uid] == rv {
 		return
@@ -136,6 +157,35 @@ type gridMsg struct {
 	Rows    []project.Row    `json:"rows,omitempty"`
 	Deletes []string         `json:"deletes,omitempty"`
 	Error   string           `json:"error,omitempty"`
+	// ColErrors: JSONPath columns that do not parse or were switched off, per column key (M7).
+	ColErrors map[string]string `json:"colErrors,omitempty"`
+}
+
+// gridFilter reads the M7 watch parameters: `labelSelector` (k8s syntax) and `cols` (a JSON array
+// of JSONPath expressions). Errors are user-facing.
+func gridFilter(q map[string][]string, res cluster.Resource) (labels.Selector, *jpCols, error) {
+	var sel labels.Selector
+	if raw := first(q["labelSelector"]); raw != "" {
+		s, err := labels.Parse(raw)
+		if err != nil {
+			return nil, nil, fmt.Errorf("seletor de label inválido: %v", err)
+		}
+		if !s.Empty() {
+			sel = s
+		}
+	}
+	jp, err := parseJPCols(first(q["cols"]), res.Group == "" && res.Kind == "Secret")
+	if err != nil {
+		return nil, nil, err
+	}
+	return sel, jp, nil
+}
+
+func first(v []string) string {
+	if len(v) == 0 {
+		return ""
+	}
+	return v[0]
 }
 
 func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
@@ -157,9 +207,17 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	ctx, done := within(c.CloseRead(r.Context()), sess.Life())
 	defer done()
 
+	sel, jp, ferr := gridFilter(q, res)
+	if ferr != nil {
+		// Keep the socket open with the error: closing would only make the client reconnect in a loop.
+		_ = wsjson.Write(ctx, c, gridMsg{Type: "error", Error: ferr.Error()})
+		<-ctx.Done()
+		return
+	}
 	key := cluster.Key{GVR: res.GVR(), Namespace: ns}
 	printer := printerFor(ctx, sess, res)
 	sub := newGridSub(printer)
+	sub.sel, sub.jp = sel, jp
 	snapCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	objs, err := sess.Informers.Subscribe(snapCtx, key, sub)
 	cancel()
@@ -171,17 +229,28 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 	defer sess.Informers.Unsubscribe(key, sub)
 
 	rows := make([]project.Row, 0, len(objs))
+	matched := objs[:0:0]
 	for _, o := range objs {
+		if !sub.matches(o) {
+			continue
+		}
+		matched = append(matched, o)
 		rows = append(rows, sub.row(o))
 	}
-	sub.markSent(objs)
+	sub.markSent(matched)
 	cols := project.Columns(res.Group, res.Kind, res.Namespaced)
 	if printer != nil {
 		cols = printer.Columns()
 	}
-	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: cols, Rows: rows}); err != nil {
+	var colErrs map[string]string
+	if jp != nil {
+		cols = withJPColumns(cols, jp.Columns())
+		colErrs = jp.Errors()
+	}
+	if err := wsjson.Write(ctx, c, gridMsg{Type: "snapshot", Columns: cols, Rows: rows, ColErrors: colErrs}); err != nil {
 		return
 	}
+	reported := len(colErrs)
 	tick := time.NewTicker(flushInterval)
 	defer tick.Stop()
 	for {
@@ -197,13 +266,35 @@ func (s *Server) watch(w http.ResponseWriter, r *http.Request, sess *cluster.Ses
 				return
 			}
 		}
-		if len(ups) == 0 && len(dels) == 0 {
+		var newErrs map[string]string
+		if jp != nil {
+			// A JSONPath column switched off while running (too slow) is reported once.
+			if e := jp.Errors(); len(e) != reported {
+				newErrs, reported = e, len(e)
+			}
+		}
+		if len(ups) == 0 && len(dels) == 0 && newErrs == nil {
 			continue
 		}
-		if err := wsjson.Write(ctx, c, gridMsg{Type: "delta", Rows: ups, Deletes: dels}); err != nil {
+		if err := wsjson.Write(ctx, c, gridMsg{Type: "delta", Rows: ups, Deletes: dels, ColErrors: newErrs}); err != nil {
 			return
 		}
 	}
+}
+
+// withJPColumns puts the JSONPath columns before Age (last), like kubectl custom columns.
+func withJPColumns(cols, extra []project.Column) []project.Column {
+	if len(extra) == 0 {
+		return cols
+	}
+	out := make([]project.Column, 0, len(cols)+len(extra))
+	at := len(cols)
+	if at > 0 && cols[at-1].Key == "age" {
+		at--
+	}
+	out = append(out, cols[:at]...)
+	out = append(out, extra...)
+	return append(out, cols[at:]...)
 }
 
 // wsWriter sends every Write as one WebSocket message.
