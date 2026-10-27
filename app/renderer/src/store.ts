@@ -215,9 +215,15 @@ interface UiPrefs {
   /** Cluster map: hide namespaces without workloads; show the minimap. */
   mapHideEmpty: boolean
   mapMinimap: boolean
+  /** Topologia do projeto: favorite projects and applications, as "clusterId|name". */
+  topoFavorites: string[]
+  topoAppFavorites: string[]
+  /** Topologia do projeto: boxes and nodes the user moved, per "clusterId|namespace" and node id. */
+  topoLayouts: Record<string, Record<string, TopoPos>>
 }
+export interface TopoPos { x: number; y: number; w?: number; h?: number }
 function loadUi(): UiPrefs {
-  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500, mapHideEmpty: false, mapMinimap: true }
+  const d: UiPrefs = { theme: 'dark', drawer: 560, columns: {}, widths: {}, sidebar: 260, sidebarHidden: false, collapsed: {}, pinned: [], hotbarLabels: true, mapWebglThreshold: 1500, mapHideEmpty: false, mapMinimap: true, topoFavorites: [], topoAppFavorites: [], topoLayouts: {} }
   try {
     return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) ?? '{}') }
   } catch {
@@ -229,8 +235,8 @@ export const useUi = create<UiPrefs & { update: (p: Partial<UiPrefs>) => void }>
   update: (p) => {
     set(p)
     try {
-      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap } = get()
-      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap }))
+      const { theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts } = get()
+      persist(UI_KEY, JSON.stringify({ theme, drawer, columns, widths, sidebar, sidebarHidden, collapsed, pinned, hotbarLabels, mapWebglThreshold, mapHideEmpty, mapMinimap, topoFavorites, topoAppFavorites, topoLayouts }))
     } catch {
       /* convenience only */
     }

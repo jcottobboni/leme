@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('leme', {
     set: (provider, baseURL, key) => ipcRenderer.invoke('ai-key:set', String(provider), String(baseURL || ''), String(key || '')),
     status: () => ipcRenderer.invoke('ai-key:status'),
   },
+  // Native file/folder picker for kubeconfigs; returns the chosen paths only.
+  kubeconfig: {
+    pick: (kind) => ipcRenderer.invoke('kubeconfig:pick', kind === 'dir' ? 'dir' : 'file'),
+  },
   // Opens a port-forwarded web UI in an isolated window (validated in the main process).
   embed: {
     open: (url, title) => ipcRenderer.invoke('embed:open', String(url), String(title || '')),

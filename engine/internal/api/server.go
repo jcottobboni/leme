@@ -103,6 +103,7 @@ func (s *Server) routes() {
 	s.m3Routes(m)
 	s.analyzeRoutes(m)
 	s.agentRoutes(m)
+	s.kubeconfigRoutes(m)
 	s.aiRoutes(m)
 	// M5 extension points: one file per feature (traffic, argocd, grafana, istio).
 	s.trafficRoutes(m)

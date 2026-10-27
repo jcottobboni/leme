@@ -51,6 +51,7 @@ func (s *Server) m2Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/clusters/{id}/overview", s.withSession(s.overview))
 	m.HandleFunc("GET /api/clusters/{id}/graph", s.withSession(s.graph))
 	m.HandleFunc("GET /api/clusters/{id}/map", s.withSession(s.clusterMap))
+	m.HandleFunc("GET /api/clusters/{id}/projtopo", s.withSession(s.projectTopology))
 	m.HandleFunc("GET /api/clusters/{id}/search", s.withSession(s.search))
 	m.HandleFunc("GET /api/clusters/{id}/rollout/history", s.withSession(s.rolloutHistory))
 	m.HandleFunc("POST /api/clusters/{id}/rollout/undo", s.withSession(s.rolloutUndo))
@@ -269,6 +270,16 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, sess *cluster.
 
 func (s *Server) clusterMap(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
 	writeJSON(w, clustermap.Collect(r.Context(), sess, r.URL.Query().Get("namespace")))
+}
+
+// projectTopology is the OpenShift-console-style topology of one namespace (Topologia do projeto).
+func (s *Server) projectTopology(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {
+	ns := r.URL.Query().Get("namespace")
+	if ns == "" {
+		httpError(w, http.StatusBadRequest, "namespace is required")
+		return
+	}
+	writeJSON(w, clustermap.CollectProject(r.Context(), sess, ns))
 }
 
 func (s *Server) graph(w http.ResponseWriter, r *http.Request, sess *cluster.Session) {

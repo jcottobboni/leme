@@ -46,7 +46,7 @@ export function kindIcon(kind?: string): LucideIcon {
 /** Icons of the dock components (tabs). Grid and object tabs use the kind icon. */
 export const COMPONENT_ICONS: Record<string, LucideIcon> = {
   welcome: AppWindow, logs: ScrollText, terminal: Terminal, forwards: Waypoints, helmReleases: Package, helmRelease: Package, helmCharts: Package,
-  rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
+  rbac: Key, create: Plus, overview: LayoutDashboard, topology: Workflow, projtopo: Boxes, map: MapIcon, timeline: Timer, security: ShieldCheck, netpol: Network, buildLog: Hammer, problems: Stethoscope, copilot: Sparkles,
   traffic: ArrowLeftRight, argocd: GitPullRequestArrow, grafana: ChartColumn, istio: Waypoints,
 }
 
@@ -115,6 +115,7 @@ export function buildSections(resources: Resource[], filter: string): NavSection
       { id: 'problems', label: 'Problemas', icon: Stethoscope },
       { id: 'copilot', label: 'Copilot (IA)', icon: Sparkles },
       { id: 'topology', label: 'Topologia', icon: Workflow },
+      { id: 'projtopo', label: 'Topologia do projeto', icon: Boxes },
       { id: 'map', label: 'Mapa do cluster', icon: MapIcon },
       { id: 'timeline', label: 'Timeline de eventos', icon: Timer },
     ]), kinds: kindsOf('Cluster').filter((r) => CLUSTER_MAIN.has(r.kind)) },

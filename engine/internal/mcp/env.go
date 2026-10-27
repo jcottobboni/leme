@@ -35,7 +35,10 @@ func NewEnv(kubeconfigs []string, dir, version string) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	mgr := cluster.NewManager(kube.NewLoader(kubeconfigs))
+	// Same contexts as the app: the kubeconfig files and folders added there are in settings.json.
+	loader := kube.NewLoader(kubeconfigs)
+	loader.SetSources(store.Kubeconfigs())
+	mgr := cluster.NewManager(loader)
 	return &Env{
 		Contexts: mgr.Loader().Contexts,
 		Connect: func(ctx context.Context, kc kube.Context) (*cluster.Session, error) {
