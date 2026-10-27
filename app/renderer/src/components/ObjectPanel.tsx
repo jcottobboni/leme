@@ -72,6 +72,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
   const compact = variant === 'drawer'
   const ref: Ref = useMemo(() => ({ group: params.group, version: params.version, resource: params.resource, namespace, name }), [params, namespace, name])
   const readOnly = useApp((s) => s.connected[clusterId]?.readOnly ?? true)
+  const shell = useApp((s) => !!s.connected[clusterId]?.shell)
   const toast = useApp((s) => s.toast)
   const [tab, setTab] = useState<Tab>('overview')
   const [view, setView] = useState<ObjectView>()
@@ -175,7 +176,7 @@ export function ObjectDetails({ params, variant = 'tab', onClose, onPopOut }: { 
           {kind === 'Pod' && (
             <>
               <Act compact={compact} icon={ScrollText} label="Logs" onClick={() => openPanel(`logs:${clusterId}:${namespace}/${name}`, 'logs', `logs ${name}`, { clusterId, namespace, pod: name })} />
-              <Act compact={compact} icon={SquareTerminal} label="Shell" disabled={readOnly} title={readOnly ? 'Cluster em somente leitura' : 'Shell no container'}
+              <Act compact={compact} icon={SquareTerminal} label="Shell" disabled={readOnly && !shell} title={readOnly && !shell ? 'Cluster em somente leitura: libere o shell no menu do cluster' : 'Shell no container'}
                 onClick={() => openPanel(`term:${clusterId}:${namespace}/${name}:${Date.now()}`, 'terminal', `sh ${name}`, { clusterId, namespace, pod: name })} />
             </>
           )}

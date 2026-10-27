@@ -246,8 +246,8 @@ func (s *Server) exec(w http.ResponseWriter, r *http.Request, sess *cluster.Sess
 		return
 	}
 	defer c.CloseNow()
-	// Locking the cluster or disconnecting ends the shell.
-	ctx, cancel := within(r.Context(), sess.WriteScope())
+	// Locking the cluster (or revoking the shell permission) or disconnecting ends the shell.
+	ctx, cancel := within(r.Context(), sess.ShellScope())
 	defer cancel()
 
 	stdinR, stdinW := io.Pipe()

@@ -9,6 +9,8 @@ export interface ClusterState {
   version: string
   defaultNamespace: string
   readOnly: boolean
+  /** Pod shells allowed while writes stay locked. */
+  shell?: boolean
 }
 
 interface Toast {
@@ -32,6 +34,7 @@ interface AppState {
   connect: (id: string) => Promise<void>
   disconnect: (id: string) => Promise<void>
   setReadOnly: (id: string, readOnly: boolean, confirm?: string) => Promise<void>
+  setShell: (id: string, allow: boolean, confirm?: string) => Promise<void>
   setNamespace: (id: string, ns: string) => void
   setDock: (d: DockviewApi) => void
   toast: (kind: Toast['kind'], text: string) => void
@@ -56,7 +59,7 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const r = await api.connect(id)
       set((s) => ({
-        connected: { ...s.connected, [id]: { resources: r.resources, version: r.version, defaultNamespace: r.namespace, readOnly: r.readOnly } },
+        connected: { ...s.connected, [id]: { resources: r.resources, version: r.version, defaultNamespace: r.namespace, readOnly: r.readOnly, shell: r.shell } },
         namespace: { ...s.namespace, [id]: s.namespace[id] ?? '' },
         activeCluster: id,
       }))
@@ -81,6 +84,10 @@ export const useApp = create<AppState>((set, get) => ({
   setReadOnly: async (id, readOnly, confirm) => {
     const r = await api.setReadOnly(id, readOnly, confirm)
     set((s) => ({ connected: { ...s.connected, [id]: { ...s.connected[id], readOnly: r.readOnly } } }))
+  },
+  setShell: async (id, allow, confirm) => {
+    const r = await api.setShell(id, allow, confirm)
+    set((s) => ({ connected: { ...s.connected, [id]: { ...s.connected[id], shell: r.shell } } }))
   },
   setNamespace: (id, ns) => set((s) => ({ namespace: { ...s.namespace, [id]: ns } })),
   setDock: (d) => set({ dock: d }),

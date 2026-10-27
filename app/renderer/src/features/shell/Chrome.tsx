@@ -98,7 +98,7 @@ export function StatusBar() {
       {st && <span className="sb-item">{st.version}</span>}
       {st && (
         <span className={`sb-item ${st.readOnly ? '' : 'sb-rw'}`} data-testid="sb-rw">
-          {st.readOnly ? <Lock size={11} /> : <LockOpen size={11} />} {st.readOnly ? 'somente leitura' : 'leitura e escrita'}
+          {st.readOnly ? <Lock size={11} /> : <LockOpen size={11} />} {st.readOnly ? `somente leitura${st.shell ? ' · shell liberado' : ''}` : 'leitura e escrita'}
         </span>
       )}
       {st && <span className="sb-item"><Folder size={11} /> ns: {ns || 'todos'}</span>}

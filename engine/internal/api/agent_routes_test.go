@@ -24,10 +24,11 @@ func TestAgentAccessRoutes(t *testing.T) {
 kind: Config
 clusters:
 - {name: a, cluster: {server: "https://127.0.0.1:1"}}
+- {name: b, cluster: {server: "https://127.0.0.1:2"}}
 users:
 - {name: u, user: {token: x}}
 contexts:
-- {name: dev-lab, context: {cluster: a, user: u}}
+- {name: dev-lab, context: {cluster: b, user: u}}
 - {name: corp-prd, context: {cluster: a, user: u}}
 `
 	if err := os.WriteFile(kc, []byte(cfg), 0o600); err != nil {

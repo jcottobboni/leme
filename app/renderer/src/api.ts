@@ -12,6 +12,8 @@ export interface ClusterInfo {
   source: string
   current: boolean
   prod: boolean
+  /** Production only because a production context uses the same API server. */
+  sharedProd?: boolean
   local: boolean
   provider: string
   connected: boolean
@@ -316,9 +318,10 @@ export function openSocket(path: string, query: Record<string, string | number |
 export const api = {
   hasToken: () => token !== '',
   clusters: () => call<{ clusters: ClusterInfo[]; kubeconfigs: string[] }>('GET', '/api/clusters'),
-  connect: (id: string) => call<{ resources: Resource[]; namespace: string; readOnly: boolean; version: string }>('POST', `/api/clusters/${id}/connect`),
+  connect: (id: string) => call<{ resources: Resource[]; namespace: string; readOnly: boolean; shell?: boolean; version: string }>('POST', `/api/clusters/${id}/connect`),
   disconnect: (id: string) => call('POST', `/api/clusters/${id}/disconnect`),
   setReadOnly: (id: string, readOnly: boolean, confirm = '') => call<{ readOnly: boolean }>('POST', `/api/clusters/${id}/readonly`, { readOnly, confirm }),
+  setShell: (id: string, allow: boolean, confirm = '') => call<{ shell: boolean }>('POST', `/api/clusters/${id}/shell`, { allow, confirm }),
   object: (id: string, ref: Ref, reveal = false) =>
     call<ObjectView>('GET', `/api/clusters/${id}/object?` + qs({ ...ref, reveal: reveal ? 1 : undefined })),
   apply: (id: string, yaml: string, dryRun: boolean) => call<ApplyResult>('POST', `/api/clusters/${id}/apply`, { yaml, dryRun }),
