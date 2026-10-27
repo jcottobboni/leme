@@ -30,7 +30,7 @@ var groupProjectors = map[string]projector{
 	GatewayGroup + "/GatewayClass": {clusterCols(Column{Key: "controller", Label: "Controlador", Width: 260}, Column{Key: "status", Label: "Status", Type: "status", Width: 120}), gatewayClass},
 	GatewayGroup + "/Gateway": {cols(Column{Key: "class", Label: "Classe", Width: 130}, Column{Key: "listeners", Label: "Listeners", Width: 240},
 		Column{Key: "addresses", Label: "Endereços", Width: 150}, Column{Key: "routes", Label: "Rotas", Type: "number", Width: 70},
-		Column{Key: "status", Label: "Status", Type: "status", Width: 130}), gateway},
+		Column{Key: "status", Label: "Status", Type: "status", Width: 150}), gateway},
 	GatewayGroup + "/HTTPRoute":      {routeCols(true), gwRoute},
 	GatewayGroup + "/GRPCRoute":      {routeCols(true), gwRoute},
 	GatewayGroup + "/TLSRoute":       {routeCols(true), gwRoute},
@@ -49,7 +49,7 @@ func routeCols(hostnames bool) []Column {
 		c = append(c, Column{Key: "hostnames", Label: "Hostnames", Width: 200})
 	}
 	c = append(c, Column{Key: "parents", Label: "Parents", Width: 200}, Column{Key: "backends", Label: "Backends", Width: 220},
-		Column{Key: "status", Label: "Status", Type: "status", Width: 140})
+		Column{Key: "status", Label: "Status", Type: "status", Width: 170})
 	return cols(c...)
 }
 
@@ -158,9 +158,13 @@ type ParentRef struct {
 	Group, Kind, Namespace, Name, SectionName string
 }
 
-// String renders the parent as "ns/name" (with ":section" when set).
-func (p ParentRef) String() string {
-	s := p.Namespace + "/" + p.Name
+// String renders the parent as "name" seen from namespace from, "ns/name" from another one, with
+// ":section" when set.
+func (p ParentRef) String(from string) string {
+	s := p.Name
+	if p.Namespace != from {
+		s = p.Namespace + "/" + s
+	}
 	if p.Kind != "" && p.Kind != "Gateway" {
 		s = p.Kind + " " + s
 	}
@@ -285,7 +289,7 @@ func gwRoute(u *unstructured.Unstructured, r *Row) {
 	r.Cells["hostnames"] = strings.Join(hosts, ", ")
 	var parents []string
 	for _, p := range RouteParents(u) {
-		parents = append(parents, p.String())
+		parents = append(parents, p.String(u.GetNamespace()))
 	}
 	r.Cells["parents"] = strings.Join(parents, ", ")
 	var backends []string

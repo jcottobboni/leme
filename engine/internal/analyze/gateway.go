@@ -65,7 +65,7 @@ func (c *scope) gwRouteFindings(u *unstructured.Unstructured) []Finding {
 	ns := u.GetNamespace()
 	var out []Finding
 	for _, st := range project.RouteStatuses(u) {
-		parent := st.Parent.String()
+		parent := st.Parent.String(ns)
 		if st.Accepted != nil && condStr(st.Accepted, "status") == "False" {
 			out = append(out, Finding{ID: "gwroute-not-accepted", Severity: High, Object: ref, Title: u.GetKind() + " não aceita pelo Gateway",
 				Explanation: "O Gateway pai recusou a rota (hostname sem listener correspondente, namespace não permitido em allowedRoutes ou sectionName inexistente); ela não recebe tráfego por ele.",

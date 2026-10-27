@@ -50,6 +50,8 @@ function Flux({ clusterId }: { clusterId: string }) {
     (!q || `${o.kind} ${o.name} ${o.namespace} ${sourceText(o)} ${o.revision ?? ''} ${o.url ?? ''} ${o.chart ?? ''} ${o.path ?? ''}`.toLowerCase().includes(q.toLowerCase())),
   ), [list, ns, state, q])
   const selected = all.find((o) => key(o) === sel)
+  // With the detail open the list keeps only name, state and revision (the rest is in the detail).
+  const compact = !!selected
 
   if (data && !data.installed) {
     return (
@@ -93,8 +95,9 @@ function Flux({ clusterId }: { clusterId: string }) {
               <thead>
                 <tr>
                   <th>Nome</th><th>Estado</th>
-                  {tab === 'sources' ? <><th>Tipo</th><th>Revisão do artefato</th><th>URL</th></> : <><th>Revisão aplicada</th><th>Fonte</th></>}
-                  <th>Atualizado</th>
+                  {tab === 'sources' && !compact && <th>Tipo</th>}
+                  <th>{tab === 'sources' ? 'Revisão do artefato' : 'Revisão aplicada'}</th>
+                  {!compact && <><th>{tab === 'sources' ? 'URL' : 'Fonte'}</th><th>Atualizado</th></>}
                 </tr>
               </thead>
               <tbody>
@@ -103,19 +106,16 @@ function Flux({ clusterId }: { clusterId: string }) {
                     data-testid={`flux-row-${o.kind}-${o.name}`}>
                     <td><span className={`dot d-${fluxState(o).tone}`} /><b>{o.name}</b> <span className="muted small">{o.namespace}</span></td>
                     <td><StateBadge o={o} />{o.reconciling && !o.suspended && <RotateCw size={12} className="spin-icon flux-spin" aria-label="Reconciliando" />}</td>
-                    {tab === 'sources' ? (
+                    {tab === 'sources' && !compact && <td>{o.kind}</td>}
+                    <td className="flux-ellipsis" title={o.revision}><code>{shortRevision(o.revision)}</code></td>
+                    {!compact && (
                       <>
-                        <td>{o.kind}</td>
-                        <td className="flux-ellipsis" title={o.revision}><code>{shortRevision(o.revision)}</code></td>
-                        <td className="flux-ellipsis" title={o.url}>{o.url || '—'}{o.ref && <span className="muted small"> · {o.ref}</span>}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="flux-ellipsis" title={o.revision}><code>{shortRevision(o.revision)}</code></td>
-                        <td className="flux-ellipsis" title={sourceText(o)}>{sourceText(o)}</td>
+                        {tab === 'sources'
+                          ? <td className="flux-ellipsis" title={o.url}>{o.url || '—'}{o.ref && <span className="muted small"> · {o.ref}</span>}</td>
+                          : <td className="flux-ellipsis" title={sourceText(o)}>{sourceText(o)}</td>}
+                        <td className="muted">{o.updatedAt ? `${age(o.updatedAt)} atrás` : '—'}</td>
                       </>
                     )}
-                    <td className="muted">{o.updatedAt ? `${age(o.updatedAt)} atrás` : '—'}</td>
                   </tr>
                 ))}
               </tbody>

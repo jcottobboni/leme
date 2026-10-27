@@ -29,7 +29,7 @@ test('CA02: Gateway API na navegação, com colunas e estado vindos das condiç�
   const grid = page.locator('.grid-panel').filter({ visible: true })
   await grid.getByTestId('row-m7-web').waitFor()
   await expect(grid.getByTestId('row-m7-web')).toContainText('web.m7.example')
-  await expect(grid.getByTestId('row-m7-web')).toContainText('m7-gateway/m7-gw:http')
+  await expect(grid.getByTestId('row-m7-web')).toContainText('m7-gw:http')
   await expect(grid.getByTestId('row-m7-web')).toContainText('m7-web:80')
   await expect(grid.getByTestId('row-m7-web')).toContainText('Aceita')
   await expect(grid.getByTestId('row-m7-broken')).toContainText('Refs não resolvidas')
