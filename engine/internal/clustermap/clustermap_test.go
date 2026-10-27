@@ -1,7 +1,9 @@
 package clustermap
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,7 +48,7 @@ func TestBuild(t *testing.T) {
 		PVCs:     []*unstructured.Unstructured{obj(t, `{kind: PersistentVolumeClaim, metadata: {name: data, namespace: demo}}`)},
 	}
 	m := Build(in)
-	if m.Scope != "cluster" || len(m.Namespaces) != 2 || m.Namespaces[0].Name != "demo" {
+	if m.Compact || m.Scope != "cluster" || len(m.Namespaces) != 2 || m.Namespaces[0].Name != "demo" {
 		t.Fatalf("namespaces: %+v", m.Namespaces)
 	}
 	d := m.Namespaces[0]
@@ -91,17 +93,73 @@ func TestBuild(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	var pods []*unstructured.Unstructured
-	for i := 0; i < MaxWorkloads+10; i++ {
-		pods = append(pods, pod(t, fmt.Sprintf("p%d", i), "", "", "Running", ""))
+// barePods builds n Running bare pods in namespace demo without YAML parsing (fast enough for 25k).
+func barePods(n int, labels map[string]any) []*unstructured.Unstructured {
+	out := make([]*unstructured.Unstructured, n)
+	for i := range out {
+		out[i] = &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "v1", "kind": "Pod",
+			"metadata": map[string]any{"name": fmt.Sprintf("p%d", i), "namespace": "demo", "uid": fmt.Sprintf("u%d", i), "labels": labels},
+			"spec":     map[string]any{"containers": []any{map[string]any{"name": "c"}}},
+			"status": map[string]any{"phase": "Running", "containerStatuses": []any{
+				map[string]any{"name": "c", "ready": true, "restartCount": int64(0), "state": map[string]any{"running": map[string]any{}}},
+			}},
+		}}
 	}
-	m := Build(Input{Pods: pods})
+	return out
+}
+
+func count(m *ClusterMap) int {
 	n := 0
-	for _, a := range m.Namespaces[0].Apps {
-		n += len(a.Workloads)
+	for _, ns := range m.Namespaces {
+		for _, a := range ns.Apps {
+			n += len(a.Workloads)
+		}
 	}
-	if !m.Truncated || n != MaxWorkloads {
+	return n
+}
+
+func TestTruncate(t *testing.T) {
+	if MaxWorkloads < 25000 {
+		t.Fatalf("MaxWorkloads = %d, the WebGL map needs at least 25000", MaxWorkloads)
+	}
+	m := Build(Input{Pods: barePods(MaxWorkloads+10, nil)})
+	if n := count(m); !m.Truncated || n != MaxWorkloads {
 		t.Fatalf("truncated=%v n=%d", m.Truncated, n)
+	}
+	if !m.Compact {
+		t.Fatal("a truncated map is above CompactAbove and must be compact")
+	}
+}
+
+func TestCompact(t *testing.T) {
+	svc := []*unstructured.Unstructured{obj(t, `{kind: Service, metadata: {name: web-svc, namespace: demo}, spec: {selector: {app: web}}}`)}
+	small := Build(Input{Pods: barePods(CompactAbove, map[string]any{"app": "web"}), Services: svc})
+	if small.Compact || count(small) != CompactAbove {
+		t.Fatalf("small map: compact=%v n=%d", small.Compact, count(small))
+	}
+	w := small.Namespaces[0].Apps[0].Workloads[0]
+	if w.Status == "" || len(w.Services) != 1 || w.Ready != "1/1" {
+		t.Fatalf("small map keeps the optional fields: %+v", w)
+	}
+
+	big := Build(Input{Pods: barePods(CompactAbove+1, map[string]any{"app": "web"}), Services: svc})
+	if !big.Compact || big.Truncated || count(big) != CompactAbove+1 {
+		t.Fatalf("big map: compact=%v truncated=%v n=%d", big.Compact, big.Truncated, count(big))
+	}
+	b, err := json.Marshal(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	if strings.Contains(js, `"status"`) || strings.Contains(js, `"services":[`) || !strings.Contains(js, `"compact":true`) {
+		t.Fatalf("compact JSON still has optional fields: %.300s", js)
+	}
+	w = big.Namespaces[0].Apps[0].Workloads[0]
+	if w.Ready != "1/1" || w.Health != "ok" || w.Pods.Total != 1 || w.Kind != "Pod" {
+		t.Fatalf("compact keeps the required fields: %+v", w)
+	}
+	if big.Namespaces[0].Services != 1 {
+		t.Fatalf("namespace counts stay: %+v", big.Namespaces[0])
 	}
 }

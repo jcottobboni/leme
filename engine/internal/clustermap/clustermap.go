@@ -13,7 +13,12 @@ import (
 )
 
 // MaxWorkloads caps the response size; the rest is dropped and Truncated is set.
-const MaxWorkloads = 5000
+const MaxWorkloads = 25000
+
+// CompactAbove is the workload count from which the response is compacted: the optional per-workload
+// fields only shown in the tooltip (status text and service names) are omitted and Compact is set.
+// It matches the default WebGL threshold of the UI.
+const CompactAbove = 1500
 
 // HealthCount counts pods per health (neutral ones only add to Total).
 type HealthCount struct {
@@ -70,6 +75,7 @@ type ClusterMap struct {
 	Scope      string            `json:"scope"` // "cluster" or the namespace
 	Namespaces []Namespace       `json:"namespaces"`
 	Truncated  bool              `json:"truncated,omitempty"`
+	Compact    bool              `json:"compact,omitempty"` // optional workload fields omitted (see CompactAbove)
 	Errors     map[string]string `json:"errors,omitempty"`
 }
 
@@ -324,7 +330,7 @@ func Build(in Input) *ClusterMap {
 	if out.Namespaces == nil {
 		out.Namespaces = []Namespace{}
 	}
-	truncate(out)
+	compact(out, truncate(out))
 	return out
 }
 
@@ -335,8 +341,25 @@ func annotationsOf(u *unstructured.Unstructured) map[string]string {
 	return u.GetAnnotations()
 }
 
-// truncate drops workloads past MaxWorkloads, namespace by namespace in order.
-func truncate(m *ClusterMap) {
+// compact drops the optional tooltip-only fields when the map has more than CompactAbove workloads.
+func compact(m *ClusterMap, n int) {
+	if n <= CompactAbove {
+		return
+	}
+	m.Compact = true
+	for i := range m.Namespaces {
+		for j := range m.Namespaces[i].Apps {
+			ws := m.Namespaces[i].Apps[j].Workloads
+			for k := range ws {
+				ws[k].Status = ""
+				ws[k].Services = nil
+			}
+		}
+	}
+}
+
+// truncate drops workloads past MaxWorkloads, namespace by namespace in order, and returns how many are kept.
+func truncate(m *ClusterMap) int {
 	left := MaxWorkloads
 	for i := range m.Namespaces {
 		apps := m.Namespaces[i].Apps
@@ -355,6 +378,7 @@ func truncate(m *ClusterMap) {
 		}
 		m.Namespaces[i].Apps = kept
 	}
+	return MaxWorkloads - left
 }
 
 // IsSystem reports whether a namespace is platform-owned (used by tests and callers wanting the same rule as the UI).
