@@ -78,11 +78,11 @@ func tools(env *Env) []tool {
 			run:         env.listContexts},
 		{Name: "list_resources", Annotations: ro,
 			Description: "List objects of a kind (names and a short status, at most 200)." + untrusted,
-			InputSchema: objSchema(map[string]any{"kind": str("Kind, plural or short name, e.g. Deployment, pods, svc"), "group": str("API group, only to disambiguate"), "namespace": str("Namespace; empty lists all namespaces"), "labelSelector": str("Label selector, e.g. app=web")}, "kind"),
+			InputSchema: objSchema(map[string]any{"kind": str("Kind, plural or short name, e.g. Deployment, pods, svc"), "group": str(groupHelp), "namespace": str("Namespace; empty lists all namespaces"), "labelSelector": str("Label selector, e.g. app=web")}, "kind"),
 			run:         env.listResources},
 		{Name: "get_resource", Annotations: ro,
 			Description: "Get one object as YAML. Secret and ConfigMap values, env var values and managedFields are removed before it reaches you." + untrusted,
-			InputSchema: objSchema(map[string]any{"kind": str("Kind, plural or short name"), "group": str("API group, only to disambiguate"), "namespace": str("Namespace (namespaced kinds)"), "name": str("Object name")}, "kind", "name"),
+			InputSchema: objSchema(map[string]any{"kind": str("Kind, plural or short name"), "group": str(groupHelp), "namespace": str("Namespace (namespaced kinds)"), "name": str("Object name")}, "kind", "name"),
 			run:         env.getResource},
 		{Name: "get_events", Annotations: ro,
 			Description: "List recent events of a namespace, optionally only those of one object (most recent first, at most 100)." + untrusted,
@@ -94,7 +94,7 @@ func tools(env *Env) []tool {
 			run:         env.getLogs},
 		{Name: "diagnose", Annotations: ro,
 			Description: "Run Leme's rule-based diagnosis on an object (and what belongs to it) or on a whole namespace. Returns findings with evidence and a suggestion. Start here when something is broken." + untrusted,
-			InputSchema: objSchema(map[string]any{"namespace": str("Namespace; empty with no kind diagnoses the whole cluster"), "kind": str("Object kind (optional; with name diagnoses one object)"), "group": str("API group, only to disambiguate"), "name": str("Object name (optional)")}),
+			InputSchema: objSchema(map[string]any{"namespace": str("Namespace; empty with no kind diagnoses the whole cluster"), "kind": str("Object kind (optional; with name diagnoses one object)"), "group": str(groupHelp), "name": str("Object name (optional)")}),
 			run:         env.diagnose},
 		{Name: "can_i", Annotations: ro,
 			Description: "Check with SelfSubjectAccessReview whether the current credentials may perform a verb on a resource.",
@@ -104,7 +104,7 @@ func tools(env *Env) []tool {
 			Description: "Step 1 of 2 for changing an existing object with a JSON merge patch (RFC 7386; null removes a key). Never creates or deletes. Not available for Secrets, RBAC, ServiceAccounts, Namespaces or CRDs, and ConfigMap contents cannot change. " +
 				"Returns a diff, whether the API server accepted it in dry-run, and (only when the user enabled agent writes for this context in the Leme app) a single-use token valid for 10 minutes. " +
 				"You MUST show the diff and the summary to the user and get their explicit approval before calling apply_change; never apply on your own initiative." + untrusted,
-			InputSchema: objSchema(map[string]any{"group": str("API group of the object (empty for core)"), "kind": str("Kind, e.g. Deployment"), "namespace": str("Namespace"), "name": str("Object name"), "merge_patch": map[string]any{"type": "object", "description": "JSON merge patch relative to the current object, e.g. {\"metadata\":{\"labels\":{\"x\":\"y\"}}}"}, "summary": str("One sentence explaining the change to the user")}, "kind", "name", "merge_patch", "summary"),
+			InputSchema: objSchema(map[string]any{"group": str(groupHelp), "kind": str("Kind, e.g. Deployment"), "namespace": str("Namespace"), "name": str("Object name"), "merge_patch": map[string]any{"type": "object", "description": "JSON merge patch relative to the current object, e.g. {\"metadata\":{\"labels\":{\"x\":\"y\"}}}"}, "summary": str("One sentence explaining the change to the user")}, "kind", "name", "merge_patch", "summary"),
 			run:         env.proposeChange},
 		{Name: "apply_change",
 			Description: "Step 2 of 2: applies a proposal made by propose_change, after a server-side dry-run. Only call it after the user explicitly approved the diff in this conversation. Refused unless the user enabled agent writes for the context in the Leme app; fails if the object changed since the proposal. The token is single-use.",
@@ -125,28 +125,53 @@ func jsonText(v any) (string, error) {
 	return string(b), err
 }
 
-// findResource resolves a kind given as Kind, plural resource or short name.
+// coreGroup is how agents name the core API group explicitly ("" means "not given").
+const coreGroup = "core"
+
+const groupHelp = `API group of the kind. Required when the kind exists in several groups (the error lists them); use "core" for the core group`
+
+// findResource resolves a kind given as Kind, plural resource or short name. Without a group the
+// kind must be unambiguous: several CRDs reuse built-in names (Istio Gateway, Longhorn Node), and
+// picking the first match would depend on discovery order.
 func findResource(s *cluster.Session, group, kind string) (cluster.Resource, error) {
 	if kind == "" {
 		return cluster.Resource{}, errors.New("kind is required")
 	}
-	var fuzzy *cluster.Resource
-	rs := s.Resources()
-	for i, r := range rs {
-		if group != "" && r.Group != group {
+	anyGroup := group == ""
+	if group == coreGroup {
+		group = ""
+	}
+	var exact, fuzzy []cluster.Resource
+	for _, r := range s.Resources() {
+		if !anyGroup && r.Group != group {
 			continue
 		}
 		if r.Kind == kind {
-			return r, nil
-		}
-		if fuzzy == nil && (strings.EqualFold(r.Kind, kind) || strings.EqualFold(r.Resource, kind) || contains(r.ShortNames, kind)) {
-			fuzzy = &rs[i]
+			exact = append(exact, r)
+		} else if strings.EqualFold(r.Kind, kind) || strings.EqualFold(r.Resource, kind) || contains(r.ShortNames, kind) {
+			fuzzy = append(fuzzy, r)
 		}
 	}
-	if fuzzy != nil {
-		return *fuzzy, nil
+	matches := exact
+	if len(matches) == 0 {
+		matches = fuzzy
 	}
-	return cluster.Resource{}, fmt.Errorf("unknown kind %q in this cluster", kind)
+	switch {
+	case len(matches) == 1:
+		return matches[0], nil
+	case len(matches) == 0:
+		return cluster.Resource{}, fmt.Errorf("unknown kind %q in this cluster", kind)
+	}
+	groups := make([]string, 0, len(matches))
+	for _, r := range matches {
+		g := r.Group
+		if g == "" {
+			g = coreGroup
+		}
+		groups = append(groups, fmt.Sprintf("%q (%s)", g, r.Kind))
+	}
+	sort.Strings(groups)
+	return cluster.Resource{}, fmt.Errorf("kind %q exists in several API groups: %s; call again with the group argument (%q for the core group)", kind, strings.Join(groups, ", "), coreGroup)
 }
 
 func contains(l []string, v string) bool {
@@ -399,6 +424,9 @@ func (e *Env) canI(ctx context.Context, args json.RawMessage) (string, error) {
 	}
 	if a.Verb == "" || a.Resource == "" {
 		return "", errors.New("verb and resource are required")
+	}
+	if a.Group == coreGroup {
+		a.Group = ""
 	}
 	s, err := e.resolve(ctx, a.Context)
 	if err != nil {
