@@ -62,12 +62,17 @@ func TestKubeconfigRoutes(t *testing.T) {
 	if n := contexts(); n != 1 {
 		t.Fatalf("before: %d contexts", n)
 	}
-	for _, bad := range []string{`{"paths":["relative/dir"]}`, `{"paths":["` + filepath.Join(dir, "gone") + `"]}`, `not json`} {
+	// Bodies are built with json.Marshal: Windows paths carry backslashes.
+	body := func(paths ...string) string {
+		b, _ := json.Marshal(map[string][]string{"paths": paths})
+		return string(b)
+	}
+	for _, bad := range []string{body("relative/dir"), body(filepath.Join(dir, "gone")), `not json`} {
 		if w := put(bad); w.Code != http.StatusBadRequest {
 			t.Fatalf("%s must be refused: %d", bad, w.Code)
 		}
 	}
-	w := put(`{"paths":["` + clients + `","` + clients + `/"," "]}`)
+	w := put(body(clients, clients+string(filepath.Separator), " "))
 	var view struct {
 		Base    []string           `json:"base"`
 		Sources []kubeconfigSource `json:"sources"`
