@@ -10,7 +10,10 @@ import { useRowActions } from '../features/grid/actions'
 import { behaviorOf } from '../features/shell/kinds'
 import { PanelHeader } from './PanelHeader'
 import { ObjectDetails, type ObjectParams } from './ObjectPanel'
-import { ChevronDown, ChevronUp, Columns3, Copy, EllipsisVertical, RotateCw, Search, Square, SquareCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { Braces, ChevronDown, ChevronUp, Columns3, Copy, EllipsisVertical, RotateCw, Search, Square, SquareCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { matchRow, parseFilter, takeGridPreset } from '../features/search/filter'
+import { FILTER_HELP, FilterChips } from '../features/search/FilterChips'
+import { JsonPathDialog } from '../features/search/JsonPathDialog'
 import { absDate, age, bytes, cpu, healthOfStatus } from '../format'
 
 export interface GridParams {
@@ -144,15 +147,44 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const res = findResource(clusterId, group, resource)
   const selectedNs = useApp((s) => s.namespace[clusterId] ?? '')
   const namespace = res?.namespaced ? selectedNs : ''
-  const { columns, rows, loading, error } = useWatch(clusterId, group, resource, namespace, !!res)
+  // M7 RF05: k9s-style search. The label selector runs in the engine (debounced: each change reopens
+  // the watch); the other terms filter here. The palette can hand a query over (`:deploy -l app=web`).
+  const [q, setQ] = useState(() => takeGridPreset(clusterId, group, resource) ?? '')
+  const filter = useMemo(() => parseFilter(q), [q])
+  const [selector, setSelector] = useState(filter.labelSelector)
+  useEffect(() => {
+    if (filter.labelSelector === selector) return
+    const t = setTimeout(() => setSelector(filter.labelSelector), filter.labelSelector ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [filter.labelSelector, selector])
+  useEffect(() => {
+    const onPreset = (e: Event) => {
+      const d = (e as CustomEvent<{ clusterId: string; group: string; resource: string }>).detail
+      if (d.clusterId !== clusterId || d.group !== group || d.resource !== resource) return
+      const text = takeGridPreset(clusterId, group, resource)
+      if (text !== undefined) setQ(text)
+    }
+    window.addEventListener('leme:grid-filter', onPreset)
+    return () => window.removeEventListener('leme:grid-filter', onPreset)
+  }, [clusterId, group, resource])
+  const colKey = `${group}/${resource}`
+  const jpCols = useUi((s) => s.jpCols?.[colKey]) ?? NO_JP
+  const jpExprs = useMemo(() => jpCols.map((c) => c.expr), [jpCols])
+  const [jpOpen, setJpOpen] = useState(false)
+  const watch = useWatch(clusterId, group, resource, namespace, !!res, { labelSelector: selector, cols: jpExprs })
+  const { rows, loading, error, colErrors } = watch
+  // JSONPath columns show the name the user gave them.
+  const columns = useMemo(() => watch.columns.map((c) => {
+    if (!c.key.startsWith('jp:')) return c
+    const p = jpCols.find((j) => `jp:${j.expr}` === c.key)
+    return p ? { ...c, label: p.label } : c
+  }), [watch.columns, jpCols])
   const bkind = res ? behaviorKind(res.group, res.kind) : undefined
   const usage = useMetrics(clusterId, bkind, namespace)
-  const [q, setQ] = useState('')
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const [selected, setSelected] = useState<string>()
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [drawer, setDrawer] = useState<{ uid: string; name: string; namespace?: string }>()
-  const colKey = `${group}/${resource}`
   const hidden = useUi((s) => s.columns[colKey]) ?? DEFAULT_HIDDEN
   const widths = useUi((s) => s.widths[colKey]) ?? NO_WIDTHS
   const drawerW = useUi((s) => s.drawer)
@@ -185,10 +217,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   const visibleCols = useMemo(() => columns.filter((c) => !(c.key === 'namespace' && namespace) && (c.key === 'name' || !hidden.includes(c.key))), [columns, namespace, hidden])
 
   const sorted = useMemo(() => {
-    const f = q.trim().toLowerCase()
-    const list = f
-      ? rows.filter((r) => r.name.toLowerCase().includes(f) || (r.namespace ?? '').includes(f) || Object.entries(r.labels ?? {}).some(([k, v]) => `${k}=${v}`.toLowerCase().includes(f)) || Object.values(r.cells).some((v) => typeof v !== 'object' && String(v ?? '').toLowerCase().includes(f)))
-      : rows.slice()
+    const list = q.trim() ? rows.filter((r) => matchRow(r, filter)) : rows.slice()
     const col = columns.find((c) => c.key === sort.key)
     list.sort((a, b) => {
       let va = col ? cellValue(a, col, usage, bkind) : a.name
@@ -206,7 +235,7 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
       return (String(va ?? '').localeCompare(String(vb ?? ''), undefined, { numeric: true }) || a.name.localeCompare(b.name)) * sort.dir
     })
     return list
-  }, [rows, q, sort, columns, usage, bkind])
+  }, [rows, q, filter, sort, columns, usage, bkind])
 
   const max = useMemo(() => {
     const m = { cpu: 0, memory: 0 }
@@ -314,11 +343,18 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
   }
 
   const columnMenu = (e: React.MouseEvent) =>
-    openMenu(e, columns.filter((c) => c.key !== 'name').map((c) => ({
-      label: c.label,
-      icon: hidden.includes(c.key) ? Square : SquareCheck,
-      onClick: () => useUi.getState().update({ columns: { ...useUi.getState().columns, [colKey]: hidden.includes(c.key) ? hidden.filter((k) => k !== c.key) : [...hidden, c.key] } }),
-    })))
+    openMenu(e, [
+      ...columns.filter((c) => c.key !== 'name').map((c) => ({
+        label: c.label,
+        icon: hidden.includes(c.key) ? Square : SquareCheck,
+        hint: c.key.startsWith('jp:') ? 'JSONPath' : undefined,
+        onClick: () => useUi.getState().update({ columns: { ...useUi.getState().columns, [colKey]: hidden.includes(c.key) ? hidden.filter((k) => k !== c.key) : [...hidden, c.key] } }),
+      })),
+      // Expressions the engine refused are not columns: list them with the error.
+      ...jpCols.filter((c) => colErrors?.[`jp:${c.expr}`]).map((c) => ({ label: `${c.label}: ${colErrors![`jp:${c.expr}`]}`, icon: TriangleAlert, danger: true, hint: 'editar', onClick: () => setJpOpen(true) })),
+      { separator: true },
+      { label: 'Adicionar coluna JSONPath…', icon: Braces, onClick: () => setJpOpen(true) },
+    ])
 
   const startColResize = (e: React.MouseEvent, c: Column) => {
     e.preventDefault()
@@ -386,7 +422,8 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
         actions={[{ key: 'columns', label: 'Colunas', icon: Columns3, iconOnly: true, keep: true, testid: 'grid-columns', onClick: (e) => e && columnMenu(e) }]}>
         <label className="search-box">
           <Search size={14} />
-          <input ref={searchRef} className="search" placeholder="Buscar (/)…" aria-label="Buscar na lista" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input ref={searchRef} className="search" placeholder="Buscar (/)… -l app=web, !texto, /regex/" aria-label="Buscar na lista" title={FILTER_HELP} value={q} onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && q && (e.stopPropagation(), setQ(''))} data-testid="grid-search" />
         </label>
         <span className="count-pill">{sorted.length === rows.length ? `${rows.length} ${rows.length === 1 ? 'item' : 'itens'}` : `${sorted.length} de ${rows.length}`}</span>
         {counts.warn + counts.error > 0 && (
@@ -410,7 +447,15 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
           <button className="link" onClick={() => setChecked(new Set())}>Limpar seleção</button>
         </div>
       )}
+      <FilterChips filter={filter} onChange={setQ} />
       {error && <div className="banner error"><TriangleAlert size={14} />{error}</div>}
+      {colErrors && Object.keys(colErrors).length > 0 && (
+        <div className="banner warn" data-testid="jp-banner">
+          <TriangleAlert size={14} />
+          {Object.keys(colErrors).length === 1 ? 'Uma coluna JSONPath não pôde ser usada' : `${Object.keys(colErrors).length} colunas JSONPath não puderam ser usadas`}: {Object.values(colErrors)[0]}
+          <button className="link" onClick={() => setJpOpen(true)}>Ajustar colunas</button>
+        </div>
+      )}
       <div className="grid-main">
         <div ref={setScrollEl} className={`grid-scroll ${edges.left ? 'sl' : ''} ${edges.right ? 'sr' : ''}`} onScroll={updateEdges} role="grid" aria-rowcount={sorted.length} aria-label={plural(res.kind)}>
           <div className="grid-inner" style={{ minWidth }}>
@@ -497,9 +542,11 @@ export function ResourceGrid({ params }: IDockviewPanelProps<GridParams>) {
         )}
       </div>
       {actions.dialogs}
+      {jpOpen && <JsonPathDialog colKey={colKey} kind={res.kind} errors={colErrors} onClose={() => setJpOpen(false)} />}
     </div>
   )
 }
 
 const DEFAULT_HIDDEN: string[] = []
 const NO_WIDTHS: Record<string, number> = {}
+const NO_JP: { expr: string; label: string }[] = []

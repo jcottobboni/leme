@@ -59,3 +59,4 @@
 .ai-risks b { color: var(--warn); display: inline-flex; gap: 6px; align-items: center; }
 .ai-risks ul { margin: 0; padding-left: 20px; }
 .ai-risks label { display: inline-flex; gap: 6px; align-items: center; }
+.ai-settings .ai-local { background: color-mix(in srgb, var(--ok) 10%, var(--panel)); color: var(--ok-text); }

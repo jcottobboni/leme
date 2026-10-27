@@ -75,6 +75,17 @@ It does not protect against an attacker who already controls your user account o
 
 - **Off by default.** Nothing is sent to an AI provider until you enable the Copilot, and each
   cloud endpoint asks for consent once. Local endpoints (Ollama, localhost) never leave the machine.
+- **Local models (Ollama):** an endpoint counts as local only when its host is loopback
+  (`127.0.0.0/8`, `::1` or `localhost`; names are never resolved, so look-alikes such as
+  `127.0.0.1.example.com` are cloud). Only then is the cloud consent skipped; anonymization stays
+  available (off by default). The installed models are listed by the engine (`GET /api/tags`) and
+  only from a loopback endpoint, without following redirects. An Ollama on another host is treated
+  as a cloud provider.
+- **Exported proposals** ("Exportar proposta") are built from the same proposal the UI shows: the
+  final manifest (without server-owned fields) and the merge patch. Nothing is fetched again and
+  values masked for agents stay masked.
+- **Grid JSONPath columns** are evaluated by the engine on a masked copy of Secrets, with limits on
+  the number and length of expressions, on the values per cell and on the time per evaluation.
 - **What leaves:** sanitized YAML of the object in focus (no Secret values, no ConfigMap values,
   no env values, no managedFields; fields named like credentials, private keys such as a Route's
   TLS key, `--password=` arguments, tokens and annotations of Secrets are masked at any depth),

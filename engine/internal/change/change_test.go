@@ -196,6 +196,18 @@ func TestRedactedView(t *testing.T) {
 	if v := p.View(true).Patch; strings.Contains(v, "hunter2") || !strings.Contains(v, "nginx:1.27-alpine") {
 		t.Fatalf("the agent view must mask env values in the patch: %q", v)
 	}
+	// The manifest to commit has no server-owned fields; agents get it masked.
+	for _, f := range []string{"resourceVersion:", "uid:", "creationTimestamp:", "generation:", "status:"} {
+		if strings.Contains(p.Manifest, f) {
+			t.Fatalf("manifest keeps %s: %s", f, p.Manifest)
+		}
+	}
+	if !strings.Contains(p.Manifest, "image: nginx:1.27-alpine") || !strings.Contains(p.Manifest, "name: broken") {
+		t.Fatalf("manifest: %s", p.Manifest)
+	}
+	if strings.Contains(p.View(true).Manifest, "hunter2") {
+		t.Fatal("the agent view must mask env values in the manifest")
+	}
 	// The stored copy does not follow later edits of the caller's map.
 	patch["spec"] = "changed"
 	if strings.Contains(p.View(true).Patch, "changed") {

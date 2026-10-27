@@ -18,6 +18,16 @@ export interface AISettings {
   anonymize: boolean
   local: boolean
   consented: boolean
+  /** Preset endpoint of a local Ollama (OpenAI-compatible). */
+  ollamaBaseURL?: string
+}
+
+export interface LocalModel {
+  name: string
+  size?: number
+  modified?: string
+  family?: string
+  parameters?: string
 }
 
 export interface ChangeRef {
@@ -33,6 +43,10 @@ export interface Proposal {
   summary: string
   before: string
   after: string
+  /** The JSON merge patch as YAML ("Exportar proposta"). */
+  patch?: string
+  /** The final object without server-owned fields (uid, resourceVersion…), to commit. */
+  manifest?: string
   dryRun: boolean
   dryRunError?: string
   rbacAllowed: boolean
@@ -96,6 +110,8 @@ export const aiApi = {
     await call('POST', '/api/ai/keys', { provider, baseURL, key })
     return 'session'
   },
+  /** Models installed in a local Ollama: read by the engine (GET /api/tags), only from loopback endpoints. */
+  models: (baseURL: string) => call<{ models: LocalModel[] }>('GET', '/api/ai/models?' + new URLSearchParams({ baseURL }).toString()),
   test: () => call<{ text: string; model: string }>('POST', '/api/ai/test'),
   preview: (clusterId: string, req: ChatRequest) => call<{ system: string; user: string; anonymized: boolean; bytes: number; provider: string; endpoint: string }>('POST', `/api/clusters/${clusterId}/ai/preview`, req),
   apply: (clusterId: string, token: string) => call<{ applied: boolean }>('POST', `/api/clusters/${clusterId}/changes/${token}/apply`),

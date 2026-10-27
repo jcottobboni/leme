@@ -66,10 +66,11 @@ type Proposal struct {
 	Ref         Ref       `json:"ref"`
 	Summary     string    `json:"summary"`
 	Source      string    `json:"source"`
-	Before      string    `json:"before"` // YAML
-	After       string    `json:"after"`  // YAML
-	Patch       string    `json:"patch"`  // the JSON merge patch as YAML ("Exportar proposta", M7)
-	DryRun      bool      `json:"dryRun"` // the API server accepted it in dry-run
+	Before      string    `json:"before"`   // YAML
+	After       string    `json:"after"`    // YAML
+	Patch       string    `json:"patch"`    // the JSON merge patch as YAML ("Exportar proposta", M7)
+	Manifest    string    `json:"manifest"` // After without server-owned fields, to commit (M7)
+	DryRun      bool      `json:"dryRun"`   // the API server accepted it in dry-run
 	DryRunError string    `json:"dryRunError,omitempty"`
 	RBACAllowed bool      `json:"rbacAllowed"`
 	Risks       []string  `json:"risks,omitempty"` // what the change adds that widens privileges or exposure
@@ -89,6 +90,7 @@ func (p *Proposal) View(redacted bool) Proposal {
 		if p.patch != nil {
 			v.Patch = render(redact.Object(&unstructured.Unstructured{Object: p.patch}))
 		}
+		v.Manifest = render(exportable(redact.Object(p.after)))
 	}
 	return v
 }
@@ -161,6 +163,7 @@ func (st *Store) ProposeWith(ctx context.Context, s *cluster.Session, ref Ref, p
 	p.Before, p.After = render(p.before), render(p.after)
 	p.patch = copyPatch(patch)
 	p.Patch = render(&unstructured.Unstructured{Object: p.patch})
+	p.Manifest = render(exportable(p.after))
 	if r, err := s.Typed.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authv1.SelfSubjectAccessReview{Spec: authv1.SelfSubjectAccessReviewSpec{
 		ResourceAttributes: &authv1.ResourceAttributes{Namespace: ref.Namespace, Verb: "update", Group: res.Group, Resource: res.Resource, Name: ref.Name},
 	}}, metav1.CreateOptions{}); err == nil {
