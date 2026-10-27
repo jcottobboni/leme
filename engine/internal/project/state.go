@@ -99,7 +99,7 @@ func StateOf(u *unstructured.Unstructured) (WorkloadState, bool) {
 			s.Updated = counter(s.Desired, "status", "updatedReplicas")
 		}
 		s.Available = counter(s.Ready, "status", "availableReplicas")
-		if kind != "Deployment" && (reported || has(u, "status", "replicas")) {
+		if reported || has(u, "status", "replicas") {
 			created, hasCreated = num(u, "status", "replicas"), true
 		}
 	default:
@@ -119,7 +119,11 @@ func StateOf(u *unstructured.Unstructured) (WorkloadState, bool) {
 		s.State, s.Health = StateNoReplicas, "neutral"
 		return s, true
 	}
-	complete := s.Ready >= s.Desired && s.Available >= s.Desired && s.Updated >= s.Desired
+	// Like `kubectl rollout status`: a rollout is only done when no pod of an older revision is left
+	// (status.replicas counts the pods of every ReplicaSet of a Deployment). Otherwise the ready
+	// replicas may all be old ones while the new ones fail.
+	oldPodsLeft := (kind == "Deployment" || kind == "DeploymentConfig") && hasCreated && created > s.Updated
+	complete := s.Ready >= s.Desired && s.Available >= s.Desired && s.Updated >= s.Desired && !oldPodsLeft
 	if paused, _, _ := unstructured.NestedBool(u.Object, "spec", "paused"); paused {
 		s.State, s.Health = StatePaused, "neutral"
 		if !complete {
@@ -130,7 +134,7 @@ func StateOf(u *unstructured.Unstructured) (WorkloadState, bool) {
 	// Only reported facts count as progress: a missing counter is not evidence of a rollout.
 	gen, observed := num(u, "metadata", "generation"), num(u, "status", "observedGeneration")
 	progressing := gen > 0 && observed < gen ||
-		s.Updated < s.Desired ||
+		s.Updated < s.Desired || oldPodsLeft ||
 		hasCreated && created < s.Desired ||
 		hasProg && prog.Status == "True" && prog.Reason != "NewReplicaSetAvailable" ||
 		kind == "StatefulSet" && str(u, "status", "updateRevision") != "" && str(u, "status", "currentRevision") != str(u, "status", "updateRevision")

@@ -88,10 +88,13 @@ func TestWorkloadStates(t *testing.T) {
 		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c, uid: c, generation: 3}, spec: {replicas: 3}, status: {observedGeneration: 3, readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1,
 			conditions: [{type: Progressing, status: "True", reason: ReplicaSetUpdated}]}}`, StateProgressing, "warn"},
 		// Rollout finished, then pods stopped being ready.
-		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c2, uid: c2, generation: 3}, spec: {replicas: 3}, status: {observedGeneration: 3, readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1,
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c2, uid: c2, generation: 3}, spec: {replicas: 3}, status: {observedGeneration: 3, replicas: 3, readyReplicas: 1, updatedReplicas: 3, availableReplicas: 1,
 			conditions: [{type: Progressing, status: "True", reason: NewReplicaSetAvailable}]}}`, StateDegraded, "warn"},
 		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: c3, uid: c3, generation: 3}, spec: {replicas: 2}, status: {observedGeneration: 3, replicas: 2, updatedReplicas: 2,
 			conditions: [{type: Progressing, status: "True", reason: NewReplicaSetAvailable}]}}`, StateDegraded, "error"},
+		// demo/broken while its rollout runs: the only ready pod is the old one, the new one fails.
+		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: d0, uid: d0, generation: 23}, spec: {replicas: 1}, status: {observedGeneration: 23, replicas: 2, updatedReplicas: 1, readyReplicas: 1, availableReplicas: 1, unavailableReplicas: 1,
+			conditions: [{type: Available, status: "True", reason: MinimumReplicasAvailable}, {type: Progressing, status: "True", reason: ReplicaSetUpdated}]}}`, StateProgressing, "warn"},
 		// The demo/broken fixture (nginx:does-not-exist) after progressDeadlineSeconds.
 		{`{apiVersion: apps/v1, kind: Deployment, metadata: {name: d, uid: d, generation: 1}, spec: {replicas: 1}, status: {observedGeneration: 1, replicas: 1, updatedReplicas: 1, unavailableReplicas: 1,
 			conditions: [{type: Available, status: "False", reason: MinimumReplicasUnavailable}, {type: Progressing, status: "False", reason: ProgressDeadlineExceeded, message: "ReplicaSet \"broken-x\" has timed out progressing."}]}}`, StateStuck, "error"},
