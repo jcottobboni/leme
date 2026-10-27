@@ -17,7 +17,8 @@
 ┌──────────────────────── Electron (thin shell) ─────────────────────────┐
 │ main: windows, menus, engine supervision, pop-out windows              │
 │ renderer (React, sandboxed): dockview workspace · virtualized grids ·  │
-│   Monaco (YAML) · xterm.js · React Flow + elkjs (topology) · SVG map · │
+│   Monaco (YAML) · xterm.js · React Flow + elkjs (topology) · SVG map, │
+│   PixiJS/WebGL map above 1,500 workloads (lazy) ·                      │
 │   uPlot (metrics) · canvas timeline · Web Workers for layout           │
 └──────────────▲──────────────────────────────────────▲──────────────────┘
                │ HTTP/JSON (commands, queries)         │ WebSocket (grid deltas,
@@ -38,6 +39,12 @@
 │ timeline   events.k8s.io watch, grouping, retention while open         │
 │ security   own rules, RBAC risks, Polaris/Kubescape/Trivy runners      │
 │ netpol     NetworkPolicy evaluation, flows and simulator               │
+│ analyze    deterministic diagnosis rules (M4)                          │
+│ ai, anonymize, redact, change, audit, mcp   Copilot and agents (M4)    │
+│ traffic    observed edges from Caretta/Hubble metrics in Prometheus    │
+│ argocd     Applications/AppProjects; sync and refresh as proposals     │
+│ grafana    Grafana/Prometheus detection and local port-forwards        │
+│ istio      mTLS resolution, routes, offline istioctl analyze           │
 │ settings   JSON settings (0600)                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```

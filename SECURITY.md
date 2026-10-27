@@ -95,6 +95,22 @@ It does not protect against an attacker who already controls your user account o
 - **Audit:** every question, proposal and apply (Copilot and MCP) is recorded locally in
   `audit.jsonl` (0600) without prompts, answers or object contents.
 
+## Integrations (Argo CD, Grafana, Istio, traffic)
+
+- **Argo CD:** Leme reads `Application`/`AppProject` objects with your kubeconfig and never talks to
+  the Argo CD API or asks for its credentials. Sync and Refresh are change proposals (diff, server
+  dry-run, confirmation, resourceVersion check) under the same write lock; a sync whose destination
+  is another cluster also asks for the Application name. MCP agents cannot apply them.
+- **Grafana and Prometheus:** only services detected by the engine can be opened, through a local
+  port-forward (which needs the write lock, like any port-forward). The window is sandboxed, without
+  preload, with a fresh in-memory session and navigation pinned to the forwarded address. Leme
+  never fills in a login; an admin Secret is only referenced and revealed on explicit request.
+- **Istio:** `istioctl analyze` runs offline (`--use-kube=false`) on YAML exported to a private
+  temporary directory, like the scanners below: no Secrets or ConfigMaps, env values masked,
+  `KUBECONFIG=/dev/null`, isolated `HOME`, 2-minute timeout.
+- **Observed traffic:** PromQL queries only, through the Prometheus you configured. Nothing is
+  installed in the cluster.
+
 ## External scanners
 
 Polaris and Kubescape only see YAML exported to a private temporary directory (`0700`, removed
