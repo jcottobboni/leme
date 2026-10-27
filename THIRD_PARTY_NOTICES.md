@@ -6,7 +6,7 @@ The packaged app ships the full license texts in `resources/licenses/` (Leme's L
 this file, and `THIRD_PARTY_LICENSES-engine.txt` for every Go module linked into the engine) and in
 `resources/renderer-dist/THIRD_PARTY_LICENSES.txt` (every npm package in the UI bundle, fonts
 included). Both lists are generated at build time from what is actually linked or bundled
-(`scripts/go-licenses.sh` and `app/scripts/third-party-licenses.mts`). Electron adds
+(`scripts/go-licenses.mjs` and `app/scripts/third-party-licenses.mts`). Electron adds
 `LICENSE.electron.txt` and `LICENSES.chromium.html`.
 
 ## Engine (Go)

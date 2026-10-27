@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -46,7 +47,10 @@ func lookPath(name string) (string, error) {
 	if home, err := os.UserHomeDir(); err == nil {
 		for _, dir := range []string{filepath.Join(home, ".local", "bin"), "/usr/local/bin", "/opt/homebrew/bin"} {
 			p := filepath.Join(dir, name)
-			if st, err := os.Stat(p); err == nil && !st.IsDir() && st.Mode()&0o111 != 0 {
+			if runtime.GOOS == "windows" {
+				p += ".exe"
+			}
+			if st, err := os.Stat(p); err == nil && !st.IsDir() && (runtime.GOOS == "windows" || st.Mode()&0o111 != 0) {
 				return p, nil
 			}
 		}
@@ -97,10 +101,32 @@ func Export(in Input) (string, error) {
 	return dir, nil
 }
 
+// baseEnv is the minimal environment every scanner starts with: a fixed system PATH and locale on
+// Unix; on Windows, the variables programs need to start at all (system dirs, temp, PATH).
+func baseEnv() []string {
+	switch runtime.GOOS {
+	case "windows":
+		var env []string
+		for _, k := range []string{"SystemRoot", "SystemDrive", "windir", "TEMP", "TMP", "PATH", "PATHEXT", "ProgramData"} {
+			if v, ok := os.LookupEnv(k); ok {
+				env = append(env, k+"="+v)
+			}
+		}
+		return env
+	case "darwin":
+		return []string{"PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8"}
+	default:
+		return []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8"}
+	}
+}
+
 // isolatedEnv keeps scanners from reading the user's kubeconfig or reporting anywhere. Proxies pass
 // through: Kubescape downloads its rules on the first run, often behind a corporate proxy.
 func isolatedEnv(home string) []string {
-	env := []string{"HOME=" + home, "PATH=/usr/local/bin:/usr/bin:/bin", "KUBECONFIG=/dev/null", "KS_SKIP_UPDATE_CHECK=true", "LANG=C.UTF-8"}
+	env := append(baseEnv(), "HOME="+home, "KUBECONFIG="+os.DevNull, "KS_SKIP_UPDATE_CHECK=true")
+	if runtime.GOOS == "windows" {
+		env = append(env, "USERPROFILE="+home) // the home directory Go programs see on Windows
+	}
 	for _, k := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"} {
 		if v, ok := os.LookupEnv(k); ok {
 			env = append(env, k+"="+v)

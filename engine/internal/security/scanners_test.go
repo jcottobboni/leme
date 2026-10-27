@@ -3,6 +3,7 @@ package security
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -82,7 +83,7 @@ func TestExportSkipsSecretsAndStatus(t *testing.T) {
 		t.Fatalf("status/last-applied must be stripped:\n%s", b)
 	}
 	st, _ := os.Stat(dir)
-	if st.Mode().Perm() != 0o700 {
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o700 { // Windows has no Unix mode bits
 		t.Fatalf("export dir mode %v", st.Mode().Perm())
 	}
 }

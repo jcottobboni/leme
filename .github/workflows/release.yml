@@ -1,14 +1,16 @@
-# Builds the Linux packages for a v* tag and publishes a GitHub release that is also a signed APT
-# repository (flat format). https://github.com/jcottobboni/leme/releases/latest/download/ always
-# points at the newest release, so `apt upgrade` picks up new versions on its own.
+# Builds the Linux and Windows packages. On a v* tag it publishes a GitHub release that is also a
+# signed APT repository (flat format): https://github.com/jcottobboni/leme/releases/latest/download/
+# always points at the newest release, so `apt upgrade` picks up new versions on its own.
+# Run it by hand (workflow_dispatch) to build and inspect the packages without publishing.
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   linux:
@@ -25,16 +27,67 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - name: Check the tag matches app/package.json
+        if: startsWith(github.ref, 'refs/tags/')
         run: test "v$(node -p "require('./app/package.json').version")" = "$GITHUB_REF_NAME"
       - run: make deps engine ui licenses
       - run: cd app && npx electron-builder --linux AppImage deb --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            app/release/*.deb
+            app/release/*.AppImage
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build the engine
+        working-directory: engine
+        run: go build -trimpath -ldflags "-s -w" -o bin/leme.exe ./cmd/leme
+      - name: Build the UI and the installer
+        working-directory: app
+        run: |
+          npm ci
+          npx vite build
+          node ../scripts/go-licenses.mjs ../engine/bin/leme.exe ../engine/bin/THIRD_PARTY_LICENSES.txt
+          npx electron-builder --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: app/release/*.exe
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: APT repository index (flat), signed
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p dist && cp app/release/*.deb app/release/*.AppImage dist/
           cd dist
           apt-ftparchive packages . | sed 's#^Filename: \./#Filename: #' > Packages
           gzip -9kn Packages
@@ -51,12 +104,13 @@ jobs:
           gpg --export > leme-archive-keyring.gpg
           gpg --verify InRelease
           rm -rf "$GNUPGHOME"
-          sha256sum *.deb *.AppImage > SHA256SUMS
+          sha256sum *.deb *.AppImage *.exe > SHA256SUMS
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           cd dist
           gh release create "$GITHUB_REF_NAME" --title "Leme ${GITHUB_REF_NAME#v}" --generate-notes --latest \
-            *.deb *.AppImage SHA256SUMS Packages Packages.gz Release InRelease Release.gpg leme-archive-keyring.gpg
+            *.deb *.AppImage *.exe SHA256SUMS Packages Packages.gz Release InRelease Release.gpg leme-archive-keyring.gpg

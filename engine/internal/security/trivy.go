@@ -135,8 +135,8 @@ func (t *Trivy) run(ctx context.Context, image string) ImageReport {
 // trivyEnv passes only what Trivy needs: PATH, HOME (registry logins in ~/.docker) and proxies. Cloud
 // credentials, KUBECONFIG and TRIVY_* settings of the engine's environment are not inherited.
 func trivyEnv() []string {
-	env := []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8"}
-	for _, k := range []string{"HOME", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"} {
+	env := baseEnv()
+	for _, k := range []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"} {
 		if v, ok := os.LookupEnv(k); ok {
 			env = append(env, k+"="+v)
 		}

@@ -40,3 +40,41 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit -p .
       - run: npx vite build
+
+  # The desktop app on every OS: engine unit tests, build, and a smoke test of the real Electron app
+  # (starts the engine, lists fake contexts, keeps the UI state across a restart). No cluster needed.
+  desktop:
+    name: desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Engine unit tests
+        working-directory: engine
+        run: go test ./...
+      - name: Build the engine
+        working-directory: engine
+        run: go build -trimpath -o "bin/leme$([ "$RUNNER_OS" = Windows ] && echo .exe)" ./cmd/leme
+      - name: Build the UI
+        working-directory: app
+        run: npm ci && npx vite build
+      - name: Desktop smoke test
+        working-directory: app
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a npx playwright test e2e/smoke.spec.ts
+          else npx playwright test e2e/smoke.spec.ts; fi

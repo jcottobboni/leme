@@ -45,7 +45,7 @@ scale-lab:
 
 ## License texts of the Go modules linked into the engine (shipped in the packages).
 licenses: engine
-	GO=$(GO) bash scripts/go-licenses.sh engine/bin/leme engine/bin/THIRD_PARTY_LICENSES.txt
+	GO=$(GO) node scripts/go-licenses.mjs engine/bin/leme engine/bin/THIRD_PARTY_LICENSES.txt
 
 dist: licenses ui
 	cd app && npx electron-builder --linux AppImage deb

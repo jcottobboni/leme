@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p .",
     "start": "electron --no-sandbox --ozone-platform-hint=auto .",
     "test:e2e": "playwright test",
-    "dist": "bash ../scripts/go-licenses.sh ../engine/bin/leme ../engine/bin/THIRD_PARTY_LICENSES.txt && electron-builder --linux AppImage deb"
+    "dist": "node ../scripts/go-licenses.mjs ../engine/bin/leme ../engine/bin/THIRD_PARTY_LICENSES.txt && electron-builder --linux AppImage deb"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "5.3.0",
@@ -61,10 +61,6 @@
     ],
     "extraResources": [
       {
-        "from": "../engine/bin/leme",
-        "to": "engine/leme"
-      },
-      {
         "from": "renderer-dist",
         "to": "renderer-dist"
       },
@@ -98,7 +94,13 @@
       "executableArgs": [
         "--ozone-platform-hint=auto"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "extraResources": [
+        {
+          "from": "../engine/bin/leme",
+          "to": "engine/leme"
+        }
+      ]
     },
     "deb": {
       "depends": [
@@ -123,6 +125,53 @@
     },
     "appImage": {
       "artifactName": "leme-${version}.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "executableName": "Leme",
+      "artifactName": "leme-setup-${version}.${ext}",
+      "extraResources": [
+        {
+          "from": "../engine/bin/leme.exe",
+          "to": "engine/leme.exe"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Leme",
+      "license": "../LICENSE"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "artifactName": "leme-${version}-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "../engine/bin/leme",
+          "to": "engine/leme"
+        }
+      ]
     }
   },
   "desktopName": "leme.desktop"
