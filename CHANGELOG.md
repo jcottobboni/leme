@@ -3,14 +3,15 @@
 All notable changes to this project are documented here. Versions follow [SemVer](https://semver.org/);
 while in 0.x, minor versions may change behavior.
 
-## [Unreleased]
+## [0.8.1] - 2026-10-27
 
 ### Added
 - Repository: issue and pull request templates, code of conduct, CODEOWNERS, Dependabot, CodeQL and govulncheck in CI.
 - Releases carry signed build provenance (`gh attestation verify`).
+- Demo GIF in the README, recorded against the kind cluster by `app/scripts/demo-gif.mjs`.
 
 ### Changed
-- `golang.org/x/net` 0.62.0.
+- `golang.org/x/net` 0.62.0; `lucide-react` 1.61.0; GitHub Actions to their current majors (checkout v7, setup-go/node v7, artifacts v7/v8, CodeQL v4, `actions/attest` v4).
 - README: status, and the M7 and M8 features in both languages.
 
 ## [0.8.0] - 2026-10-27

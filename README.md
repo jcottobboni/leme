@@ -17,7 +17,7 @@ and need to be sure they are not about to break production.
 > **Status:** early (v0.x, see the [changelog](CHANGELOG.md)). Linux (`.deb` + APT repository, AppImage) and Windows (installer). The UI is currently in Brazilian
 > Portuguese; English is on the roadmap. [Leia em português](README.pt-BR.md).
 
-![Overview](docs/images/overview.png)
+![Leme demo: overview, cluster map, plugin actions, topology, k9s-style search and security posture, on a read-only cluster](docs/images/demo.gif)
 
 ## Why
 

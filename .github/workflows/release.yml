@@ -130,7 +130,7 @@ jobs:
           sha256sum *.deb *.AppImage *.exe > SHA256SUMS
 
       # Signed build provenance (SLSA): `gh attestation verify <file> --repo jcottobboni/leme`.
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest@v4
         with:
           subject-path: |
             dist/*.deb

@@ -17,7 +17,7 @@ clusters e precisa ter certeza de que não vai quebrar produção.
 > **Status:** inicial (v0.x, veja o [changelog](CHANGELOG.md)). Linux (`.deb` + repositório APT, AppImage) e Windows (instalador). A interface está em português;
 > inglês está no roadmap. [Read in English](README.md).
 
-![Visão geral](docs/images/overview.png)
+![Demonstração do Leme: visão geral, mapa do cluster, ações de plugin, topologia, busca no estilo k9s e postura de segurança, com o cluster em somente leitura](docs/images/demo.gif)
 
 ## Por quê
 

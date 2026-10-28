@@ -83,6 +83,15 @@ theme. It uses the kind cluster plus the fake contexts in `app/e2e/fixtures/swee
 saves a screenshot per screen and writes `report.txt` with page errors, elements sticking out of
 their container or the viewport, and text clipped without an ellipsis.
 
+### README demo
+
+```bash
+make engine ui && cd app && node scripts/demo-gif.mjs
+```
+
+It records a scripted tour against the kind cluster (read-only, only the kind context visible,
+example plugins in a temporary config dir) and writes `docs/images/demo.gif` with ffmpeg.
+
 ## Releases
 
 Bump `app/package.json`, update `CHANGELOG.md`, then tag `vX.Y.Z` on `main`. The release workflow
