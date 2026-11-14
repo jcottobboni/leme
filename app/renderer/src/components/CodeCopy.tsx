@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 
 /** Documentation of the project (opened in the browser). */
-export const DOCS_URL = 'https://github.com/jcottobboni/leme/blob/main/docs'
+export const DOCS_URL = 'https://github.com/JMS-Forge/leme/blob/main/docs'
 
 /** Code block with a copy button, for empty states that teach how to enable something. */
 export function CodeCopy({ text }: { text: string }) {

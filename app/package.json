@@ -46,12 +46,12 @@
     "name": "João Carlos Ottobboni",
     "email": "jcottobboni@gmail.com"
   },
-  "homepage": "https://github.com/jcottobboni/leme",
+  "homepage": "https://github.com/JMS-Forge/leme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jcottobboni/leme.git"
+    "url": "https://github.com/JMS-Forge/leme.git"
   },
-  "bugs": "https://github.com/jcottobboni/leme/issues",
+  "bugs": "https://github.com/JMS-Forge/leme/issues",
   "build": {
     "appId": "io.github.jcottobboni.leme",
     "productName": "Leme",

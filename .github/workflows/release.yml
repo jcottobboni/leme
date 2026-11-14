@@ -1,5 +1,5 @@
 # Builds the Linux and Windows packages. On a v* tag it publishes a GitHub release that is also a
-# signed APT repository (flat format): https://github.com/jcottobboni/leme/releases/latest/download/
+# signed APT repository (flat format): https://github.com/JMS-Forge/leme/releases/latest/download/
 # always points at the newest release, so `apt upgrade` picks up new versions on its own.
 # Run it by hand (workflow_dispatch) to build and inspect the packages without publishing.
 name: release
@@ -129,7 +129,7 @@ jobs:
           rm -rf "$GNUPGHOME"
           sha256sum *.deb *.AppImage *.exe > SHA256SUMS
 
-      # Signed build provenance (SLSA): `gh attestation verify <file> --repo jcottobboni/leme`.
+      # Signed build provenance (SLSA): `gh attestation verify <file> --repo JMS-Forge/leme`.
       - uses: actions/attest@v4
         with:
           subject-path: |

@@ -1,11 +1,11 @@
 # Leme
 
-[![CI](https://github.com/jcottobboni/leme/actions/workflows/ci.yml/badge.svg)](https://github.com/jcottobboni/leme/actions/workflows/ci.yml)
-[![E2E](https://github.com/jcottobboni/leme/actions/workflows/e2e.yml/badge.svg)](https://github.com/jcottobboni/leme/actions/workflows/e2e.yml)
-[![Release](https://img.shields.io/github/v/release/jcottobboni/leme?sort=semver)](https://github.com/jcottobboni/leme/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/jcottobboni/leme/total)](https://github.com/jcottobboni/leme/releases)
-[![License](https://img.shields.io/github/license/jcottobboni/leme)](LICENSE)
-[![Go](https://img.shields.io/github/go-mod/go-version/jcottobboni/leme?filename=engine%2Fgo.mod)](engine/go.mod)
+[![CI](https://github.com/JMS-Forge/leme/actions/workflows/ci.yml/badge.svg)](https://github.com/JMS-Forge/leme/actions/workflows/ci.yml)
+[![E2E](https://github.com/JMS-Forge/leme/actions/workflows/e2e.yml/badge.svg)](https://github.com/JMS-Forge/leme/actions/workflows/e2e.yml)
+[![Release](https://img.shields.io/github/v/release/JMS-Forge/leme?sort=semver)](https://github.com/JMS-Forge/leme/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/JMS-Forge/leme/total)](https://github.com/JMS-Forge/leme/releases)
+[![License](https://img.shields.io/github/license/JMS-Forge/leme)](LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/JMS-Forge/leme?filename=engine%2Fgo.mod)](engine/go.mod)
 ![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows-informational)
 
 *Steer your clusters, safely.*
@@ -74,10 +74,10 @@ and need to be sure they are not about to break production.
 ### APT (Debian, Ubuntu and derivatives), with automatic updates
 
 ```bash
-curl -fsSL https://github.com/jcottobboni/leme/releases/latest/download/leme-archive-keyring.gpg -o leme.gpg
+curl -fsSL https://github.com/JMS-Forge/leme/releases/latest/download/leme-archive-keyring.gpg -o leme.gpg
 gpg --show-keys --with-colons leme.gpg | grep -q '^fpr:::::::::8230020B4E3AB4337EBE0D9588ED1FDA269D1375:' \
   && sudo install -m 644 leme.gpg /usr/share/keyrings/leme-archive-keyring.gpg && rm leme.gpg
-echo "deb [signed-by=/usr/share/keyrings/leme-archive-keyring.gpg] https://github.com/jcottobboni/leme/releases/latest/download/ ./" \
+echo "deb [signed-by=/usr/share/keyrings/leme-archive-keyring.gpg] https://github.com/JMS-Forge/leme/releases/latest/download/ ./" \
   | sudo tee /etc/apt/sources.list.d/leme.list
 sudo apt update && sudo apt install leme
 ```
@@ -87,7 +87,7 @@ New versions arrive with `sudo apt upgrade`. The repository is signed with the k
 
 ### Windows
 
-Download `leme-setup-<version>.exe` from the [latest release](https://github.com/jcottobboni/leme/releases/latest) and run it
+Download `leme-setup-<version>.exe` from the [latest release](https://github.com/JMS-Forge/leme/releases/latest) and run it
 (per-user install, no admin rights needed). The installer is not code-signed yet, so Windows
 SmartScreen asks for confirmation the first time: **More info → Run anyway**.
 
@@ -98,9 +98,9 @@ needs Apple code signing and notarization.
 
 ### Manual (Linux)
 
-Download the `.deb` or AppImage from the [releases page](https://github.com/jcottobboni/leme/releases) and check it against `SHA256SUMS`.
+Download the `.deb` or AppImage from the [releases page](https://github.com/JMS-Forge/leme/releases) and check it against `SHA256SUMS`.
 From 0.8.1 on, every package also carries a signed build provenance:
-`gh attestation verify leme_<version>_amd64.deb --repo jcottobboni/leme`.
+`gh attestation verify leme_<version>_amd64.deb --repo JMS-Forge/leme`.
 
 ```bash
 sudo apt install ./leme_<version>_amd64.deb
